@@ -412,7 +412,7 @@ const TOTD_TOPICS = [
 
 function createTopicOfTheDay() {
   const topic = TOTD_TOPICS[Math.floor(Math.random() * TOTD_TOPICS.length)]
-  const duration = 30 * 60
+  const duration = 24 * 60 * 60 // 24 hours in seconds
   rooms['topic_of_the_day'] = {
     instanceId: 'topic_of_the_day',
     type: 'topic_of_the_day',
@@ -670,6 +670,8 @@ socket.on('join_topic_of_day', ({ username }) => {
   socket.join('topic_of_the_day')
   room.players[socket.id] = { username, score: 0, elo: 0 }
 
+  const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
+
   socket.emit('message_history', room.messages)
   socket.emit('room_info', {
     instanceId: 'topic_of_the_day',
@@ -679,11 +681,12 @@ socket.on('join_topic_of_day', ({ username }) => {
     duration: room.duration,
     status: 'active',
     isSpectator: false,
-    timeLeft: Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000)),
+    timeLeft,
   })
+  socket.emit('totd_info', { topic: room.topic, emoji: room.emoji, timeLeft })
   io.to('topic_of_the_day').emit('players_update', Object.values(room.players))
   io.to('topic_of_the_day').emit('system_message', { text: `${username} joined` })
-  console.log(`💬 ${username} joined Topic of the Day`)
+  console.log(`💬 ${username} joined Topic of the Day — "${room.topic}"`)
 })
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]

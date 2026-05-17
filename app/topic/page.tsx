@@ -2,17 +2,18 @@
 import { useEffect, useState, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useAuth } from '../context/AuthContext'
-import { useRouter } from 'next/navigation'
 import Nav from '../components/Nav'
 
 function fmt(s: number) {
-  const m = Math.floor(s / 60), sec = s % 60
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}h ${m}m`
   return `${m}:${sec < 10 ? '0' : ''}${sec}`
 }
 
 export default function TopicPage() {
   const { user, profile } = useAuth()
-  const router = useRouter()
   const [topic, setTopic] = useState('')
   const [emoji, setEmoji] = useState('🔥')
   const [timeLeft, setTimeLeft] = useState(0)
@@ -24,8 +25,10 @@ export default function TopicPage() {
   const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const cooldownRef = useRef<any>(null)
-
-  const username = profile?.username || ('guest' + Math.floor(1000 + Math.random() * 9000))
+  const usernameRef = useRef<string>(
+    profile?.username || ('guest' + Math.floor(1000 + Math.random() * 9000))
+  )
+  const username = usernameRef.current
 
   useEffect(() => {
     const s = io('https://rebuttal-live-production-3388.up.railway.app', {
@@ -35,7 +38,7 @@ export default function TopicPage() {
 
     s.on('connect', () => {
       setConnected(true)
-      s.emit('join_room', { instanceId: 'topic_of_the_day', username, elo: profile?.elo ?? 0 })
+      s.emit('join_topic_of_day', { username })
     })
     s.on('disconnect', () => setConnected(false))
 
@@ -46,16 +49,25 @@ export default function TopicPage() {
       setMessages(prev => [...prev, {
         id: `sys-${Date.now()}`,
         username: '— system —',
-        text,
-        score: 0,
-        aiFeedback: '',
-        timestamp: Date.now(),
+        text, score: 0, aiFeedback: '', timestamp: Date.now(),
       }])
     })
     s.on('room_info', (info: any) => {
-      setTopic(info.topic)
-      setEmoji(info.emoji)
+      if (info.topic) setTopic(info.topic)
+      if (info.emoji) setEmoji(info.emoji)
       if (info.timeLeft) setTimeLeft(info.timeLeft)
+    })
+    s.on('totd_info', ({ topic, emoji, timeLeft }: any) => {
+      setTopic(topic)
+      setEmoji(emoji)
+      setTimeLeft(timeLeft)
+    })
+    s.on('topic_reset', (room: any) => {
+      setTopic(room.topic)
+      setEmoji(room.emoji)
+      setTimeLeft(Math.round((room.debateEndsAt - Date.now()) / 1000))
+      setMessages([])
+      setPlayers([])
     })
 
     return () => { s.disconnect() }
@@ -105,13 +117,12 @@ export default function TopicPage() {
             <div style={{
               fontFamily: 'var(--font-bebas)', fontSize: '28px', letterSpacing: '3px',
               color: 'var(--accent)',
-              textShadow: '0 0 20px rgba(230,57,70,0.6), 0 0 40px rgba(230,57,70,0.3)',
               animation: 'glow 2s ease-in-out infinite alternate'
             }}>
               🔥 TOPIC OF THE DAY
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: timeLeft < 300 ? 'var(--accent)' : 'var(--green)', letterSpacing: '2px' }}>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: timeLeft < 3600 ? 'var(--accent)' : 'var(--green)', letterSpacing: '2px' }}>
                 {fmt(timeLeft)}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '3px 10px' }}>
@@ -119,9 +130,13 @@ export default function TopicPage() {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
-            {emoji} {topic}
-          </div>
+          {topic ? (
+            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+              {emoji} {topic}
+            </div>
+          ) : (
+            <div style={{ fontSize: '14px', color: 'var(--muted)' }}>Connecting...</div>
+          )}
         </div>
 
         <div style={{ flex: 1, display: 'flex', gap: '16px', overflow: 'hidden', paddingTop: '12px', paddingBottom: '12px' }}>
@@ -129,10 +144,20 @@ export default function TopicPage() {
           {/* Chat */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '8px' }}>
+              {messages.length === 0 && (
+                <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', padding: '40px 0' }}>
+                  No arguments yet — be the first to weigh in!
+                </div>
+              )}
               {messages.map(msg => {
                 const isSystem = msg.username === '— system —'
                 if (isSystem) return (
-                  <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: 'var(--muted)', padding: '2px 0' }}>
+                  <div key={msg.id} style={{
+                    textAlign: 'center', fontSize: '11px',
+                    color: msg.text.includes('NO COPY') ? 'var(--red)' : 'var(--muted)',
+                    fontWeight: msg.text.includes('NO COPY') ? 700 : 400,
+                    padding: '2px 0'
+                  }}>
                     — {msg.text} —
                   </div>
                 )
@@ -178,13 +203,13 @@ export default function TopicPage() {
                     score: 0, aiFeedback: '', timestamp: Date.now(),
                   }])
                 }}
-                disabled={cooldown > 0 || !connected || timeLeft <= 0}
-                placeholder={timeLeft <= 0 ? 'Debate has ended' : cooldown > 0 ? `Cooldown — ${cooldown}s` : 'Make your argument...'}
-                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 || timeLeft <= 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
+                disabled={cooldown > 0 || !connected}
+                placeholder={!connected ? 'Connecting...' : cooldown > 0 ? `Cooldown — ${cooldown}s` : 'Make your argument...'}
+                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
               />
               <button
                 onClick={sendMessage}
-                disabled={cooldown > 0 || !input.trim() || !connected || timeLeft <= 0}
+                disabled={cooldown > 0 || !input.trim() || !connected}
                 style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: cooldown > 0 ? 'not-allowed' : 'pointer', opacity: cooldown > 0 || !input.trim() ? 0.4 : 1, fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}
               >
                 Rebut ⚡
@@ -225,7 +250,6 @@ export default function TopicPage() {
           from { text-shadow: 0 0 10px rgba(230,57,70,0.4), 0 0 20px rgba(230,57,70,0.2); }
           to { text-shadow: 0 0 20px rgba(230,57,70,0.8), 0 0 40px rgba(230,57,70,0.4), 0 0 60px rgba(230,57,70,0.2); }
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </>
   )
