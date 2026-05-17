@@ -9,14 +9,34 @@ const app = express()
 app.use(cors())
 const httpServer = http.createServer(app)
 const openai = new OpenAI.OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-const { createClient } = require('@supabase/supabase-js')
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
+
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 })
+
+// ─── Supabase REST helper (no client needed — works on Node 18) ─
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+async function supabaseRest(path, method = 'GET', body = null) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      method,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: body ? JSON.stringify(body) : null
+    })
+    if (method === 'GET') return res.json()
+    return res
+  } catch (e) {
+    console.log('Supabase REST error:', e.message)
+    return null
+  }
+}
 
 const TARGET_AVAILABLE = 4
 const DISTRIBUTION = { casual: 0.25, serious: 0.50, competitive: 0.15, random: 0.10 }
@@ -380,6 +400,7 @@ setInterval(() => {
       if (timeLeft <= 0) {
         room.status = 'ended'
         totalDebatesCompleted++
+        supabaseRest('rpc/increment_debates', 'POST').catch(() => {})
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
         const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
         io.to(room.instanceId).emit('debate_ended', {
@@ -454,23 +475,22 @@ io.on('connection', (socket) => {
 
   socket.emit('rooms_update', getRoomList())
 
-socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
-  // ✅ Prevent joining multiple rooms at once
-  const alreadyInRoom = Object.values(rooms).some(r =>
-    r.status !== 'ended' && Object.values(r.players).some(p => p.username === username)
-  )
-  if (alreadyInRoom) {
-    socket.emit('error', { message: 'You are already in a debate in another tab. Please close it first.' })
-    return
-  }
+  socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
+    const alreadyInRoom = Object.values(rooms).some(r =>
+      r.status !== 'ended' && Object.values(r.players).some(p => p.username === username)
+    )
+    if (alreadyInRoom) {
+      socket.emit('error', { message: 'You are already in a debate in another tab. Please close it first.' })
+      return
+    }
 
-  const room = rooms[instanceId]
-  if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
-  if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
-  if (room.status === 'active') {
-    socket.emit('join_as_spectator', { instanceId })
-    return
-  }
+    const room = rooms[instanceId]
+    if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
+    if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
+    if (room.status === 'active') {
+      socket.emit('join_as_spectator', { instanceId })
+      return
+    }
     if (elo < room.eloRequired) { socket.emit('error', { message: `You need ${room.eloRequired}+ ELO to join.` }); return }
     if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Room is full.' }); return }
 
@@ -519,20 +539,20 @@ socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-socket.on('send_message', async ({ instanceId, username, text }) => {
-  const room = rooms[instanceId]
-  if (!room || room.status !== 'active') return
-  if (isSpectator) return
+  socket.on('send_message', async ({ instanceId, username, text }) => {
+    const room = rooms[instanceId]
+    if (!room || room.status !== 'active') return
+    if (isSpectator) return
 
-  totalArgumentsMade++
-  supabaseAdmin.rpc('increment_arguments').then(() => {})
+    totalArgumentsMade++
+    supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
 
-  const { score, feedback } = await scoreArgument(text, room.topic, room.type)
-  const msg = {
-    id: `${Date.now()}-${Math.random()}`,
-    username, text, score, aiFeedback: feedback,
-    timestamp: Date.now(),
-  }
+    const { score, feedback } = await scoreArgument(text, room.topic, room.type)
+    const msg = {
+      id: `${Date.now()}-${Math.random()}`,
+      username, text, score, aiFeedback: feedback,
+      timestamp: Date.now(),
+    }
     room.messages.push(msg)
     const player = room.players[socket.id]
     if (player) player.score += score
@@ -556,11 +576,15 @@ socket.on('send_message', async ({ instanceId, username, text }) => {
 
 // ─── Boot ──────────────────────────────────────────────────────
 async function boot() {
-  const { data } = await supabaseAdmin.from('stats').select('*').eq('id', 1).single()
-  if (data) {
-    totalArgumentsMade = Number(data.arguments_made)
-    totalDebatesCompleted = Number(data.debates_completed)
-    console.log(`📊 Loaded stats: ${totalArgumentsMade} arguments, ${totalDebatesCompleted} debates`)
+  try {
+    const data = await supabaseRest('stats?id=eq.1&select=arguments_made,debates_completed')
+    if (data?.[0]) {
+      totalArgumentsMade = Number(data[0].arguments_made)
+      totalDebatesCompleted = Number(data[0].debates_completed)
+      console.log(`📊 Loaded stats: ${totalArgumentsMade} arguments, ${totalDebatesCompleted} debates`)
+    }
+  } catch (e) {
+    console.log('Could not load stats:', e.message)
   }
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
