@@ -38,20 +38,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    // 1. Immediately check session on mount — this is the fast path
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (session?.user) {
         setUser(session.user)
         fetchProfile(session.user.id)
       }
-      setLoading(false) // ✅ always unblock after first check
+      setLoading(false)
     })
 
-    // 2. Then keep listening for changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
-      if (event === 'INITIAL_SESSION') return // ✅ skip — already handled above
+      if (event === 'INITIAL_SESSION') return
       if (session?.user) {
         setUser(session.user)
         fetchProfile(session.user.id)

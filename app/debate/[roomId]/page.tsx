@@ -80,49 +80,41 @@ export default function DebatePage() {
   const myScore = players.find(p => p.username === myUsername)?.score ?? 0
   const cooldownTime = players.length <= 6 ? 15 : 30
 
+  // ✅ Set username only after auth has resolved
   useEffect(() => {
     if (loading) return
-    if (guestParam) { setMyUsername(guestParam); return }
-    if (profile?.username) { setMyUsername(profile.username); setMyElo(profile.elo ?? 0); return }
-    setMyUsername('guest' + Math.floor(1000 + Math.random() * 9000))
+    if (guestParam) {
+      setMyUsername(guestParam)
+      return
+    }
+    if (profile?.username) {
+      setMyUsername(profile.username)
+      setMyElo(profile.elo ?? 0)
+      return
+    }
+    if (!user) {
+      setMyUsername('guest' + Math.floor(1000 + Math.random() * 9000))
+    }
   }, [loading, profile, user, guestParam])
 
+  // ✅ Connect socket only once username is set
   useEffect(() => {
     if (!myUsername) return
-  const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
-socket.on('connect', () => {
-  setConnected(true)
-  const username = myUsernameRef.current
-  if (username) {
-    socket.emit('join_room', { instanceId, username, elo: myElo })
-    console.log('Joining as:', username)
-  } else {
-    // Username not ready yet — wait for it
-    const interval = setInterval(() => {
-      const u = myUsernameRef.current
-      if (u) {
-        clearInterval(interval)
-        socket.emit('join_room', { instanceId, username: u, elo: myElo })
-        console.log('Joining as (delayed):', u)
-      }
-    }, 100)
-    // Clear after 3 seconds max
-    setTimeout(() => clearInterval(interval), 3000)
-  }
-})
-socket.on('connect', () => {
-  setConnected(true)
-  const username = myUsernameRef.current
-  if (username) {
-    socket.emit('join_room', { instanceId, username, elo: myElo })
-    console.log('Joining room as:', username)
-  }
-})
 
-// If already connected when username becomes available, join then
-if (socket.connected && myUsernameRef.current) {
-  socket.emit('join_room', { instanceId, username: myUsernameRef.current, elo: myElo })
-}
+    const socket = io('https://rebuttal-live-production-3388.up.railway.app', {
+      transports: ['websocket', 'polling']
+    })
+
+    // ✅ Assign to ref immediately
+    socketRef.current = socket
+
+    // ✅ Single connect handler
+    socket.on('connect', () => {
+      setConnected(true)
+      console.log('Connected, joining as:', myUsername)
+      socket.emit('join_room', { instanceId, username: myUsername, elo: myElo })
+    })
+
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('message_history', (msgs: Message[]) => {
@@ -131,7 +123,6 @@ if (socket.connected && myUsernameRef.current) {
 
     socket.on('new_message', (msg: Message) => {
       setMessages(prev => {
-        // Remove any pending message from this user and replace with real scored one
         const filtered = prev.filter(m => !(m.pending && m.username === msg.username))
         return [...filtered, msg]
       })
@@ -207,7 +198,6 @@ if (socket.connected && myUsernameRef.current) {
         .eq('id', currentUser.id)
 
       if (error) console.error('ELO save error:', error)
-      else console.log(`ELO: ${currentProfile.elo} → ${newElo} (${change >= 0 ? '+' : ''}${change})`)
     })
 
     socket.on('room_expired', ({ message }: { message: string }) => {
@@ -240,6 +230,7 @@ if (socket.connected && myUsernameRef.current) {
 
     return () => {
       socket.disconnect()
+      socketRef.current = null
       clearInterval(timerRef.current)
       clearInterval(cooldownRef.current)
     }
@@ -256,7 +247,6 @@ if (socket.connected && myUsernameRef.current) {
     const pendingId = `pending-${Date.now()}`
     setPendingMsgId(pendingId)
 
-    // Show pending message immediately
     setMessages(prev => [...prev, {
       id: pendingId,
       username: myUsername,
@@ -267,7 +257,6 @@ if (socket.connected && myUsernameRef.current) {
       pending: true,
     }])
 
-    // Server scores it with AI
     socketRef.current.emit('send_message', { instanceId, username: myUsername, text })
 
     setInput('')
@@ -283,7 +272,6 @@ if (socket.connected && myUsernameRef.current) {
 
   const pct = roomInfo ? (timeLeft / roomInfo.duration) * 100 : 0
 
-  // ── EXPIRED ──────────────────────────────────────────────────
   if (status === 'expired') {
     return (
       <>
@@ -304,7 +292,6 @@ if (socket.connected && myUsernameRef.current) {
     )
   }
 
-  // ── ENDED ─────────────────────────────────────────────────────
   if (status === 'ended') {
     const final = standings.length > 0 ? standings : sortedPlayers
     const myPlace = final.findIndex(p => p.username === myUsername)
@@ -362,7 +349,6 @@ if (socket.connected && myUsernameRef.current) {
     )
   }
 
-  // ── WAITING / STARTING ────────────────────────────────────────
   if (status === 'waiting' || status === 'starting') {
     return (
       <>
@@ -426,13 +412,11 @@ if (socket.connected && myUsernameRef.current) {
     )
   }
 
-  // ── ACTIVE DEBATE ─────────────────────────────────────────────
   return (
     <>
       <Nav active="rebut" />
       <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Top bar */}
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '18px' }}>{roomInfo?.emoji}</span>
@@ -452,7 +436,6 @@ if (socket.connected && myUsernameRef.current) {
           </div>
         </div>
 
-        {/* Score bar */}
         <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
           {sortedPlayers.map((p, i) => (
             <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '5px 10px', flexShrink: 0 }}>
@@ -469,7 +452,6 @@ if (socket.connected && myUsernameRef.current) {
           ))}
         </div>
 
-        {/* Chat */}
         <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', marginTop: '40px' }}>
@@ -501,8 +483,6 @@ if (socket.connected && myUsernameRef.current) {
                   <div style={{ background: isMe ? 'rgba(230,57,70,0.1)' : 'var(--surface)', border: `1px solid ${isMe ? 'rgba(230,57,70,0.25)' : 'var(--border)'}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text)' }}>
                     {msg.text}
                   </div>
-
-                  {/* Score / pending indicator */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                     {isPending ? (
                       <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -535,7 +515,6 @@ if (socket.connected && myUsernameRef.current) {
           })}
         </div>
 
-        {/* Input */}
         <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           {cooldown > 0 && (
             <div style={{ marginBottom: '8px' }}>
