@@ -216,6 +216,15 @@ let pendingRoomCreations = 0
 function createRoom(type) {
   const topic = getTopicForType(type)
   const id = `room_${++roomCounter}_${Date.now()}`
+
+  // ✅ Max players by type
+  const maxPlayers = {
+    casual: Math.floor(Math.random() * 6) + 5,      // 5–10
+    random: Math.floor(Math.random() * 6) + 5,       // 5–10
+    serious: Math.floor(Math.random() * 6) + 10,     // 10–15
+    competitive: Math.floor(Math.random() * 6) + 15, // 15–20
+  }[type] ?? 10
+
   rooms[id] = {
     instanceId: id,
     type,
@@ -223,7 +232,7 @@ function createRoom(type) {
     topic: topic.topic,
     duration: topic.duration,
     eloRequired: topic.eloRequired || 0,
-    maxPlayers: type === 'competitive' ? 10 : 15,
+    maxPlayers,
     players: {},
     spectators: {},
     messages: [],
@@ -233,7 +242,7 @@ function createRoom(type) {
     debateEndsAt: null,
     createdAt: Date.now(),
   }
-  console.log(`🏠 Created ${type} room: "${topic.topic}"`)
+  console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
   return id
 }
 
