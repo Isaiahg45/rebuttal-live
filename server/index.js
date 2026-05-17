@@ -513,11 +513,15 @@ io.on('connection', (socket) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-  socket.on('send_message', async ({ instanceId, username, text }) => {
-    const room = rooms[instanceId]
-    if (!room || room.status !== 'active') return
-    if (isSpectator) return
+socket.on('send_message', async ({ instanceId, username, text }) => {
+  const room = rooms[instanceId]
+  if (!room || room.status !== 'active') return
+  if (isSpectator) return
 
+  totalArgumentsMade++ // ✅ add this line
+room.status = 'ended'
+totalDebatesCompleted++ // ✅ add this line
+const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
     const { score, feedback } = await scoreArgument(text, room.topic, room.type)
     const msg = {
       id: `${Date.now()}-${Math.random()}`,
@@ -568,7 +572,7 @@ app.get('/health', (req, res) => res.json({
 }))
 
 app.get('/stats', (req, res) => res.json({
-  debatersOnline: Object.keys(io.sockets.sockets).length,
+  debatersOnline: io.engine.clientsCount,
   liveDebates: Object.values(rooms).filter(r => r.status === 'active').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
