@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [players, setPlayers] = useState<any[]>([])
 
   useEffect(() => {
     if (loading) return
@@ -23,6 +24,14 @@ export default function ProfilePage() {
     if (!profile?.username) { router.push('/username'); return }
     setNewUsername(profile.username)
   }, [user, profile, loading])
+
+  useEffect(() => {
+    supabase
+      .from('profiles')
+      .select('username, elo')
+      .order('elo', { ascending: false })
+      .then(({ data }) => setPlayers(data ?? []))
+  }, [])
 
   useEffect(() => {
     if (!newUsername || newUsername === profile?.username) { setUsernameAvailable(null); setUsernameError(''); return }
@@ -74,6 +83,7 @@ export default function ProfilePage() {
   }
 
   const initials = profile.username.slice(0, 2).toUpperCase()
+  const myRank = players.findIndex(p => p.username === profile.username) + 1
   const stats = [
     { val: String(profile.elo ?? 0), label: 'ELO', color: 'var(--accent)' },
     { val: String(profile.wins ?? 0), label: 'Wins', color: 'var(--green)' },
@@ -93,7 +103,7 @@ export default function ProfilePage() {
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '30px', letterSpacing: '2px' }}>{profile.username}</div>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,214,10,.08)', border: '1px solid rgba(255,214,10,.2)', borderRadius: '20px', padding: '3px 12px', fontSize: '12px', color: 'var(--gold)', fontWeight: 600, marginTop: '6px' }}>
-                🌍 Rank #214 Globally
+                {profile.elo > 0 && myRank > 0 ? `🌍 Rank #${myRank} Globally` : '🌍 Unranked'}
               </div>
             </div>
             <button onClick={() => setEditing(true)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 16px', color: 'var(--text2)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>

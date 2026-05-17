@@ -244,7 +244,7 @@ export default function RebutPage() {
                 <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)' }}>
                   Available to Join ({filteredAvailable.length})
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '4px' }}>— needs 3+ players to start</span>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '4px' }}>— needs 2+ players to start</span>
               </div>
 
               {filteredAvailable.length === 0 ? (
