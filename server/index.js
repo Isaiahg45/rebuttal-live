@@ -450,14 +450,23 @@ io.on('connection', (socket) => {
 
   socket.emit('rooms_update', getRoomList())
 
-  socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
-    const room = rooms[instanceId]
-    if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
-    if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
-    if (room.status === 'active') {
-      socket.emit('join_as_spectator', { instanceId })
-      return
-    }
+socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
+  // ✅ Prevent joining multiple rooms at once
+  const alreadyInRoom = Object.values(rooms).some(r =>
+    r.status !== 'ended' && Object.values(r.players).some(p => p.username === username)
+  )
+  if (alreadyInRoom) {
+    socket.emit('error', { message: 'You are already in a debate in another tab. Please close it first.' })
+    return
+  }
+
+  const room = rooms[instanceId]
+  if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
+  if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
+  if (room.status === 'active') {
+    socket.emit('join_as_spectator', { instanceId })
+    return
+  }
     if (elo < room.eloRequired) { socket.emit('error', { message: `You need ${room.eloRequired}+ ELO to join.` }); return }
     if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Room is full.' }); return }
 
