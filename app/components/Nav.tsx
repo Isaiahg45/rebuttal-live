@@ -8,7 +8,7 @@ interface NavProps { active: string }
 
 export default function Nav({ active }: NavProps) {
   const router = useRouter()
-  const { user, profile } = useAuth()
+  const { user, profile, loading } = useAuth()
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -42,6 +42,7 @@ export default function Nav({ active }: NavProps) {
         <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '3px', color: 'var(--accent)' }}>REBUTTAL</span>
         <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '3px', color: 'var(--text)' }}>.LIVE</span>
       </Link>
+
       <div style={{ display: 'flex', gap: '4px' }}>
         {tabs.map(tab => (
           <Link key={tab.id} href={tab.href} style={{
@@ -53,8 +54,12 @@ export default function Nav({ active }: NavProps) {
           }}>{tab.label}</Link>
         ))}
       </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px', minWidth: '180px', justifyContent: 'flex-end' }}>
-        {user ? (
+        {/* ✅ Show nothing while auth is loading — no more logged-out flash */}
+        {loading ? (
+          <div style={{ width: '120px', height: '28px', background: 'var(--surface2)', borderRadius: '20px', opacity: 0.3, animation: 'pulse 1.5s infinite' }} />
+        ) : user ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '4px 12px' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
@@ -81,6 +86,7 @@ export default function Nav({ active }: NavProps) {
           </>
         )}
       </div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:0.6} }`}</style>
     </nav>
   )
 }
