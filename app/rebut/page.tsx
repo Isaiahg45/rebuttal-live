@@ -53,7 +53,7 @@ export default function RebutPage() {
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const s = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', { transports: ['websocket', 'polling'] })
+    const s = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     s.on('connect', () => { setConnected(true); console.log('Connected to lobby') })
     s.on('disconnect', () => setConnected(false))
     s.on('rooms_update', (data: RoomData[]) => setRooms(data))
