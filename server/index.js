@@ -572,7 +572,9 @@ totalArgumentsMade++ // ✅ track every argument
 })
 
 // ─── Boot ──────────────────────────────────────────────────────
-function boot() {
+function boot()
+app.get("/health", (req, res) => res.json({ status: "ok", available: getAvailableCount(), ongoing: Object.values(rooms).filter(r => r.status === "active").length, total: Object.keys(rooms).length }))
+app.get("/stats", (req, res) => res.json({ debatersOnline: io.engine.clientsCount, liveDebates: Object.values(rooms).filter(r => r.status === "active").length, argumentsMade: totalArgumentsMade, debatesCompleted: totalDebatesCompleted })) {
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
   setTimeout(refillAIQueue, 2000)
@@ -581,24 +583,6 @@ function boot() {
 }
 
 boot()
-// Global stats tracking
-const rooms = {}
-let roomCounter = 0
-let pendingRoomCreations = 0
-let totalArgumentsMade = 0    // ✅ add this
-let totalDebatesCompleted = 0 // ✅ add this
-
-app.get('/health', (req, res) => res.json({
-  status: 'ok',
-  available: getAvailableCount(),
-  ongoing: Object.values(rooms).filter(r => r.status === 'active').length,
-  total: Object.keys(rooms).length,
-}))
-
-app.get('/stats', (req, res) => res.json({
-  debatersOnline: io.engine.clientsCount,
-  liveDebates: Object.values(rooms).filter(r => r.status === 'active').length,
-  argumentsMade: totalArgumentsMade,
-  debatesCompleted: totalDebatesCompleted,
-}))
+app.get("/health", (req, res) => res.json({ status: "ok", available: getAvailableCount(), ongoing: Object.values(rooms).filter(r => r.status === "active").length, total: Object.keys(rooms).length }))
+app.get("/stats", (req, res) => res.json({ debatersOnline: io.engine.clientsCount, liveDebates: Object.values(rooms).filter(r => r.status === "active").length, argumentsMade: totalArgumentsMade, debatesCompleted: totalDebatesCompleted }))
 httpServer.listen(3001, () => console.log('🚀 Socket server on port 3001'))
