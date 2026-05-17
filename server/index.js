@@ -262,7 +262,9 @@ function replenishRooms(immediate = false) {
       cumulative += weight
       if (rand <= cumulative) { chosenType = type; break }
     }
-    scheduleRoom(chosenType, immediate)
+    // ✅ Each room staggers 10–25s apart from the previous one
+    const staggerDelay = immediate ? i * 0 : i * (10 + Math.random() * 15) * 1000
+    setTimeout(() => scheduleRoom(chosenType, immediate), staggerDelay)
   }
   refillAIQueue()
 }
