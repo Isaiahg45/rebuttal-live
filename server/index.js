@@ -360,6 +360,7 @@ setInterval(() => {
         if (playerCount < 2) {
           // ✅ Only need 2 players to start
           room.status = 'ended'
+totalDebatesCompleted++ // ✅ track completed debates
           io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
           console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
           scheduleRoom(room.type)
@@ -524,6 +525,7 @@ io.on('connection', (socket) => {
       timestamp: Date.now(),
     }
     room.messages.push(msg)
+totalArgumentsMade++ // ✅ track every argument
     const player = room.players[socket.id]
     if (player) player.score += score
     io.to(instanceId).emit('new_message', msg)
@@ -554,10 +556,21 @@ function boot() {
 }
 
 boot()
+// Global stats tracking
+let totalArgumentsMade = 0
+let totalDebatesCompleted = 0
+
 app.get('/health', (req, res) => res.json({
   status: 'ok',
   available: getAvailableCount(),
   ongoing: Object.values(rooms).filter(r => r.status === 'active').length,
   total: Object.keys(rooms).length,
+}))
+
+app.get('/stats', (req, res) => res.json({
+  debatersOnline: Object.keys(io.sockets.sockets).length,
+  liveDebates: Object.values(rooms).filter(r => r.status === 'active').length,
+  argumentsMade: totalArgumentsMade,
+  debatesCompleted: totalDebatesCompleted,
 }))
 httpServer.listen(3001, () => console.log('🚀 Socket server on port 3001'))

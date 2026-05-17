@@ -1,20 +1,40 @@
+'use client'
+import { useState, useEffect } from 'react'
 import Nav from './components/Nav'
 import Link from 'next/link'
 import AuthRedirect from './components/AuthRedirect'
 
 export default function Home() {
+  const [stats, setStats] = useState({ debatersOnline: 0, liveDebates: 0, argumentsMade: 0 })
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('https://rebuttal-live-production-3388.up.railway.app/stats')
+        const data = await res.json()
+        setStats(data)
+      } catch (e) {}
+    }
+    fetchStats()
+    const interval = setInterval(fetchStats, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const formatArgs = (n: number) => {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
+    if (n >= 1000) return (n / 1000).toFixed(0) + 'K'
+    return n.toString()
+  }
+
   return (
     <>
       <Nav active="home" />
       <AuthRedirect />
       <div style={{ minHeight: 'calc(100vh - 56px)', overflowY: 'auto' }}>
-      {/* rest of your home page... */}
 
         {/* Hero */}
         <div style={{ position: 'relative', padding: '80px 48px 64px', overflow: 'hidden', borderBottom: '1px solid var(--border)' }}>
-          {/* Background grid */}
           <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(230,57,70,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(230,57,70,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px', zIndex: 0 }} />
-          {/* Red glow */}
           <div style={{ position: 'absolute', top: '-100px', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '400px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.12) 0%, transparent 70%)', zIndex: 0 }} />
 
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
@@ -22,7 +42,9 @@ export default function Home() {
             {/* Live badge */}
             <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '20px', padding: '5px 14px', marginBottom: '28px' }}>
               <div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>12,847 debaters online right now</span>
+              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>
+                {stats.debatersOnline > 0 ? stats.debatersOnline.toLocaleString() : '—'} debaters online right now
+              </span>
             </div>
 
             {/* Title */}
@@ -49,9 +71,13 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Stats */}
+            {/* Live Stats */}
             <div className="animate-fade-up" style={{ display: 'flex', gap: '48px', marginTop: '56px', justifyContent: 'center', animationDelay: '0.4s', opacity: 0 }}>
-              {[['384', 'Live Debates'], ['2.1M', 'Arguments Made'], ['100', 'Global Rankings']].map(([val, label]) => (
+              {[
+                [stats.liveDebates.toLocaleString(), 'Live Debates'],
+                [formatArgs(stats.argumentsMade), 'Arguments Made'],
+                ['100', 'Global Rankings'],
+              ].map(([val, label]) => (
                 <div key={label} style={{ textAlign: 'center' }}>
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', letterSpacing: '2px', color: 'var(--text)' }}>{val}</div>
                   <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px', letterSpacing: '0.5px' }}>{label}</div>
