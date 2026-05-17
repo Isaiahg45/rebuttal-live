@@ -621,7 +621,7 @@ async function runBot(botName, personality) {
   const state = { roomId: null, active: true }
 
   async function goOnline() {
-    const onlineDuration = (10 + Math.random() * 5) * 60 * 1000
+  const onlineDuration = (15 + Math.random() * 10) * 60 * 1000
     console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
     state.active = true
     setTimeout(() => goOffline(), onlineDuration)
