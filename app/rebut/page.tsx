@@ -1,6 +1,6 @@
 'use client'
 import Nav from '../components/Nav'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
@@ -44,11 +44,11 @@ const filters = ['All', 'Casual', 'Serious', 'Philosophy', 'Competitive']
 
 export default function RebutPage() {
   const router = useRouter()
-  const { user, profile } = useAuth()
+  const { user, profile, loading } = useAuth()
   const [rooms, setRooms] = useState<RoomData[]>([])
   const [activeFilter, setActiveFilter] = useState('All')
   const [selectedRoom, setSelectedRoom] = useState<RoomData | null>(null)
-  const [guestName] = useState('guest' + Math.floor(1000 + Math.random() * 9000))
+  const guestName = useRef('guest' + Math.floor(1000 + Math.random() * 9000)).current
   const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
 
@@ -62,21 +62,18 @@ export default function RebutPage() {
   }, [])
 
   const handleRoomClick = (room: RoomData) => {
-    if (room.status === 'active') return // can't join active debate
+    if (room.status === 'active') return
+    if (loading) return // ✅ wait for auth to resolve before deciding
     const myElo = profile?.elo ?? 0
     if (myElo < room.eloRequired) {
       alert(`You need ${room.eloRequired}+ ELO to join this room. You have ${myElo}.`)
       return
     }
     if (user) {
-      joinRoom(room)
+      router.push(`/debate/${room.instanceId}`)
     } else {
       setSelectedRoom(room)
     }
-  }
-
-  const joinRoom = (room: RoomData) => {
-    router.push(`/debate/${room.instanceId}`)
   }
 
   const handleGuest = () => {
@@ -100,8 +97,8 @@ export default function RebutPage() {
     <>
       <Nav active="rebut" />
 
-      {/* Auth modal */}
-      {selectedRoom && (
+      {/* Auth modal — only shown to confirmed non-logged-in users */}
+      {!loading && selectedRoom && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(6px)' }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: '20px', padding: '36px', maxWidth: '380px', width: '90%', textAlign: 'center' }}>
             <div style={{ fontSize: '40px', marginBottom: '12px' }}>{selectedRoom.emoji}</div>
@@ -165,17 +162,16 @@ export default function RebutPage() {
               const isActive = room.status === 'active'
               const isStarting = room.status === 'starting'
               const myElo = profile?.elo ?? 0
-              const locked = myElo < room.eloRequired
+              const locked = !loading && !user && room.eloRequired > 0 // only lock for confirmed guests
 
               return (
                 <div
                   key={room.instanceId}
-                  onClick={() => !isActive && !locked && handleRoomClick(room)}
-                  style={{ background: isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)', border: `1px solid ${isStarting ? 'var(--accent)' : urgent ? 'rgba(244,162,97,.4)' : locked ? 'rgba(255,214,10,.2)' : 'var(--border)'}`, borderRadius: '14px', padding: '14px', cursor: isActive || locked ? 'not-allowed' : 'pointer', position: 'relative', overflow: 'hidden', aspectRatio: '1/1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', transition: 'border-color .2s, transform .15s', opacity: isActive ? 0.6 : 1 }}
+                  onClick={() => !isActive && handleRoomClick(room)}
+                  style={{ background: isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)', border: `1px solid ${isStarting ? 'var(--accent)' : urgent ? 'rgba(244,162,97,.4)' : locked ? 'rgba(255,214,10,.2)' : 'var(--border)'}`, borderRadius: '14px', padding: '14px', cursor: isActive ? 'not-allowed' : 'pointer', position: 'relative', overflow: 'hidden', aspectRatio: '1/1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', transition: 'border-color .2s, transform .15s', opacity: isActive ? 0.6 : 1 }}
                 >
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type) }} />
 
-                  {/* Starting overlay */}
                   {isStarting && (
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px' }}>
                       <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: '4px' }}>Starting in</div>
@@ -183,7 +179,6 @@ export default function RebutPage() {
                     </div>
                   )}
 
-                  {/* Locked overlay */}
                   {locked && (
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px' }}>
                       <div style={{ fontSize: '24px', marginBottom: '4px' }}>🔒</div>
@@ -191,7 +186,6 @@ export default function RebutPage() {
                     </div>
                   )}
 
-                  {/* Active overlay */}
                   {isActive && (
                     <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(230,57,70,.15)', border: '1px solid var(--accent)', borderRadius: '20px', padding: '2px 8px', fontSize: '10px', color: 'var(--accent)', fontWeight: 700, zIndex: 5 }}>LIVE</div>
                   )}
