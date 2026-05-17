@@ -22,7 +22,9 @@ export default function Nav({ active }: NavProps) {
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
+    { id: 'topic', label: '🔥 Topic', href: '/topic' },
     { id: 'rankings', label: 'Rankings', href: '/rankings' },
+    { id: 'help', label: 'Help', href: '/help' },
   ]
 
   return (
@@ -56,7 +58,6 @@ export default function Nav({ active }: NavProps) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px', minWidth: '180px', justifyContent: 'flex-end' }}>
-        {/* ✅ Show nothing while auth is loading — no more logged-out flash */}
         {loading ? (
           <div style={{ width: '120px', height: '28px', background: 'var(--surface2)', borderRadius: '20px', opacity: 0.3, animation: 'pulse 1.5s infinite' }} />
         ) : user ? (

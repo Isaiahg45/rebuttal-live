@@ -391,10 +391,50 @@ function replenishRooms(immediate = false) {
   }
   refillAIQueue()
 }
+// ─── Topic of the Day ──────────────────────────────────────────
+const TOTD_TOPICS = [
+  { topic: 'Is Donald Trump making America great again or tearing it apart?', emoji: '🇺🇸' },
+  { topic: 'Will AI take your job within 5 years?', emoji: '🤖' },
+  { topic: 'Is the housing crisis the biggest failure of modern government?', emoji: '🏠' },
+  { topic: 'Is social media destroying an entire generation?', emoji: '📱' },
+  { topic: 'Should billionaires be allowed to exist?', emoji: '💰' },
+  { topic: 'Is cancel culture out of control?', emoji: '❌' },
+  { topic: 'Are we heading toward World War 3?', emoji: '🌍' },
+  { topic: 'Is Gen Z the most politically divided generation ever?', emoji: '✊' },
+  { topic: 'Has feminism gone too far or not far enough?', emoji: '♀️' },
+  { topic: 'Is religion dying — and is that a good thing?', emoji: '⛪' },
+  { topic: 'Is democracy failing everywhere at once?', emoji: '🗳️' },
+  { topic: 'Should the US stay out of foreign wars entirely?', emoji: '🪖' },
+  { topic: 'Is the American Dream still real in 2026?', emoji: '🌟' },
+  { topic: 'Is China going to dominate the 21st century?', emoji: '🐉' },
+  { topic: 'Are young men in crisis — and who\'s responsible?', emoji: '👦' },
+]
 
+function createTopicOfTheDay() {
+  const topic = TOTD_TOPICS[Math.floor(Math.random() * TOTD_TOPICS.length)]
+  const duration = 30 * 60
+  rooms['topic_of_the_day'] = {
+    instanceId: 'topic_of_the_day',
+    type: 'topic_of_the_day',
+    emoji: topic.emoji,
+    topic: topic.topic,
+    duration,
+    eloRequired: 0,
+    maxPlayers: 40,
+    players: {},
+    spectators: {},
+    messages: [],
+    status: 'active',
+    countdown: 0,
+    startCountdown: null,
+    debateEndsAt: Date.now() + duration * 1000,
+    createdAt: Date.now(),
+  }
+  console.log(`🔥 Topic of the Day: "${topic.topic}"`)
+}
 function getRoomList() {
   return Object.values(rooms)
-    .filter(r => r.status !== 'ended')
+    .filter(r => r.status !== 'ended' && r.instanceId !== 'topic_of_the_day')
     .sort((a, b) => {
       const order = { starting: 0, active: 1, waiting: 2 }
       return (order[a.status] || 2) - (order[b.status] || 2)
@@ -440,6 +480,13 @@ function calculateEloChanges(type, playerCount, duration) {
 
 // ─── Game loop ─────────────────────────────────────────────────
 setInterval(() => {
+  // ✅ Refresh Topic of the Day every 30 minutes
+  const totd = rooms['topic_of_the_day']
+  if (!totd || Date.now() > totd.debateEndsAt) {
+    createTopicOfTheDay()
+    io.to('topic_of_the_day').emit('topic_reset', rooms['topic_of_the_day'])
+  }
+
   Object.values(rooms).forEach(room => {
     if (room.status === 'ended') return
     const playerCount = Object.keys(room.players).length
@@ -612,7 +659,32 @@ io.on('connection', (socket) => {
     io.emit('rooms_update', getRoomList())
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
+socket.on('join_topic_of_day', ({ username }) => {
+  const room = rooms['topic_of_the_day']
+  if (!room) { socket.emit('error', { message: 'Topic of the Day not available.' }); return }
+  if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Topic of the Day is full (40 players max).' }); return }
 
+  currentRoomId = 'topic_of_the_day'
+  currentUsername = username
+  isSpectator = false
+  socket.join('topic_of_the_day')
+  room.players[socket.id] = { username, score: 0, elo: 0 }
+
+  socket.emit('message_history', room.messages)
+  socket.emit('room_info', {
+    instanceId: 'topic_of_the_day',
+    topic: room.topic,
+    emoji: room.emoji,
+    type: 'topic_of_the_day',
+    duration: room.duration,
+    status: 'active',
+    isSpectator: false,
+    timeLeft: Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000)),
+  })
+  io.to('topic_of_the_day').emit('players_update', Object.values(room.players))
+  io.to('topic_of_the_day').emit('system_message', { text: `${username} joined` })
+  console.log(`💬 ${username} joined Topic of the Day`)
+})
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]
     if (!room || room.status !== 'active') return
@@ -846,6 +918,7 @@ function startBots() {
 
 // ─── Boot ──────────────────────────────────────────────────────
 async function boot() {
+  createTopicOfTheDay() // ✅ add this line
   try {
     const data = await supabaseRest('stats?id=eq.1&select=arguments_made,debates_completed')
     if (data?.[0]) {
