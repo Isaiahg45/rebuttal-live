@@ -212,17 +212,17 @@ function getTopicForType(type) {
 const rooms = {}
 let roomCounter = 0
 let pendingRoomCreations = 0
+let totalArgumentsMade = 0
+let totalDebatesCompleted = 0
 
 function createRoom(type) {
   const topic = getTopicForType(type)
   const id = `room_${++roomCounter}_${Date.now()}`
-
-  // ✅ Max players by type
   const maxPlayers = {
-    casual: Math.floor(Math.random() * 6) + 5,      // 5–10
-    random: Math.floor(Math.random() * 6) + 5,       // 5–10
-    serious: Math.floor(Math.random() * 6) + 10,     // 10–15
-    competitive: Math.floor(Math.random() * 6) + 15, // 15–20
+    casual: Math.floor(Math.random() * 6) + 5,
+    random: Math.floor(Math.random() * 6) + 5,
+    serious: Math.floor(Math.random() * 6) + 10,
+    competitive: Math.floor(Math.random() * 6) + 15,
   }[type] ?? 10
 
   rooms[id] = {
@@ -271,8 +271,7 @@ function replenishRooms(immediate = false) {
       cumulative += weight
       if (rand <= cumulative) { chosenType = type; break }
     }
-    // ✅ Each room staggers 10–25s apart from the previous one
-    const staggerDelay = immediate ? i * 0 : i * (10 + Math.random() * 15) * 1000
+    const staggerDelay = immediate ? 0 : i * (10 + Math.random() * 15) * 1000
     setTimeout(() => scheduleRoom(chosenType, immediate), staggerDelay)
   }
   refillAIQueue()
@@ -303,15 +302,11 @@ function getRoomList() {
     }))
 }
 
-// ─── ELO calculation ───────────────────────────────────────────
-// Returns { winnerElo, second, third, loserElo } — all positive numbers
-// The client applies gains for winners and deductions for losers
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
 function calculateEloChanges(type, playerCount, duration) {
-  // Step 1: Base reward range by type
   const baseRanges = {
     casual:      { min: 5,   max: 10  },
     random:      { min: 8,   max: 18  },
@@ -319,34 +314,17 @@ function calculateEloChanges(type, playerCount, duration) {
     competitive: { min: 50,  max: 120 },
   }
   const base = baseRanges[type] ?? { min: 8, max: 18 }
-
-  // Step 2: Duration multiplier — longer = more ELO
-  // casual ~120s, serious ~300-420s, competitive ~480s
   const maxDuration = 480
   const durationMult = 0.7 + (Math.min(duration, maxDuration) / maxDuration) * 0.6
-  // gives 0.7x at 0s → 1.3x at 480s
-
-  // Step 3: Player count multiplier — more people = more at stake
-  // 2 players = 0.5x, 15 players = 1.5x
   const playerMult = 0.4 + (Math.min(playerCount, 15) / 15) * 1.1
-
-  // Step 4: Compute randomized winner ELO within scaled range
   const scaledMin = Math.round(base.min * durationMult * playerMult)
   const scaledMax = Math.round(base.max * durationMult * playerMult)
   const winnerElo = randInt(scaledMin, scaledMax)
-
-  // Step 5: Hard caps per type
   const caps = { casual: 20, random: 25, serious: 90, competitive: 200 }
   const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
-
-  // Step 6: 2nd and 3rd place gains (only relevant for 7+ player games)
-  const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)  // 35–50% of winner
-  const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)  // 15–25% of winner
-
-  // Step 7: Loser deduction — scaled by placement and size
-  // Ranges from small (near top) to painful (last place in big game)
+  const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)
+  const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)
   const loserBase = Math.round(cappedWinner * 0.4)
-
   return { winnerElo: cappedWinner, secondElo, thirdElo, loserBase }
 }
 
@@ -369,9 +347,7 @@ setInterval(() => {
 
       if (room.countdown <= 0) {
         if (playerCount < 2) {
-          // ✅ Only need 2 players to start
           room.status = 'ended'
-totalDebatesCompleted++ // ✅ track completed debates
           io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
           console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
           scheduleRoom(room.type)
@@ -384,26 +360,22 @@ totalDebatesCompleted++ // ✅ track completed debates
       }
     }
 
-if (room.status === 'active') {
-  const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
-  if (timeLeft <= 0) {
-    room.status = 'ended'
-    totalDebatesCompleted++
-    const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
-    const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
-    io.to(room.instanceId).emit('debate_ended', {
-      standings: sorted,
-      eloChanges,
-      type: room.type,
-    })
-    console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players`)
-  }
-}
+    if (room.status === 'starting') {
+      room.startCountdown = Math.max(0, room.startCountdown - 1)
+      io.to(room.instanceId).emit('start_countdown_tick', { count: room.startCountdown })
+      if (room.startCountdown <= 0) {
+        room.status = 'active'
+        room.debateEndsAt = Date.now() + room.duration * 1000
+        io.to(room.instanceId).emit('debate_started', { duration: room.duration })
+        console.log(`⚡ Started: "${room.topic}" (${playerCount} players)`)
+      }
+    }
 
     if (room.status === 'active') {
       const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
       if (timeLeft <= 0) {
         room.status = 'ended'
+        totalDebatesCompleted++
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
         const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
         io.to(room.instanceId).emit('debate_ended', {
@@ -411,7 +383,7 @@ if (room.status === 'active') {
           eloChanges,
           type: room.type,
         })
-        console.log(`🏁 Ended: "${room.topic}" — winner gets +${eloChanges.winnerElo} ELO`)
+        console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players, winner +${eloChanges.winnerElo} ELO`)
       }
     }
   })
@@ -449,7 +421,6 @@ Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
     ])
-
     const parsed = JSON.parse(result.choices[0].message.content.trim())
     let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
     if (hasCasualProfanity && score < 10) score = Math.max(0, score - 2)
@@ -459,6 +430,7 @@ Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
     return fallbackScore(text, hasCasualProfanity)
   }
 }
+
 function fallbackScore(text, hasProfanity) {
   const wordCount = text.trim().split(/\s+/).length
   let score = wordCount < 5 ? 1 : wordCount < 15 ? Math.floor(Math.random() * 4) + 3
@@ -534,15 +506,13 @@ io.on('connection', (socket) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-socket.on('send_message', async ({ instanceId, username, text }) => {
-  const room = rooms[instanceId]
-  if (!room || room.status !== 'active') return
-  if (isSpectator) return
+  socket.on('send_message', async ({ instanceId, username, text }) => {
+    const room = rooms[instanceId]
+    if (!room || room.status !== 'active') return
+    if (isSpectator) return
 
-  totalArgumentsMade++ // ✅ add this line
-room.status = 'ended'
-totalDebatesCompleted++ // ✅ add this line
-const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+    totalArgumentsMade++
+
     const { score, feedback } = await scoreArgument(text, room.topic, room.type)
     const msg = {
       id: `${Date.now()}-${Math.random()}`,
@@ -550,7 +520,6 @@ const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
       timestamp: Date.now(),
     }
     room.messages.push(msg)
-totalArgumentsMade++ // ✅ track every argument
     const player = room.players[socket.id]
     if (player) player.score += score
     io.to(instanceId).emit('new_message', msg)
@@ -572,9 +541,7 @@ totalArgumentsMade++ // ✅ track every argument
 })
 
 // ─── Boot ──────────────────────────────────────────────────────
-function boot()
-app.get("/health", (req, res) => res.json({ status: "ok", available: getAvailableCount(), ongoing: Object.values(rooms).filter(r => r.status === "active").length, total: Object.keys(rooms).length }))
-app.get("/stats", (req, res) => res.json({ debatersOnline: io.engine.clientsCount, liveDebates: Object.values(rooms).filter(r => r.status === "active").length, argumentsMade: totalArgumentsMade, debatesCompleted: totalDebatesCompleted })) {
+function boot() {
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
   setTimeout(refillAIQueue, 2000)
@@ -583,6 +550,16 @@ app.get("/stats", (req, res) => res.json({ debatersOnline: io.engine.clientsCoun
 }
 
 boot()
-app.get("/health", (req, res) => res.json({ status: "ok", available: getAvailableCount(), ongoing: Object.values(rooms).filter(r => r.status === "active").length, total: Object.keys(rooms).length }))
-app.get("/stats", (req, res) => res.json({ debatersOnline: io.engine.clientsCount, liveDebates: Object.values(rooms).filter(r => r.status === "active").length, argumentsMade: totalArgumentsMade, debatesCompleted: totalDebatesCompleted }))
+app.get('/health', (req, res) => res.json({
+  status: 'ok',
+  available: getAvailableCount(),
+  ongoing: Object.values(rooms).filter(r => r.status === 'active').length,
+  total: Object.keys(rooms).length,
+}))
+app.get('/stats', (req, res) => res.json({
+  debatersOnline: io.engine.clientsCount,
+  liveDebates: Object.values(rooms).filter(r => r.status === 'active').length,
+  argumentsMade: totalArgumentsMade,
+  debatesCompleted: totalDebatesCompleted,
+}))
 httpServer.listen(3001, () => console.log('🚀 Socket server on port 3001'))
