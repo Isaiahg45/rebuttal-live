@@ -11,7 +11,7 @@ const httpServer = http.createServer(app)
 const openai = new OpenAI.OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 const io = new Server(httpServer, {
-  cors: { origin: 'http://localhost:3000', methods: ['GET', 'POST'] }
+cors: { origin: '*', methods: ['GET', 'POST'] }
 })
 
 const MAX_ROOMS = 75
@@ -476,7 +476,86 @@ setInterval(() => {
 
   if (Math.random() < 0.05) replenishRooms()
 }, 1000)
+async function scoreArgument(text, topic, roomType) {
+  // Check for slurs first — these always get penalized regardless
+  const hardSlurs = /\b(nigger|nigga|faggot|chink|spic|kike|wetback|tranny)\b/i.test(text)
+  if (hardSlurs) {
+    return { score: -10, feedback: 'Slur detected. Hard penalty applied.' }
+  }
 
+  // Casual profanity check — only penalize if the message is ALSO low quality
+  const hasCasualProfanity = /\b(fuck|shit|ass|bitch|damn|crap|hell|bastard)\b/i.test(text)
+
+  // Too short to score meaningfully
+  if (text.trim().length < 15) {
+    return { score: 0, feedback: 'Too brief to evaluate.' }
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 150,
+      messages: [{
+        role: 'system',
+        content: `You are a debate judge scoring arguments. The debate topic is: "${topic}" (type: ${roomType}).
+
+Score the argument from 0 to 30 based on:
+- Logical structure and clarity (0-8 pts)
+- Use of evidence, examples, or facts (0-8 pts)  
+- Depth of reasoning and insight (0-7 pts)
+- Vocabulary and articulation (0-7 pts)
+
+Important rules:
+- Casual profanity ("this pizza is ass but here's why...") does NOT automatically lower the score if the argument is strong
+- Only hard slurs (racial/sexual) warrant a score penalty
+- A 3-word message scores 0-2
+- A mediocre point scores 3-8
+- A decent point scores 9-15
+- A good point scores 16-22
+- An excellent point scores 23-27
+- A truly exceptional, well-structured argument scores 28-30
+
+Return ONLY valid JSON: {"score": number, "feedback": "one short sentence about what they did well or poorly"}`
+      }, {
+        role: 'user',
+        content: text
+      }]
+    })
+
+    const raw = response.choices[0].message.content.trim()
+    const parsed = JSON.parse(raw)
+    let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
+
+    // If casual profanity AND low score, dock 2 extra points
+    if (hasCasualProfanity && score < 10) score = Math.max(0, score - 2)
+
+    return { score, feedback: parsed.feedback || '' }
+  } catch (e) {
+    console.error('Scoring error:', e.message)
+    // Fallback scoring if AI fails
+    return fallbackScore(text, hasCasualProfanity)
+  }
+}
+
+function fallbackScore(text, hasProfanity) {
+  const len = text.trim().length
+  const wordCount = text.trim().split(/\s+/).length
+  let score = 0
+
+  if (wordCount < 5) score = 1
+  else if (wordCount < 15) score = Math.floor(Math.random() * 4) + 3
+  else if (wordCount < 30) score = Math.floor(Math.random() * 6) + 7
+  else if (wordCount < 60) score = Math.floor(Math.random() * 7) + 12
+  else score = Math.floor(Math.random() * 8) + 18
+
+  // Bonus for evidence words
+  const evidenceWords = /\b(study|research|statistics|data|evidence|example|instance|shows|proves|according|percent|million|billion)\b/i
+  if (evidenceWords.test(text)) score = Math.min(30, score + 3)
+
+  if (hasProfanity && score < 10) score = Math.max(0, score - 2)
+
+  return { score: Math.min(30, score), feedback: 'AI scoring unavailable. Scored by length and content.' }
+}
 // ─── Socket events ─────────────────────────────────────────────
 io.on('connection', (socket) => {
   let currentRoomId = null
@@ -516,16 +595,24 @@ io.on('connection', (socket) => {
     console.log(`👤 ${username} joined "${room.topic}"`)
   })
 
-  socket.on('send_message', ({ instanceId, username, text, score, aiFeedback }) => {
-    const room = rooms[instanceId]
-    if (!room || room.status !== 'active') return
-    const msg = { id: `${Date.now()}-${Math.random()}`, username, text, score, aiFeedback, timestamp: Date.now() }
-    room.messages.push(msg)
-    const player = room.players[socket.id]
-    if (player) player.score += score
-    io.to(instanceId).emit('new_message', msg)
-    io.to(instanceId).emit('players_update', Object.values(room.players))
-  })
+ socket.on('send_message', async ({ instanceId, username, text }) => {
+  const room = rooms[instanceId]
+  if (!room || room.status !== 'active') return
+
+  // Score the message with AI
+  const { score, feedback } = await scoreArgument(text, room.topic, room.type)
+
+  const msg = {
+    id: `${Date.now()}-${Math.random()}`,
+    username, text, score, aiFeedback: feedback,
+    timestamp: Date.now(),
+  }
+  room.messages.push(msg)
+  const player = room.players[socket.id]
+  if (player) player.score += score
+  io.to(instanceId).emit('new_message', msg)
+  io.to(instanceId).emit('players_update', Object.values(room.players))
+})
 
   socket.on('disconnect', () => {
     if (!currentRoomId || !rooms[currentRoomId]) return

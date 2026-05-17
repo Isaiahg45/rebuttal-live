@@ -89,7 +89,7 @@ export default function DebatePage() {
 
   useEffect(() => {
     if (!myUsername) return
-    const socket = io('http://localhost:3001', { transports: ['websocket', 'polling'] })
+   const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 socket.on('connect', () => {
   setConnected(true)
