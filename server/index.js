@@ -9,7 +9,11 @@ const app = express()
 app.use(cors())
 const httpServer = http.createServer(app)
 const openai = new OpenAI.OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
+const { createClient } = require('@supabase/supabase-js')
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 })
