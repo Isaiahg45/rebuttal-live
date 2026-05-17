@@ -54,5 +54,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
+return NextResponse.redirect(new URL('/rebut', requestUrl.origin))
 }
