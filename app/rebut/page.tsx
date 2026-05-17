@@ -291,9 +291,20 @@ export default function RebutPage() {
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '5px' }}>
                             <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.6px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
                           </div>
-                          <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
-                            {Math.floor(Number(room.duration) / 60)} min · {room.playerCount <= 6 ? '15s' : '30s'} cooldown
-                          </div>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
+  {Math.floor(Number(room.duration) / 60)} min · {room.playerCount <= 6 ? '15s' : '30s'} cooldown
+</div>
+<div style={{ fontSize: '10px', color: 'var(--gold)', fontWeight: 600, marginTop: '3px' }}>
+  {room.type === 'casual' && '🏆 1st place: +5–20 ELO'}
+  {room.type === 'random' && '🏆 1st place: +8–25 ELO'}
+  {room.type === 'serious' && '🏆 1st place: +15–90 ELO'}
+  {room.type === 'competitive' && '🏆 1st place: +50–200 ELO'}
+</div>
+{room.eloRequired > 0 && (
+  <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 700, marginTop: '3px' }}>
+    ⚔️ Must be {room.eloRequired}+ ELO to join!
+  </div>
+)}
                         </div>
 
                         <div>
