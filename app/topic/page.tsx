@@ -126,7 +126,7 @@ export default function TopicPage() {
                 {fmt(timeLeft)}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '3px 10px' }}>
-                {players.length}/40 debating
+                {players.length} debating
               </div>
             </div>
           </div>

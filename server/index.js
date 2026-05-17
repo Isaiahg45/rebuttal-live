@@ -420,7 +420,7 @@ function createTopicOfTheDay() {
     topic: topic.topic,
     duration,
     eloRequired: 0,
-    maxPlayers: 40,
+    maxPlayers: 100000000000000000,
     players: {},
     spectators: {},
     messages: [],
@@ -662,8 +662,6 @@ io.on('connection', (socket) => {
 socket.on('join_topic_of_day', ({ username }) => {
   const room = rooms['topic_of_the_day']
   if (!room) { socket.emit('error', { message: 'Topic of the Day not available.' }); return }
-  if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Topic of the Day is full (40 players max).' }); return }
-
   currentRoomId = 'topic_of_the_day'
   currentUsername = username
   isSpectator = false
