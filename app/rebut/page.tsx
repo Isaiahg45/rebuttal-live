@@ -7,31 +7,32 @@ import { io, Socket } from 'socket.io-client'
 
 interface RoomData {
   instanceId: string
-  templateId: string
   emoji: string
   topic: string
   type: string
-  duration: string
+  duration: number
   maxPlayers: number
   eloRequired: number
   playerCount: number
+  spectatorCount: number
   players: string[]
   status: string
   countdown: number
   startCountdown: number | null
+  timeLeft: number | null
 }
 
 const typeColor = (type: string) => {
   if (type === 'competitive') return 'linear-gradient(90deg,var(--gold),var(--accent2))'
-  if (type === 'philosophy') return 'linear-gradient(90deg,var(--purple),var(--accent))'
   if (type === 'serious') return 'linear-gradient(90deg,var(--accent),var(--accent2))'
+  if (type === 'random') return 'linear-gradient(90deg,var(--purple),var(--blue))'
   return 'linear-gradient(90deg,var(--green),var(--blue))'
 }
 
 const typeBadge = (type: string) => {
   if (type === 'competitive') return { bg: 'rgba(255,214,10,.15)', color: 'var(--gold)', label: '★ Competitive' }
-  if (type === 'philosophy') return { bg: 'rgba(155,89,182,.15)', color: '#c39bd3', label: '🧠 Philosophy' }
   if (type === 'serious') return { bg: 'rgba(230,57,70,.15)', color: 'var(--accent)', label: '⚖️ Serious' }
+  if (type === 'random') return { bg: 'rgba(155,89,182,.15)', color: '#c39bd3', label: '🎲 Random' }
   return { bg: 'rgba(46,204,113,.15)', color: 'var(--green)', label: '😄 Casual' }
 }
 
@@ -40,7 +41,7 @@ function fmt(s: number) {
   return `${m}:${sec < 10 ? '0' : ''}${sec}`
 }
 
-const filters = ['All', 'Casual', 'Serious', 'Philosophy', 'Competitive']
+const filters = ['All', 'Casual', 'Serious', 'Competitive', 'Random']
 
 export default function RebutPage() {
   const router = useRouter()
@@ -48,22 +49,33 @@ export default function RebutPage() {
   const [rooms, setRooms] = useState<RoomData[]>([])
   const [activeFilter, setActiveFilter] = useState('All')
   const [selectedRoom, setSelectedRoom] = useState<RoomData | null>(null)
+  const [spectateRoom, setSpectateRoom] = useState<RoomData | null>(null)
   const guestName = useRef('guest' + Math.floor(1000 + Math.random() * 9000)).current
-  const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
     const s = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
-    s.on('connect', () => { setConnected(true); console.log('Connected to lobby') })
+    s.on('connect', () => { setConnected(true) })
     s.on('disconnect', () => setConnected(false))
     s.on('rooms_update', (data: RoomData[]) => setRooms(data))
-    setSocket(s)
     return () => { s.disconnect() }
   }, [])
 
-  const handleRoomClick = (room: RoomData) => {
-    if (room.status === 'active') return
-    if (loading) return // ✅ wait for auth to resolve before deciding
+  const ongoingRooms = rooms.filter(r => r.status === 'active' || r.status === 'starting')
+  const availableRooms = rooms.filter(r => r.status === 'waiting')
+
+  const filteredAvailable = availableRooms.filter(r => {
+    if (activeFilter === 'All') return true
+    return r.type.toLowerCase() === activeFilter.toLowerCase()
+  })
+
+  const filteredOngoing = ongoingRooms.filter(r => {
+    if (activeFilter === 'All') return true
+    return r.type.toLowerCase() === activeFilter.toLowerCase()
+  })
+
+  const handleJoinClick = (room: RoomData) => {
+    if (loading) return
     const myElo = profile?.elo ?? 0
     if (myElo < room.eloRequired) {
       alert(`You need ${room.eloRequired}+ ELO to join this room. You have ${myElo}.`)
@@ -76,28 +88,34 @@ export default function RebutPage() {
     }
   }
 
-  const handleGuest = () => {
+  const handleSpectateClick = (room: RoomData) => {
+    if (loading) return
+    if (user) {
+      router.push(`/debate/${room.instanceId}?spectate=true`)
+    } else {
+      setSpectateRoom(room)
+    }
+  }
+
+  const handleGuestJoin = () => {
     if (selectedRoom) {
       router.push(`/debate/${selectedRoom.instanceId}?guest=${guestName}`)
       setSelectedRoom(null)
     }
   }
 
-  const handleSignUp = () => {
-    setSelectedRoom(null)
-    router.push('/signup')
+  const handleGuestSpectate = () => {
+    if (spectateRoom) {
+      router.push(`/debate/${spectateRoom.instanceId}?spectate=true&guest=${guestName}`)
+      setSpectateRoom(null)
+    }
   }
-
-  const filtered = rooms.filter(r => {
-    if (activeFilter === 'All') return true
-    return r.type.toLowerCase() === activeFilter.toLowerCase()
-  })
 
   return (
     <>
       <Nav active="rebut" />
 
-      {/* Auth modal — only shown to confirmed non-logged-in users */}
+      {/* Join modal for guests */}
       {!loading && selectedRoom && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(6px)' }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: '20px', padding: '36px', maxWidth: '380px', width: '90%', textAlign: 'center' }}>
@@ -105,12 +123,12 @@ export default function RebutPage() {
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', marginBottom: '8px' }}>JOIN THE DEBATE</div>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', lineHeight: 1.6 }}>{selectedRoom.topic}</div>
             <div style={{ background: 'rgba(230,57,70,0.06)', border: '1px solid rgba(230,57,70,0.15)', borderRadius: '10px', padding: '12px', marginBottom: '20px', fontSize: '12px', color: 'var(--text2)', lineHeight: 1.7 }}>
-              ⚡ Sign up to <b style={{ color: 'var(--text)' }}>earn ELO</b> and appear on the global leaderboard. Guests can debate but won't gain ELO.
+              ⚡ Sign up to <b style={{ color: 'var(--text)' }}>earn ELO</b> and climb the leaderboard. Guests can debate but won't gain ELO.
             </div>
-            <button onClick={handleSignUp} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px' }}>
+            <button onClick={() => { setSelectedRoom(null); router.push('/signup') }} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px' }}>
               🏆 Sign Up & Earn ELO
             </button>
-            <button onClick={handleGuest} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '12px' }}>
+            <button onClick={handleGuestJoin} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '12px' }}>
               Skip — join as <b style={{ color: 'var(--text2)' }}>{guestName}</b>
             </button>
             <button onClick={() => setSelectedRoom(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
@@ -118,27 +136,46 @@ export default function RebutPage() {
         </div>
       )}
 
+      {/* Spectate modal for guests */}
+      {!loading && spectateRoom && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(6px)' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: '20px', padding: '36px', maxWidth: '380px', width: '90%', textAlign: 'center' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>{spectateRoom.emoji}</div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', marginBottom: '8px' }}>WATCH THIS DEBATE</div>
+            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '20px', lineHeight: 1.6 }}>{spectateRoom.topic}</div>
+            <button onClick={() => { setSpectateRoom(null); router.push('/signup') }} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px' }}>
+              Sign Up to Track ELO
+            </button>
+            <button onClick={handleGuestSpectate} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '12px' }}>
+              👁 Spectate as guest
+            </button>
+            <button onClick={() => setSpectateRoom(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 24px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 24px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', letterSpacing: '2px' }}>CHOOSE YOUR BATTLE</div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '28px', letterSpacing: '2px' }}>CHOOSE YOUR BATTLE</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '4px 12px' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: connected ? 'var(--green)' : 'var(--red)', animation: connected ? 'pulse 2s infinite' : 'none' }} />
               <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{connected ? `${rooms.length} rooms live` : 'Connecting...'}</span>
             </div>
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-            Rooms need <b style={{ color: 'var(--text2)' }}>3+ players</b> to start. Rooms with fewer expire after 2 minutes.
+
+          {/* Filters */}
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingTop: '8px' }}>
+            {filters.map(f => (
+              <button key={f} onClick={() => setActiveFilter(f)} style={{ background: activeFilter === f ? 'rgba(230,57,70,.12)' : 'var(--surface2)', border: `1px solid ${activeFilter === f ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '20px', padding: '4px 14px', fontSize: '12px', color: activeFilter === f ? 'var(--accent)' : 'var(--muted)', whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif', cursor: 'pointer' }}>{f}</button>
+            ))}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', padding: '12px 24px', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
-          {filters.map(f => (
-            <button key={f} onClick={() => setActiveFilter(f)} style={{ background: activeFilter === f ? 'rgba(230,57,70,.12)' : 'var(--surface2)', border: `1px solid ${activeFilter === f ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '20px', padding: '5px 14px', fontSize: '12px', color: activeFilter === f ? 'var(--accent)' : 'var(--muted)', whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif', cursor: 'pointer' }}>{f}</button>
-          ))}
-        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
           {!connected && (
             <div style={{ textAlign: 'center', padding: '48px', color: 'var(--muted)', fontSize: '14px' }}>
               <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔌</div>
@@ -146,89 +183,148 @@ export default function RebutPage() {
             </div>
           )}
 
-          {connected && filtered.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px', color: 'var(--muted)', fontSize: '14px' }}>
-              <div style={{ fontSize: '32px', marginBottom: '12px' }}>🕳️</div>
-              No rooms available right now. Check back soon!
+          {/* ── ONGOING DEBATES ── */}
+          {connected && filteredOngoing.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 24px 10px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite' }} />
+                <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)' }}>
+                  Live Now ({filteredOngoing.length})
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '4px' }}>— watch debates in progress</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', padding: '12px 24px 20px' }}>
+                {filteredOngoing.map(room => {
+                  const badge = typeBadge(room.type)
+                  const isStarting = room.status === 'starting'
+                  return (
+                    <div
+                      key={room.instanceId}
+                      onClick={() => handleSpectateClick(room)}
+                      style={{ background: 'rgba(230,57,70,0.03)', border: '1px solid rgba(230,57,70,0.2)', borderRadius: '14px', padding: '14px', cursor: 'pointer', position: 'relative', overflow: 'hidden', aspectRatio: '1/1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', transition: 'border-color .2s, transform .15s' }}
+                    >
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type) }} />
+
+                      {/* LIVE badge */}
+                      <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(230,57,70,.15)', border: '1px solid var(--accent)', borderRadius: '20px', padding: '2px 8px', fontSize: '10px', color: 'var(--accent)', fontWeight: 700 }}>
+                        {isStarting ? 'STARTING' : 'LIVE'}
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '22px', marginBottom: '5px' }}>{room.emoji}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '7px' }}>{room.topic}</div>
+                        <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.6px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                            {room.playerCount} debating · {room.spectatorCount ?? 0} 👁
+                          </span>
+                          <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', color: 'var(--accent)', letterSpacing: '1px' }}>
+                            {room.timeLeft != null ? fmt(room.timeLeft) : '—'}
+                          </span>
+                        </div>
+                        <div style={{ background: 'rgba(230,57,70,0.15)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '6px', padding: '6px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--accent)' }}>
+                          👁 Watch Live
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', paddingTop: '4px' }}>
-            {filtered.map(room => {
-              const pct = Math.round((room.playerCount / room.maxPlayers) * 100)
-              const almostFull = room.playerCount >= room.maxPlayers - 2
-              const urgent = room.countdown <= 30 && room.status === 'waiting'
-              const badge = typeBadge(room.type)
-              const isActive = room.status === 'active'
-              const isStarting = room.status === 'starting'
-              const myElo = profile?.elo ?? 0
-              const locked = !loading && !user && room.eloRequired > 0 // only lock for confirmed guests
+          {/* ── AVAILABLE ROOMS ── */}
+          {connected && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 24px 10px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                  Available to Join ({filteredAvailable.length})
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '4px' }}>— needs 3+ players to start</span>
+              </div>
 
-              return (
-                <div
-                  key={room.instanceId}
-                  onClick={() => !isActive && handleRoomClick(room)}
-                  style={{ background: isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)', border: `1px solid ${isStarting ? 'var(--accent)' : urgent ? 'rgba(244,162,97,.4)' : locked ? 'rgba(255,214,10,.2)' : 'var(--border)'}`, borderRadius: '14px', padding: '14px', cursor: isActive ? 'not-allowed' : 'pointer', position: 'relative', overflow: 'hidden', aspectRatio: '1/1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', transition: 'border-color .2s, transform .15s', opacity: isActive ? 0.6 : 1 }}
-                >
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type) }} />
-
-                  {isStarting && (
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: '4px' }}>Starting in</div>
-                      <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: '#fff', lineHeight: 1 }}>{room.startCountdown}</div>
-                    </div>
-                  )}
-
-                  {locked && (
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px' }}>
-                      <div style={{ fontSize: '24px', marginBottom: '4px' }}>🔒</div>
-                      <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700 }}>{room.eloRequired}+ ELO</div>
-                    </div>
-                  )}
-
-                  {isActive && (
-                    <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(230,57,70,.15)', border: '1px solid var(--accent)', borderRadius: '20px', padding: '2px 8px', fontSize: '10px', color: 'var(--accent)', fontWeight: 700, zIndex: 5 }}>LIVE</div>
-                  )}
-
-                  <div>
-                    <div style={{ fontSize: '22px', marginBottom: '5px' }}>{room.emoji}</div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '7px' }}>{room.topic}</div>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '5px' }}>
-                      <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.6px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
-                      {Math.floor(Number(room.duration) / 60)} min debate · {room.playerCount <= 6 ? '15s' : '30s'} cooldown
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ marginBottom: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '10px', color: almostFull ? 'var(--accent)' : 'var(--muted)' }}>
-                          {room.playerCount}/{room.maxPlayers}
-                          {almostFull && !isStarting && <span style={{ marginLeft: '4px' }}>🔥</span>}
-                        </span>
-                        <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '1px', color: isStarting ? 'var(--accent)' : urgent ? 'var(--accent)' : room.countdown <= 60 ? 'var(--accent2)' : 'var(--green)' }}>
-                          {isStarting ? `▶ ${room.startCountdown}s` : isActive ? '●' : fmt(room.countdown)}
-                        </span>
-                      </div>
-                      <div style={{ height: '3px', background: 'var(--surface2)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: almostFull ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : 'linear-gradient(90deg,var(--green),var(--blue))', borderRadius: '2px', transition: 'width .5s' }} />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <div style={{ display: 'flex' }}>
-                        {Array.from({ length: Math.min(room.playerCount, 5) }).map((_, i) => (
-                          <div key={i} style={{ width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--surface)', background: `hsl(${i * 47 + (room.instanceId.length * 7)}, 65%, 55%)`, marginLeft: i === 0 ? 0 : '-3px' }} />
-                        ))}
-                        {room.playerCount > 5 && <div style={{ fontSize: '9px', color: 'var(--muted)', marginLeft: '4px', lineHeight: '16px' }}>+{room.playerCount - 5}</div>}
-                      </div>
-                    </div>
-                  </div>
+              {filteredAvailable.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--muted)', fontSize: '14px' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                  New rooms are spawning soon...
                 </div>
-              )
-            })}
-          </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', padding: '12px 24px 24px' }}>
+                  {filteredAvailable.map(room => {
+                    const pct = Math.round((room.playerCount / room.maxPlayers) * 100)
+                    const almostFull = room.playerCount >= room.maxPlayers - 2
+                    const urgent = room.countdown <= 30
+                    const badge = typeBadge(room.type)
+                    const isStarting = room.status === 'starting'
+                    const myElo = profile?.elo ?? 0
+                    const locked = !loading && !user && room.eloRequired > 0
+
+                    return (
+                      <div
+                        key={room.instanceId}
+                        onClick={() => handleJoinClick(room)}
+                        style={{ background: isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)', border: `1px solid ${isStarting ? 'var(--accent)' : urgent ? 'rgba(244,162,97,.4)' : locked ? 'rgba(255,214,10,.2)' : 'var(--border)'}`, borderRadius: '14px', padding: '14px', cursor: 'pointer', position: 'relative', overflow: 'hidden', aspectRatio: '1/1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', transition: 'border-color .2s, transform .15s' }}
+                      >
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type) }} />
+
+                        {isStarting && (
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: '4px' }}>Starting in</div>
+                            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: '#fff', lineHeight: 1 }}>{room.startCountdown}</div>
+                          </div>
+                        )}
+
+                        {locked && (
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px' }}>
+                            <div style={{ fontSize: '24px', marginBottom: '4px' }}>🔒</div>
+                            <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700 }}>{room.eloRequired}+ ELO</div>
+                          </div>
+                        )}
+
+                        <div>
+                          <div style={{ fontSize: '22px', marginBottom: '5px' }}>{room.emoji}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '7px' }}>{room.topic}</div>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '5px' }}>
+                            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.6px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
+                          </div>
+                          <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                            {Math.floor(Number(room.duration) / 60)} min · {room.playerCount <= 6 ? '15s' : '30s'} cooldown
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ marginBottom: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '10px', color: almostFull ? 'var(--accent)' : 'var(--muted)' }}>
+                                {room.playerCount}/{room.maxPlayers}
+                                {almostFull && !isStarting && <span style={{ marginLeft: '4px' }}>🔥</span>}
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '1px', color: urgent ? 'var(--accent)' : room.countdown <= 60 ? 'var(--accent2)' : 'var(--green)' }}>
+                                {fmt(room.countdown)}
+                              </span>
+                            </div>
+                            <div style={{ height: '3px', background: 'var(--surface2)', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: almostFull ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : 'linear-gradient(90deg,var(--green),var(--blue))', borderRadius: '2px', transition: 'width .5s' }} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex' }}>
+                            {Array.from({ length: Math.min(room.playerCount, 5) }).map((_, i) => (
+                              <div key={i} style={{ width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--surface)', background: `hsl(${i * 47 + (room.instanceId.length * 7)}, 65%, 55%)`, marginLeft: i === 0 ? 0 : '-3px' }} />
+                            ))}
+                            {room.playerCount > 5 && <div style={{ fontSize: '9px', color: 'var(--muted)', marginLeft: '4px', lineHeight: '16px' }}>+{room.playerCount - 5}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
