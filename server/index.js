@@ -384,16 +384,21 @@ totalDebatesCompleted++ // ✅ track completed debates
       }
     }
 
-    if (room.status === 'starting') {
-      room.startCountdown = Math.max(0, room.startCountdown - 1)
-      io.to(room.instanceId).emit('start_countdown_tick', { count: room.startCountdown })
-      if (room.startCountdown <= 0) {
-        room.status = 'active'
-        room.debateEndsAt = Date.now() + room.duration * 1000
-        io.to(room.instanceId).emit('debate_started', { duration: room.duration })
-        console.log(`⚡ Started: "${room.topic}" (${playerCount} players)`)
-      }
-    }
+if (room.status === 'active') {
+  const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
+  if (timeLeft <= 0) {
+    room.status = 'ended'
+    totalDebatesCompleted++
+    const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+    const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
+    io.to(room.instanceId).emit('debate_ended', {
+      standings: sorted,
+      eloChanges,
+      type: room.type,
+    })
+    console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players`)
+  }
+}
 
     if (room.status === 'active') {
       const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
@@ -427,27 +432,59 @@ async function scoreArgument(text, topic, roomType) {
   if (hardSlurs) return { score: -10, feedback: 'Slur detected. Hard penalty applied.' }
   const hasCasualProfanity = /\b(fuck|shit|ass|bitch|damn|crap|hell|bastard)\b/i.test(text)
   if (text.trim().length < 15) return { score: 0, feedback: 'Too brief to evaluate.' }
+
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 150,
-      messages: [{
-        role: 'system',
-        content: `You are a debate judge. Topic: "${topic}" (${roomType}).
+    const result = await Promise.race([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 100,
+        messages: [{
+          role: 'system',
+          content: `You are a debate judge. Topic: "${topic}" (${roomType}).
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
 Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
-      }, { role: 'user', content: text }]
-    })
-    const parsed = JSON.parse(response.choices[0].message.content.trim())
+        }, { role: 'user', content: text }]
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+    ])
+
+    const parsed = JSON.parse(result.choices[0].message.content.trim())
     let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
     if (hasCasualProfanity && score < 10) score = Math.max(0, score - 2)
     return { score, feedback: parsed.feedback || '' }
   } catch (e) {
+    console.log('Scoring fallback:', e.message)
     return fallbackScore(text, hasCasualProfanity)
   }
 }
+  try {
+    // ✅ Race AI scoring against a 6 second timeout
+    const result = await Promise.race([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 100,
+        messages: [{
+          role: 'system',
+          content: `You are a debate judge. Topic: "${topic}" (${roomType}).
+Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
+Casual profanity is fine if argument is strong. Hard slurs = penalty.
+3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
+Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
+        }, { role: 'user', content: text }]
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+    ])
+
+    const parsed = JSON.parse(result.choices[0].message.content.trim())
+    let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
+    if (hasCasualProfanity && score < 10) score = Math.max(0, score - 2)
+    return { score, feedback: parsed.feedback || '' }
+  } catch (e) {
+    console.log('Scoring fallback:', e.message)
+    return fallbackScore(text, hasCasualProfanity)
+  }
 
 function fallbackScore(text, hasProfanity) {
   const wordCount = text.trim().split(/\s+/).length
@@ -572,8 +609,11 @@ function boot() {
 
 boot()
 // Global stats tracking
-let totalArgumentsMade = 0
-let totalDebatesCompleted = 0
+const rooms = {}
+let roomCounter = 0
+let pendingRoomCreations = 0
+let totalArgumentsMade = 0    // ✅ add this
+let totalDebatesCompleted = 0 // ✅ add this
 
 app.get('/health', (req, res) => res.json({
   status: 'ok',
