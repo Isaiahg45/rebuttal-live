@@ -690,8 +690,6 @@ async function runBot(botName, personality) {
   const text = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
   const { score: rawScore, feedback } = await scoreArgument(text, currentRoom.topic, currentRoom.type)
   const score = Math.min(rawScore, 12)
-      const text = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
-      const { score, feedback } = await scoreArgument(text, currentRoom.topic, currentRoom.type)
 
       const msg = {
         id: `${Date.now()}-bot-${Math.random()}`,
