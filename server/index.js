@@ -573,7 +573,165 @@ io.on('connection', (socket) => {
     io.emit('rooms_update', getRoomList())
   })
 })
+// ─── Bots ──────────────────────────────────────────────────────
+const BOT_NAMES = [
+  'alex_debates', 'rhetoriq', 'logicwave', 'arguendo',
+  'dialectx', 'sophist_', 'contrarian_', 'rebutbot'
+]
 
+const BOT_PERSONALITIES = [
+  'You are a confident, evidence-based debater. Use statistics and real examples. Be direct.',
+  'You are a philosophical debater who questions assumptions. Ask rhetorical questions.',
+  'You are a passionate debater who appeals to emotion and real-world impact.',
+  'You are a logical, structured debater. Use clear reasoning and counterarguments.',
+  'You are a witty debater who uses analogies and comparisons to make points.',
+  'You are an aggressive debater who directly challenges the opposition.',
+  'You are a calm, measured debater who builds arguments step by step.',
+  'You are a creative debater who finds unexpected angles and surprising arguments.',
+]
+
+const botStates = {} // track each bot's current state
+
+async function getBotArgument(topic, personality, recentMessages) {
+  try {
+    const context = recentMessages.slice(-4).map(m => `${m.username}: ${m.text}`).join('\n')
+    const result = await Promise.race([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 80,
+        messages: [{
+          role: 'system',
+          content: `${personality} You are debating: "${topic}". Keep responses under 40 words. Be conversational, natural, and make ONE clear point. Don't say "I argue" or "In conclusion". Just speak naturally like a real person in a chat debate.`
+        }, {
+          role: 'user',
+          content: context ? `Recent debate:\n${context}\n\nMake your next argument:` : 'Make your opening argument:'
+        }]
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+    ])
+    return result.choices[0].message.content.trim()
+  } catch (e) {
+    const fallbacks = [
+      `That's a weak argument — the evidence clearly shows otherwise.`,
+      `You're missing the bigger picture here entirely.`,
+      `History proves this point time and time again.`,
+      `The data doesn't support that view at all.`,
+      `Think about the real world impact of what you're saying.`,
+    ]
+    return fallbacks[Math.floor(Math.random() * fallbacks.length)]
+  }
+}
+
+function findRoomForBot() {
+  // Find a waiting room that isn't full
+  const available = Object.values(rooms).filter(r =>
+    r.status === 'waiting' &&
+    Object.keys(r.players).length < r.maxPlayers
+  )
+  if (available.length === 0) return null
+  return available[Math.floor(Math.random() * available.length)]
+}
+
+async function runBot(botName, personality) {
+  botStates[botName] = { active: true, roomId: null, messageInterval: null }
+
+  async function joinRoom() {
+    // Wait a random time before joining (feels more human)
+    await new Promise(r => setTimeout(r, 3000 + Math.random() * 10000))
+
+    const room = findRoomForBot()
+    if (!room) {
+      // No room available, try again later
+      setTimeout(joinRoom, 15000 + Math.random() * 15000)
+      return
+    }
+
+    botStates[botName].roomId = room.instanceId
+    room.players[`bot_${botName}`] = { username: botName, score: 0, elo: 0 }
+
+    io.to(room.instanceId).emit('players_update', Object.values(room.players))
+    io.to(room.instanceId).emit('system_message', { text: `${botName} joined the debate` })
+    io.emit('rooms_update', getRoomList())
+    console.log(`🤖 Bot ${botName} joined "${room.topic}"`)
+
+    // Wait for debate to start, then argue
+    function checkAndDebate() {
+      const currentRoom = rooms[botStates[botName].roomId]
+      if (!currentRoom) {
+        // Room gone, find new one
+        botStates[botName].roomId = null
+        setTimeout(joinRoom, 5000 + Math.random() * 10000)
+        return
+      }
+
+      if (currentRoom.status === 'active') {
+        startDebating(currentRoom, personality)
+      } else if (currentRoom.status === 'ended') {
+        botStates[botName].roomId = null
+        setTimeout(joinRoom, 5000 + Math.random() * 15000)
+      } else {
+        setTimeout(checkAndDebate, 2000)
+      }
+    }
+    checkAndDebate()
+  }
+
+  async function startDebating(room, personality) {
+    const cooldown = Object.keys(room.players).length <= 6 ? 15000 : 30000
+    // Wait a bit before first message
+    await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000))
+
+    async function sendBotMessage() {
+      const currentRoom = rooms[botStates[botName].roomId]
+      if (!currentRoom || currentRoom.status !== 'active') {
+        // Debate ended
+        if (currentRoom) {
+          delete currentRoom.players[`bot_${botName}`]
+        }
+        botStates[botName].roomId = null
+        setTimeout(joinRoom, 8000 + Math.random() * 15000)
+        return
+      }
+
+      const text = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
+      const { score, feedback } = await scoreArgument(text, currentRoom.topic, currentRoom.type)
+
+      const msg = {
+        id: `${Date.now()}-bot-${Math.random()}`,
+        username: botName,
+        text,
+        score,
+        aiFeedback: feedback,
+        timestamp: Date.now(),
+      }
+
+      currentRoom.messages.push(msg)
+      const player = currentRoom.players[`bot_${botName}`]
+      if (player) player.score += score
+
+      io.to(currentRoom.instanceId).emit('new_message', msg)
+      io.to(currentRoom.instanceId).emit('players_update', Object.values(currentRoom.players))
+
+      // Wait cooldown + random extra time before next message
+      const nextMessageDelay = cooldown + Math.random() * 20000
+      setTimeout(sendBotMessage, nextMessageDelay)
+    }
+
+    sendBotMessage()
+  }
+
+  joinRoom()
+}
+
+function startBots() {
+  console.log('🤖 Starting 8 debate bots...')
+  BOT_NAMES.forEach((name, i) => {
+    // Stagger bot starts so they don't all join at once
+    setTimeout(() => {
+      runBot(name, BOT_PERSONALITIES[i])
+    }, i * 8000)
+  })
+}
 // ─── Boot ──────────────────────────────────────────────────────
 async function boot() {
   try {
@@ -591,6 +749,24 @@ async function boot() {
   setTimeout(refillAIQueue, 2000)
   setInterval(refillAIQueue, 5 * 60 * 1000)
   setInterval(() => console.log('💓 keepalive'), 4 * 60 * 1000)
+}
+async function boot() {
+  try {
+    const data = await supabaseRest('stats?id=eq.1&select=arguments_made,debates_completed')
+    if (data?.[0]) {
+      totalArgumentsMade = Number(data[0].arguments_made)
+      totalDebatesCompleted = Number(data[0].debates_completed)
+      console.log(`📊 Loaded stats: ${totalArgumentsMade} arguments, ${totalDebatesCompleted} debates`)
+    }
+  } catch (e) {
+    console.log('Could not load stats:', e.message)
+  }
+  replenishRooms(true)
+  console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
+  setTimeout(refillAIQueue, 2000)
+  setInterval(refillAIQueue, 5 * 60 * 1000)
+  setInterval(() => console.log('💓 keepalive'), 4 * 60 * 1000)
+  setTimeout(startBots, 5000) // ✅ start bots after 5s
 }
 
 boot()
