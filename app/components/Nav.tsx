@@ -8,12 +8,12 @@ interface NavProps { active: string }
 
 export default function Nav({ active }: NavProps) {
   const router = useRouter()
-  const { user, profile, loading } = useAuth()
+  const { user, profile } = useAuth()
 
-const handleSignOut = async () => {
-  await supabase.auth.signOut()
-  window.location.href = '/'
-}
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   const initials = profile?.username
     ? profile.username.slice(0, 2).toUpperCase()
@@ -60,12 +60,7 @@ const handleSignOut = async () => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px', minWidth: '180px', justifyContent: 'flex-end' }}>
-        {loading ? (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-    <div style={{ width: '80px', height: '28px', background: 'var(--surface2)', borderRadius: '20px', opacity: 0.5 }} />
-    <div style={{ width: '34px', height: '34px', background: 'var(--surface2)', borderRadius: '50%', opacity: 0.5 }} />
-  </div>
-) : user ? (
+        {user ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '4px 12px' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
