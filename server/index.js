@@ -515,19 +515,20 @@ socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-  socket.on('send_message', async ({ instanceId, username, text }) => {
-    const room = rooms[instanceId]
-    if (!room || room.status !== 'active') return
-    if (isSpectator) return
+socket.on('send_message', async ({ instanceId, username, text }) => {
+  const room = rooms[instanceId]
+  if (!room || room.status !== 'active') return
+  if (isSpectator) return
 
-    totalArgumentsMade++
+  totalArgumentsMade++
+  supabaseAdmin.rpc('increment_arguments').then(() => {})
 
-    const { score, feedback } = await scoreArgument(text, room.topic, room.type)
-    const msg = {
-      id: `${Date.now()}-${Math.random()}`,
-      username, text, score, aiFeedback: feedback,
-      timestamp: Date.now(),
-    }
+  const { score, feedback } = await scoreArgument(text, room.topic, room.type)
+  const msg = {
+    id: `${Date.now()}-${Math.random()}`,
+    username, text, score, aiFeedback: feedback,
+    timestamp: Date.now(),
+  }
     room.messages.push(msg)
     const player = room.players[socket.id]
     if (player) player.score += score
@@ -550,7 +551,13 @@ socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
 })
 
 // ─── Boot ──────────────────────────────────────────────────────
-function boot() {
+async function boot() {
+  const { data } = await supabaseAdmin.from('stats').select('*').eq('id', 1).single()
+  if (data) {
+    totalArgumentsMade = Number(data.arguments_made)
+    totalDebatesCompleted = Number(data.debates_completed)
+    console.log(`📊 Loaded stats: ${totalArgumentsMade} arguments, ${totalDebatesCompleted} debates`)
+  }
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
   setTimeout(refillAIQueue, 2000)
