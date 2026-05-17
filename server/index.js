@@ -14,7 +14,7 @@ const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 })
 
-const TARGET_AVAILABLE = 4 // how many available rooms to maintain
+const TARGET_AVAILABLE = 4
 const DISTRIBUTION = { casual: 0.25, serious: 0.50, competitive: 0.15, random: 0.10 }
 
 const PREWRITTEN = {
@@ -224,8 +224,8 @@ function createRoom(type) {
     duration: topic.duration,
     eloRequired: topic.eloRequired || 0,
     maxPlayers: type === 'competitive' ? 10 : 15,
-    players: {},      // debaters: { [socketId]: { username, score, elo } }
-    spectators: {},   // spectators: { [socketId]: username }
+    players: {},
+    spectators: {},
     messages: [],
     status: 'waiting',
     countdown: 120,
@@ -237,7 +237,6 @@ function createRoom(type) {
   return id
 }
 
-// ✅ Schedule a room with 5–25s random delay
 function scheduleRoom(type, immediate = false) {
   const delay = immediate ? 0 : (5 + Math.random() * 20) * 1000
   pendingRoomCreations++
@@ -252,13 +251,10 @@ function getAvailableCount() {
   return Object.values(rooms).filter(r => r.status === 'waiting').length + pendingRoomCreations
 }
 
-// Replenish so there are always TARGET_AVAILABLE waiting rooms
 function replenishRooms(immediate = false) {
   const needed = TARGET_AVAILABLE - getAvailableCount()
   if (needed <= 0) return
-  const types = Object.keys(DISTRIBUTION)
   for (let i = 0; i < needed; i++) {
-    // Pick type weighted by distribution
     const rand = Math.random()
     let cumulative = 0
     let chosenType = 'serious'
@@ -296,9 +292,51 @@ function getRoomList() {
     }))
 }
 
-function getEloReward(type, playerCount) {
-  const base = { casual: 10, serious: 35, competitive: 100, random: 20 }[type] || 10
-  return Math.round(base * Math.min(2, 1 + (playerCount - 3) * 0.1))
+// ─── ELO calculation ───────────────────────────────────────────
+// Returns { winnerElo, second, third, loserElo } — all positive numbers
+// The client applies gains for winners and deductions for losers
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+function calculateEloChanges(type, playerCount, duration) {
+  // Step 1: Base reward range by type
+  const baseRanges = {
+    casual:      { min: 5,   max: 10  },
+    random:      { min: 8,   max: 18  },
+    serious:     { min: 15,  max: 40  },
+    competitive: { min: 50,  max: 120 },
+  }
+  const base = baseRanges[type] ?? { min: 8, max: 18 }
+
+  // Step 2: Duration multiplier — longer = more ELO
+  // casual ~120s, serious ~300-420s, competitive ~480s
+  const maxDuration = 480
+  const durationMult = 0.7 + (Math.min(duration, maxDuration) / maxDuration) * 0.6
+  // gives 0.7x at 0s → 1.3x at 480s
+
+  // Step 3: Player count multiplier — more people = more at stake
+  // 2 players = 0.5x, 15 players = 1.5x
+  const playerMult = 0.4 + (Math.min(playerCount, 15) / 15) * 1.1
+
+  // Step 4: Compute randomized winner ELO within scaled range
+  const scaledMin = Math.round(base.min * durationMult * playerMult)
+  const scaledMax = Math.round(base.max * durationMult * playerMult)
+  const winnerElo = randInt(scaledMin, scaledMax)
+
+  // Step 5: Hard caps per type
+  const caps = { casual: 20, random: 25, serious: 90, competitive: 200 }
+  const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
+
+  // Step 6: 2nd and 3rd place gains (only relevant for 7+ player games)
+  const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)  // 35–50% of winner
+  const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)  // 15–25% of winner
+
+  // Step 7: Loser deduction — scaled by placement and size
+  // Ranges from small (near top) to painful (last place in big game)
+  const loserBase = Math.round(cappedWinner * 0.4)
+
+  return { winnerElo: cappedWinner, secondElo, thirdElo, loserBase }
 }
 
 // ─── Game loop ─────────────────────────────────────────────────
@@ -311,28 +349,25 @@ setInterval(() => {
       room.countdown = Math.max(0, room.countdown - 1)
 
       if (playerCount >= room.maxPlayers) {
-        // Room full — start immediately
         room.status = 'starting'
         room.startCountdown = 5
         io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-        // ✅ Spawn replacement with random delay
         scheduleRoom(room.type)
         return
       }
 
       if (room.countdown <= 0) {
-        if (playerCount < 3) {
-          // Not enough players — expire and replace with delay
+        if (playerCount < 2) {
+          // ✅ Only need 2 players to start
           room.status = 'ended'
           io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
           console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
-          scheduleRoom(room.type) // 5–25s delay
+          scheduleRoom(room.type)
         } else {
-          // 3+ players — start!
           room.status = 'starting'
           room.startCountdown = 5
           io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-          scheduleRoom(room.type) // replace it
+          scheduleRoom(room.type)
         }
       }
     }
@@ -353,25 +388,24 @@ setInterval(() => {
       if (timeLeft <= 0) {
         room.status = 'ended'
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+        const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
         io.to(room.instanceId).emit('debate_ended', {
           standings: sorted,
-          eloReward: getEloReward(room.type, sorted.length),
+          eloChanges,
           type: room.type,
         })
-        console.log(`🏁 Ended: "${room.topic}"`)
+        console.log(`🏁 Ended: "${room.topic}" — winner gets +${eloChanges.winnerElo} ELO`)
       }
     }
   })
 
   io.emit('rooms_update', getRoomList())
 
-  // Clean up old ended rooms
   const now = Date.now()
   Object.keys(rooms).forEach(id => {
     if (rooms[id].status === 'ended' && now - rooms[id].createdAt > 30000) delete rooms[id]
   })
 
-  // Occasionally top up available rooms
   if (Math.random() < 0.1) replenishRooms()
 }, 1000)
 
@@ -422,13 +456,11 @@ io.on('connection', (socket) => {
 
   socket.emit('rooms_update', getRoomList())
 
-  // ✅ Join as debater
   socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
     const room = rooms[instanceId]
     if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
     if (room.status === 'active') {
-      // Active room — join as spectator instead
       socket.emit('join_as_spectator', { instanceId })
       return
     }
@@ -455,7 +487,6 @@ io.on('connection', (socket) => {
     console.log(`👤 ${username} joined "${room.topic}"`)
   })
 
-  // ✅ Join as spectator
   socket.on('spectate_room', ({ instanceId, username }) => {
     const room = rooms[instanceId]
     if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
@@ -467,7 +498,6 @@ io.on('connection', (socket) => {
     socket.join(instanceId)
     room.spectators[socket.id] = username
 
-    // Send full history so spectator can read from start
     socket.emit('message_history', room.messages)
     socket.emit('room_info', {
       instanceId: room.instanceId, topic: room.topic, emoji: room.emoji,
@@ -478,7 +508,6 @@ io.on('connection', (socket) => {
     })
     socket.emit('players_update', Object.values(room.players))
     socket.emit('system_message', { text: `👁 ${username} is spectating` })
-
     io.emit('rooms_update', getRoomList())
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
@@ -486,7 +515,6 @@ io.on('connection', (socket) => {
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]
     if (!room || room.status !== 'active') return
-    // ✅ Spectators cannot send messages
     if (isSpectator) return
 
     const { score, feedback } = await scoreArgument(text, room.topic, room.type)
@@ -518,7 +546,6 @@ io.on('connection', (socket) => {
 
 // ─── Boot ──────────────────────────────────────────────────────
 function boot() {
-  // Create initial rooms immediately
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
   setTimeout(refillAIQueue, 2000)

@@ -36,6 +36,13 @@ interface RoomInfo {
   timeLeft: number | null
 }
 
+interface EloChanges {
+  winnerElo: number
+  secondElo: number
+  thirdElo: number
+  loserBase: number
+}
+
 function fmt(s: number) {
   const m = Math.floor(s / 60), sec = s % 60
   return `${m}:${sec < 10 ? '0' : ''}${sec}`
@@ -74,17 +81,18 @@ export default function DebatePage() {
   const profileRef = useRef(profile)
   const userRef = useRef(user)
   const myUsernameRef = useRef(myUsername)
+  const isSpectatorRef = useRef(isSpectator)
 
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { myUsernameRef.current = myUsername }, [myUsername])
+  useEffect(() => { isSpectatorRef.current = isSpectator }, [isSpectator])
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const myScore = players.find(p => p.username === myUsername)?.score ?? 0
   const cooldownTime = players.length <= 6 ? 15 : 30
   const pct = roomInfo ? (timeLeft / roomInfo.duration) * 100 : 0
 
-  // Set username after auth resolves
   useEffect(() => {
     if (loading) return
     if (guestParam) { setMyUsername(guestParam); return }
@@ -92,7 +100,6 @@ export default function DebatePage() {
     if (!user) { setMyUsername('guest' + Math.floor(1000 + Math.random() * 9000)) }
   }, [loading, profile, user, guestParam])
 
-  // Connect socket once username is set
   useEffect(() => {
     if (!myUsername) return
 
@@ -108,7 +115,6 @@ export default function DebatePage() {
       }
     })
 
-    // Server told us to switch to spectator mode (room was active when we tried to join)
     socket.on('join_as_spectator', ({ instanceId: rid }: { instanceId: string }) => {
       setIsSpectator(true)
       socket.emit('spectate_room', { instanceId: rid, username: myUsername })
@@ -156,12 +162,18 @@ export default function DebatePage() {
       }, 1000)
     })
 
-    socket.on('debate_ended', async ({ standings: s, eloReward, type: debateType }: { standings: Player[], eloReward: number, type: string }) => {
+    socket.on('debate_ended', async ({
+      standings: s,
+      eloChanges,
+    }: {
+      standings: Player[]
+      eloChanges: EloChanges
+      type: string
+    }) => {
       setStatus('ended')
       setStandings(s)
 
-      // Only update ELO if user was a debater (not spectator)
-      if (isSpectator) return
+      if (isSpectatorRef.current) return
       const currentProfile = profileRef.current
       const currentUser = userRef.current
       if (!currentProfile?.username || !currentUser) return
@@ -170,18 +182,28 @@ export default function DebatePage() {
       if (myPlace === -1) return
 
       const totalPlayers = s.length
+      const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
       let change = 0
+
       if (totalPlayers <= 6) {
-        if (myPlace === 0) change = eloReward
-        else change = -Math.round(eloReward * (myPlace / totalPlayers) * 0.5)
+        if (myPlace === 0) {
+          change = winnerElo
+        } else {
+          const lossFraction = myPlace / (totalPlayers - 1)
+          change = -Math.round(loserBase * (0.4 + lossFraction * 0.6))
+        }
       } else {
-        if (myPlace === 0) change = eloReward
-        else if (myPlace === 1) change = Math.round(eloReward * 0.4)
-        else if (myPlace === 2) change = Math.round(eloReward * 0.2)
-        else change = -Math.round(eloReward * (myPlace / totalPlayers) * 0.4)
+        if (myPlace === 0) change = winnerElo
+        else if (myPlace === 1) change = secondElo
+        else if (myPlace === 2) change = thirdElo
+        else {
+          const lossFraction = (myPlace - 2) / (totalPlayers - 3)
+          change = -Math.round(loserBase * (0.3 + lossFraction * 0.7))
+        }
       }
 
       setEloChange(change)
+
       const newElo = Math.max(0, (currentProfile.elo ?? 0) + change)
       const newWins = myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0)
       const newDebates = (currentProfile.debates ?? 0) + 1
@@ -302,7 +324,9 @@ export default function DebatePage() {
             )}
 
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', marginBottom: '16px' }}>
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)' }}>Final Standings</div>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                Final Standings
+              </div>
               {final.map((p, i) => (
                 <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', borderBottom: i < final.length - 1 ? '1px solid var(--border)' : 'none', background: p.username === myUsername ? 'rgba(230,57,70,0.04)' : 'transparent' }}>
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', width: '28px', color: i === 0 ? 'var(--gold)' : i === 1 ? 'var(--silver)' : i === 2 ? 'var(--bronze)' : 'var(--muted)' }}>
@@ -315,7 +339,9 @@ export default function DebatePage() {
                     {p.username}
                     {p.username === myUsername && !isSpectator && <span style={{ fontSize: '11px', color: 'var(--accent)', marginLeft: '6px' }}>(you)</span>}
                   </div>
-                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', color: 'var(--accent2)', letterSpacing: '1px' }}>{p.score} pts</div>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', color: 'var(--accent2)', letterSpacing: '1px' }}>
+                    {p.score} pts
+                  </div>
                 </div>
               ))}
             </div>
@@ -351,7 +377,9 @@ export default function DebatePage() {
                 {fmt(lobbyCountdown)}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '24px' }}>
-                {players.length < 3 ? `Need ${3 - players.length} more player${3 - players.length !== 1 ? 's' : ''} to start` : '✓ Ready to start when timer ends'}
+                {players.length < 2
+                  ? `Need ${2 - players.length} more player to start`
+                  : '✓ Ready to start when timer ends'}
               </div>
             </>
           )}
@@ -390,7 +418,6 @@ export default function DebatePage() {
       <Nav active="rebut" />
       <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Top bar */}
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '18px' }}>{roomInfo?.emoji}</span>
@@ -415,7 +442,6 @@ export default function DebatePage() {
           </div>
         </div>
 
-        {/* Score bar */}
         <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
           {sortedPlayers.map((p, i) => (
             <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername && !isSpectator ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '5px 10px', flexShrink: 0 }}>
@@ -432,7 +458,6 @@ export default function DebatePage() {
           ))}
         </div>
 
-        {/* Chat */}
         <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', marginTop: '40px' }}>
@@ -487,7 +512,6 @@ export default function DebatePage() {
           })}
         </div>
 
-        {/* Input or spectator bar */}
         {isSpectator ? (
           <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '16px 20px', textAlign: 'center', flexShrink: 0 }}>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>👁 You are spectating — arguments are scored in real time</div>
