@@ -584,17 +584,33 @@ const BOT_PERSONALITIES = [
 
 async function getBotArgument(topic, personality, recentMessages) {
   try {
-    const context = recentMessages.slice(-4).map(m => `${m.username}: ${m.text}`).join('\n')
+    const context = recentMessages.slice(-3).map(m => `${m.username}: ${m.text}`).join('\n')
+    
+    // Randomize bot quality — sometimes they're ok, sometimes bad
+    const qualityRoll = Math.random()
+    let qualityInstruction = ''
+    
+    if (qualityRoll < 0.3) {
+      // Uncertain / weak
+      qualityInstruction = 'You are unsure of your position. Hedge your arguments. Use phrases like "I think maybe...", "I\'m not totally sure but...", "could be wrong but...", "idk maybe". Sound uncertain.'
+    } else if (qualityRoll < 0.6) {
+      // Mediocre
+      qualityInstruction = 'Make a mediocre, surface-level point. Don\'t use any evidence. Be vague and generic.'
+    } else {
+      // Decent but still not great
+      qualityInstruction = 'Make a basic, simple argument. No statistics or deep reasoning. Keep it casual and short.'
+    }
+
     const result = await Promise.race([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 80,
+        max_tokens: 60,
         messages: [{
           role: 'system',
-          content: `${personality} You are debating: "${topic}". Keep responses under 40 words. Be conversational and natural. Make ONE clear point. Don't say "I argue" or "In conclusion". Just speak like a real person in a chat debate.`
+          content: `You are a regular person casually debating: "${topic}". ${qualityInstruction} Keep under 25 words. Sound like a real person texting, not a formal debater. No bullet points. Just one casual sentence or two.`
         }, {
           role: 'user',
-          content: context ? `Recent debate:\n${context}\n\nMake your next argument:` : 'Make your opening argument:'
+          content: context ? `Recent:\n${context}\n\nYour response:` : 'Your opening take:'
         }]
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
@@ -602,16 +618,18 @@ async function getBotArgument(topic, personality, recentMessages) {
     return result.choices[0].message.content.trim()
   } catch (e) {
     const fallbacks = [
-      'That argument completely misses the point.',
-      'The evidence clearly shows the opposite.',
-      'History proves this time and time again.',
-      'Think about the real world impact here.',
-      'That logic just doesn\'t hold up under scrutiny.',
+      'idk i feel like thats not really true though',
+      'I\'m not sure about that honestly',
+      'yeah but like, it depends right?',
+      'I think you might be wrong about that',
+      'not sure but I feel like the opposite is true',
+      'that\'s a fair point I guess but still',
+      'hmm I never thought about it that way',
+      'I disagree but I can see where you\'re coming from',
     ]
     return fallbacks[Math.floor(Math.random() * fallbacks.length)]
   }
 }
-
 function findRoomForBot() {
   const available = Object.values(rooms).filter(r =>
     r.status === 'waiting' && Object.keys(r.players).length < r.maxPlayers
@@ -661,14 +679,17 @@ async function runBot(botName, personality) {
     await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000))
 
     async function sendBotMessage() {
-      const currentRoom = rooms[state.roomId]
-      if (!currentRoom || currentRoom.status !== 'active') {
-        if (currentRoom) delete currentRoom.players[`bot_${botName}`]
-        state.roomId = null
-        setTimeout(joinRoom, 8000 + Math.random() * 15000)
-        return
-      }
+  const currentRoom = rooms[state.roomId]
+  if (!currentRoom || currentRoom.status !== 'active') {
+    if (currentRoom) delete currentRoom.players[`bot_${botName}`]
+    state.roomId = null
+    setTimeout(joinRoom, 8000 + Math.random() * 15000)
+    return
+  }
 
+  const text = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
+  const { score: rawScore, feedback } = await scoreArgument(text, currentRoom.topic, currentRoom.type)
+  const score = Math.min(rawScore, 12)
       const text = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
       const { score, feedback } = await scoreArgument(text, currentRoom.topic, currentRoom.type)
 
