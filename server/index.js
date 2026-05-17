@@ -238,7 +238,7 @@ let roomCounter = 0
 let pendingRoomCreations = 0
 let totalArgumentsMade = 0
 let totalDebatesCompleted = 0
-const roomLastBotMessage = {} // tracks when last bot spoke per room
+const roomLastBotMessage = {}
 
 function createRoom(type) {
   const topic = getTopicForType(type)
@@ -251,21 +251,12 @@ function createRoom(type) {
   }[type] ?? 10
 
   rooms[id] = {
-    instanceId: id,
-    type,
-    emoji: topic.emoji,
-    topic: topic.topic,
-    duration: topic.duration,
-    eloRequired: topic.eloRequired || 0,
-    maxPlayers,
-    players: {},
-    spectators: {},
-    messages: [],
-    status: 'waiting',
-    countdown: 120,
-    startCountdown: null,
-    debateEndsAt: null,
-    createdAt: Date.now(),
+    instanceId: id, type,
+    emoji: topic.emoji, topic: topic.topic,
+    duration: topic.duration, eloRequired: topic.eloRequired || 0,
+    maxPlayers, players: {}, spectators: {}, messages: [],
+    status: 'waiting', countdown: 120, startCountdown: null,
+    debateEndsAt: null, createdAt: Date.now(),
   }
   console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
   return id
@@ -310,18 +301,13 @@ function getRoomList() {
       return (order[a.status] || 2) - (order[b.status] || 2)
     })
     .map(r => ({
-      instanceId: r.instanceId,
-      emoji: r.emoji,
-      topic: r.topic,
-      type: r.type,
-      duration: r.duration,
-      maxPlayers: r.maxPlayers,
+      instanceId: r.instanceId, emoji: r.emoji, topic: r.topic,
+      type: r.type, duration: r.duration, maxPlayers: r.maxPlayers,
       eloRequired: r.eloRequired,
       playerCount: Object.keys(r.players).length,
       spectatorCount: Object.keys(r.spectators).length,
       players: Object.values(r.players).map(p => p.username),
-      status: r.status,
-      countdown: r.countdown,
+      status: r.status, countdown: r.countdown,
       startCountdown: r.startCountdown,
       timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
     }))
@@ -402,11 +388,7 @@ setInterval(() => {
         supabaseRest('rpc/increment_debates', 'POST').catch(() => {})
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
         const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
-        io.to(room.instanceId).emit('debate_ended', {
-          standings: sorted,
-          eloChanges,
-          type: room.type,
-        })
+        io.to(room.instanceId).emit('debate_ended', { standings: sorted, eloChanges, type: room.type })
         console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players, winner +${eloChanges.winnerElo} ELO`)
       }
     }
@@ -636,10 +618,36 @@ function findRoomForBot() {
 }
 
 async function runBot(botName, personality) {
-  const state = { roomId: null }
+  const state = { roomId: null, active: true }
+
+  async function goOnline() {
+    const onlineDuration = (10 + Math.random() * 5) * 60 * 1000
+    console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
+    state.active = true
+    setTimeout(() => goOffline(), onlineDuration)
+    joinRoom()
+  }
+
+  async function goOffline() {
+    if (state.roomId && rooms[state.roomId]) {
+      const room = rooms[state.roomId]
+      delete room.players[`bot_${botName}`]
+      io.to(state.roomId).emit('players_update', Object.values(room.players))
+      io.to(state.roomId).emit('system_message', { text: `${botName} left` })
+      io.emit('rooms_update', getRoomList())
+    }
+    state.roomId = null
+    state.active = false
+    const offlineDuration = (2 + Math.random() * 3) * 60 * 1000
+    console.log(`🤖 Bot ${botName} offline for ${Math.round(offlineDuration / 60000)} mins`)
+    setTimeout(() => goOnline(), offlineDuration)
+  }
 
   async function joinRoom() {
+    if (!state.active) return
     await new Promise(r => setTimeout(r, 3000 + Math.random() * 10000))
+    if (!state.active) return
+
     const room = findRoomForBot()
     if (!room) {
       setTimeout(joinRoom, 15000 + Math.random() * 15000)
@@ -655,17 +663,18 @@ async function runBot(botName, personality) {
   }
 
   function checkAndDebate() {
+    if (!state.active) return
     const room = rooms[state.roomId]
     if (!room) {
       state.roomId = null
-      setTimeout(joinRoom, 5000 + Math.random() * 10000)
+      if (state.active) setTimeout(joinRoom, 5000 + Math.random() * 10000)
       return
     }
     if (room.status === 'active') {
       startDebating(room)
     } else if (room.status === 'ended') {
       state.roomId = null
-      setTimeout(joinRoom, 5000 + Math.random() * 15000)
+      if (state.active) setTimeout(joinRoom, 5000 + Math.random() * 15000)
     } else {
       setTimeout(checkAndDebate, 2000)
     }
@@ -675,23 +684,22 @@ async function runBot(botName, personality) {
     await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000))
 
     async function sendBotMessage() {
+      if (!state.active) return
       const currentRoom = rooms[state.roomId]
       if (!currentRoom || currentRoom.status !== 'active') {
         if (currentRoom) delete currentRoom.players[`bot_${botName}`]
         state.roomId = null
-        setTimeout(joinRoom, 8000 + Math.random() * 15000)
+        if (state.active) setTimeout(joinRoom, 8000 + Math.random() * 15000)
         return
       }
 
-      // ✅ Check when last bot spoke — enforce 10-25s gap between all bots
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 10000
+      const minWait = 6000
       const maxWait = 25000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
-        // Another bot just spoke — wait the remaining time plus a random buffer
         const waitTime = (minWait - timeSinceLast) + Math.random() * 10000
         setTimeout(sendBotMessage, waitTime)
         return
@@ -699,7 +707,7 @@ async function runBot(botName, personality) {
 
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
       const { score: rawScore, feedback } = await scoreArgument(botText, currentRoom.topic, currentRoom.type)
-      const score = Math.min(rawScore, 12) // ✅ cap bots at 12 pts max
+      const score = Math.min(rawScore, 12)
 
       const msg = {
         id: `${Date.now()}-bot-${Math.random()}`,
@@ -709,7 +717,7 @@ async function runBot(botName, personality) {
       }
 
       currentRoom.messages.push(msg)
-      roomLastBotMessage[currentRoom.instanceId] = Date.now() // ✅ record bot spoke
+      roomLastBotMessage[currentRoom.instanceId] = Date.now()
       totalArgumentsMade++
       supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
 
@@ -719,14 +727,15 @@ async function runBot(botName, personality) {
       io.to(currentRoom.instanceId).emit('new_message', msg)
       io.to(currentRoom.instanceId).emit('players_update', Object.values(currentRoom.players))
 
-      // Wait 10-25s before this bot tries to speak again
       setTimeout(sendBotMessage, randomWait)
     }
 
     sendBotMessage()
   }
 
-  joinRoom()
+  // Stagger initial start so bots don't all go offline at the same time
+  const initialDelay = Math.random() * 5 * 60 * 1000
+  setTimeout(goOnline, initialDelay)
 }
 
 function startBots() {
@@ -764,7 +773,8 @@ app.get('/health', (req, res) => res.json({
   total: Object.keys(rooms).length,
 }))
 app.get('/stats', (req, res) => res.json({
-  debatersOnline: io.engine.clientsCount + BOT_NAMES.length,
+  debatersOnline: io.engine.clientsCount + Object.values(rooms).reduce((acc, r) =>
+    acc + Object.keys(r.players).filter(k => k.startsWith('bot_')).length, 0),
   liveDebates: Object.values(rooms).filter(r => r.status === 'active').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
