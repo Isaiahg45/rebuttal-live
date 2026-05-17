@@ -238,6 +238,7 @@ let roomCounter = 0
 let pendingRoomCreations = 0
 let totalArgumentsMade = 0
 let totalDebatesCompleted = 0
+const roomLastBotMessage = {} // tracks when last bot spoke per room
 
 function createRoom(type) {
   const topic = getTopicForType(type)
@@ -585,19 +586,14 @@ const BOT_PERSONALITIES = [
 async function getBotArgument(topic, personality, recentMessages) {
   try {
     const context = recentMessages.slice(-3).map(m => `${m.username}: ${m.text}`).join('\n')
-    
-    // Randomize bot quality — sometimes they're ok, sometimes bad
     const qualityRoll = Math.random()
     let qualityInstruction = ''
-    
+
     if (qualityRoll < 0.3) {
-      // Uncertain / weak
       qualityInstruction = 'You are unsure of your position. Hedge your arguments. Use phrases like "I think maybe...", "I\'m not totally sure but...", "could be wrong but...", "idk maybe". Sound uncertain.'
     } else if (qualityRoll < 0.6) {
-      // Mediocre
       qualityInstruction = 'Make a mediocre, surface-level point. Don\'t use any evidence. Be vague and generic.'
     } else {
-      // Decent but still not great
       qualityInstruction = 'Make a basic, simple argument. No statistics or deep reasoning. Keep it casual and short.'
     }
 
@@ -630,6 +626,7 @@ async function getBotArgument(topic, personality, recentMessages) {
     return fallbacks[Math.floor(Math.random() * fallbacks.length)]
   }
 }
+
 function findRoomForBot() {
   const available = Object.values(rooms).filter(r =>
     r.status === 'waiting' && Object.keys(r.players).length < r.maxPlayers
@@ -675,30 +672,44 @@ async function runBot(botName, personality) {
   }
 
   async function startDebating(room) {
-    const cooldown = Object.keys(room.players).length <= 6 ? 15000 : 30000
     await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000))
 
     async function sendBotMessage() {
-  const currentRoom = rooms[state.roomId]
-  if (!currentRoom || currentRoom.status !== 'active') {
-    if (currentRoom) delete currentRoom.players[`bot_${botName}`]
-    state.roomId = null
-    setTimeout(joinRoom, 8000 + Math.random() * 15000)
-    return
-  }
+      const currentRoom = rooms[state.roomId]
+      if (!currentRoom || currentRoom.status !== 'active') {
+        if (currentRoom) delete currentRoom.players[`bot_${botName}`]
+        state.roomId = null
+        setTimeout(joinRoom, 8000 + Math.random() * 15000)
+        return
+      }
 
-  const text = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
-  const { score: rawScore, feedback } = await scoreArgument(text, currentRoom.topic, currentRoom.type)
-  const score = Math.min(rawScore, 12)
+      // ✅ Check when last bot spoke — enforce 10-25s gap between all bots
+      const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
+      const timeSinceLast = Date.now() - lastSpoke
+      const minWait = 10000
+      const maxWait = 25000
+      const randomWait = minWait + Math.random() * (maxWait - minWait)
+
+      if (timeSinceLast < minWait) {
+        // Another bot just spoke — wait the remaining time plus a random buffer
+        const waitTime = (minWait - timeSinceLast) + Math.random() * 10000
+        setTimeout(sendBotMessage, waitTime)
+        return
+      }
+
+      const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
+      const { score: rawScore, feedback } = await scoreArgument(botText, currentRoom.topic, currentRoom.type)
+      const score = Math.min(rawScore, 12) // ✅ cap bots at 12 pts max
 
       const msg = {
         id: `${Date.now()}-bot-${Math.random()}`,
         username: botName,
-        text, score, aiFeedback: feedback,
+        text: botText, score, aiFeedback: feedback,
         timestamp: Date.now(),
       }
 
       currentRoom.messages.push(msg)
+      roomLastBotMessage[currentRoom.instanceId] = Date.now() // ✅ record bot spoke
       totalArgumentsMade++
       supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
 
@@ -708,7 +719,8 @@ async function runBot(botName, personality) {
       io.to(currentRoom.instanceId).emit('new_message', msg)
       io.to(currentRoom.instanceId).emit('players_update', Object.values(currentRoom.players))
 
-      setTimeout(sendBotMessage, cooldown + Math.random() * 20000)
+      // Wait 10-25s before this bot tries to speak again
+      setTimeout(sendBotMessage, randomWait)
     }
 
     sendBotMessage()
