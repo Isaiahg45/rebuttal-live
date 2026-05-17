@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthContextType>({
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(undefined) // undefined = not yet resolved
+  const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
@@ -28,7 +28,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', userId)
       .maybeSingle()
     setProfile(data ?? null)
-    return data
   }
 
   const refreshProfile = async () => {
@@ -39,17 +38,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // 1. Immediately check session on mount — this is the fast path
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (session?.user) {
         setUser(session.user)
-        setLoading(false)
-        fetchProfile(session.user.id) // background, no await
+        fetchProfile(session.user.id)
+      }
+      setLoading(false) // ✅ always unblock after first check
+    })
+
+    // 2. Then keep listening for changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+      if (event === 'INITIAL_SESSION') return // ✅ skip — already handled above
+      if (session?.user) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
       } else {
         setUser(null)
         setProfile(null)
-        setLoading(false)
       }
+      setLoading(false)
     })
 
     return () => {
