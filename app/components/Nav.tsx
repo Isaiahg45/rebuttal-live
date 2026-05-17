@@ -10,10 +10,10 @@ export default function Nav({ active }: NavProps) {
   const router = useRouter()
   const { user, profile, loading } = useAuth()
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
-  }
+const handleSignOut = async () => {
+  await supabase.auth.signOut()
+  window.location.href = '/'
+}
 
   const initials = profile?.username
     ? profile.username.slice(0, 2).toUpperCase()

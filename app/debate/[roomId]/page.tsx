@@ -92,11 +92,22 @@ export default function DebatePage() {
   const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
 socket.on('connect', () => {
   setConnected(true)
-  // Use ref to ensure we always have the latest username
   const username = myUsernameRef.current
   if (username) {
     socket.emit('join_room', { instanceId, username, elo: myElo })
-    console.log('Joining room as:', username)
+    console.log('Joining as:', username)
+  } else {
+    // Username not ready yet — wait for it
+    const interval = setInterval(() => {
+      const u = myUsernameRef.current
+      if (u) {
+        clearInterval(interval)
+        socket.emit('join_room', { instanceId, username: u, elo: myElo })
+        console.log('Joining as (delayed):', u)
+      }
+    }, 100)
+    // Clear after 3 seconds max
+    setTimeout(() => clearInterval(interval), 3000)
   }
 })
 socket.on('connect', () => {
