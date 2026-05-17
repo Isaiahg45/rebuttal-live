@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
-const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -33,38 +33,39 @@ const [loading, setLoading] = useState(true)
 
   const refreshProfile = async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) await fetchProfile(session.user.id)
+    if (session?.user) fetchProfile(session.user.id) // no await — background
   }
 
   useEffect(() => {
     let mounted = true
 
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id)
+        setLoading(false)          // ✅ unblock UI immediately
+        fetchProfile(session.user.id) // runs in background
       } else {
         setUser(null)
         setProfile(null)
+        setLoading(false)
       }
-      setLoading(false)
-    }
+    })
 
-    init()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
       console.log('Auth event:', event)
       if (session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id)
+        setLoading(false)          // ✅ unblock UI immediately
+        fetchProfile(session.user.id) // runs in background
       } else {
         setUser(null)
         setProfile(null)
+        setLoading(false)
       }
-      setLoading(false)
     })
 
     return () => {
