@@ -89,8 +89,7 @@ export default function DebatePage() {
 
   useEffect(() => {
     if (!myUsername) return
-   const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', { transports: ['websocket', 'polling'] })
-    socketRef.current = socket
+  const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
 socket.on('connect', () => {
   setConnected(true)
   // Use ref to ensure we always have the latest username
