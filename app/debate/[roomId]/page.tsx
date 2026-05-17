@@ -471,11 +471,17 @@ export default function DebatePage() {
             const isMe = msg.username === myUsername && !isSpectator
             const isPending = msg.pending === true
 
-            if (isSystem) return (
-              <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: 'var(--muted)', padding: '2px 0' }}>
-                — {msg.text} —
-              </div>
-            )
+if (isSystem) return (
+  <div key={msg.id} style={{
+    textAlign: 'center',
+    fontSize: '11px',
+    color: msg.text.includes('NO COPY') ? 'var(--red)' : 'var(--muted)',
+    fontWeight: msg.text.includes('NO COPY') ? 700 : 400,
+    padding: '4px 0'
+  }}>
+    — {msg.text} —
+  </div>
+)
 
             return (
               <div key={msg.id} style={{ display: 'flex', gap: '10px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', opacity: isPending ? 0.75 : 1 }}>
@@ -533,10 +539,21 @@ export default function DebatePage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px' }}>
-              <input
+<input
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                onPaste={e => {
+                  e.preventDefault()
+                  setMessages(prev => [...prev, {
+                    id: `paste-warn-${Date.now()}`,
+                    username: '— system —',
+                    text: '🚫 NO COPY AND PASTING!',
+                    score: 0,
+                    aiFeedback: '',
+                    timestamp: Date.now(),
+                  }])
+                }}
                 disabled={cooldown > 0 || !connected}
                 placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? `Cooldown — ${cooldown}s` : 'Make your argument. Be precise, use evidence, stay civil.'}
                 style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
