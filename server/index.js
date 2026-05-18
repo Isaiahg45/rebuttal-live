@@ -984,3 +984,4 @@ app.get('/totd-winner', async (req, res) => {
     res.json({ winner: lastTotdWinner, wonAt: null })
   }
 })
+httpServer.listen(3001, () => console.log('🚀 Socket server running on port 3001'))
