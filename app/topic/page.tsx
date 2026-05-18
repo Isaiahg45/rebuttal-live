@@ -119,7 +119,7 @@ export default function TopicPage() {
               color: 'var(--accent)',
               animation: 'glow 2s ease-in-out infinite alternate'
             }}>
-              🔥 TOPIC OF THE DAY
+              ⚔️ DEBATE OF THE DAY
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: timeLeft < 3600 ? 'var(--accent)' : 'var(--green)', letterSpacing: '2px' }}>

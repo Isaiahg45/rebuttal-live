@@ -22,7 +22,7 @@ export default function Nav({ active }: NavProps) {
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
-    { id: 'topic', label: '🔥 Topic', href: '/topic' },
+    { id: 'topic', label: '🔥 Debate of the Day', href: '/topic' },
     { id: 'rankings', label: 'Rankings', href: '/rankings' },
     { id: 'help', label: 'Help', href: '/help' },
   ]
@@ -46,7 +46,16 @@ export default function Nav({ active }: NavProps) {
       </Link>
 
       <div style={{ display: 'flex', gap: '4px' }}>
-        {tabs.map(tab => (
+        {tabs.map(tab => tab.id === 'topic' ? (
+          <Link key={tab.id} href={tab.href} style={{
+            padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px',
+            color: '#fff',
+            background: 'linear-gradient(90deg, #e63946, #ff6b35)',
+            border: 'none',
+            animation: 'navPulse 2s ease-in-out infinite',
+            whiteSpace: 'nowrap',
+          }}>{tab.label}</Link>
+        ) : (
           <Link key={tab.id} href={tab.href} style={{
             padding: '6px 16px', fontSize: '13px', fontWeight: 500, borderRadius: '6px',
             color: active === tab.id ? 'var(--text)' : 'var(--muted)',
@@ -87,7 +96,13 @@ export default function Nav({ active }: NavProps) {
           </>
         )}
       </div>
-      <style>{`@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:0.6} }`}</style>
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:0.6} }
+        @keyframes navPulse {
+          0%, 100% { box-shadow: 0 0 8px rgba(230,57,70,0.7), 0 0 16px rgba(255,107,53,0.4); }
+          50% { box-shadow: 0 0 18px rgba(230,57,70,1), 0 0 36px rgba(255,107,53,0.7), 0 0 54px rgba(230,57,70,0.3); }
+        }
+      `}</style>
     </nav>
   )
 }
