@@ -689,7 +689,19 @@ io.on('connection', (socket) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-  socket.on('join_topic_of_day', ({ username }) => {
+// Find if this username already has a score from a previous session
+const existingPlayer = Object.values(room.players).find(p => p.username === username)
+room.players[socket.id] = { 
+  username, 
+  score: existingPlayer ? existingPlayer.score : 0, 
+  elo: 0 
+}
+// Remove old socket entry if they reconnected
+Object.keys(room.players).forEach(key => {
+  if (key !== socket.id && room.players[key].username === username) {
+    delete room.players[key]
+  }
+})
     const room = rooms['topic_of_the_day']
     if (!room) { socket.emit('error', { message: 'Debate of the Day not available.' }); return }
 
