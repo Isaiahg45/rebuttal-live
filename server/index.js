@@ -690,7 +690,7 @@ io.on('connection', (socket) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-/socket.on('join_topic_of_day', ({ username }) => {
+socket.on('join_topic_of_day', ({ username }) => {
     const room = rooms['topic_of_the_day']
     if (!room) { socket.emit('error', { message: 'Debate of the Day not available.' }); return }
 
