@@ -579,7 +579,7 @@ Casual profanity is fine if argument is strong. Hard slurs = penalty.
 Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
         }, { role: 'user', content: text }]
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+   new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
     ])
     const parsed = JSON.parse(result.choices[0].message.content.trim())
     let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
@@ -599,7 +599,17 @@ function fallbackScore(text, hasProfanity) {
     : Math.floor(Math.random() * 8) + 18
   if (/\b(study|research|statistics|data|evidence|example|proves|according|percent)\b/i.test(text)) score = Math.min(30, score + 3)
   if (hasProfanity && score < 10) score = Math.max(0, score - 2)
-  return { score: Math.min(30, score), feedback: 'AI scoring unavailable.' }
+  const fallbackFeedbacks = [
+    'Keep developing your argument.',
+    'Try adding more evidence.',
+    'Good start, go deeper.',
+    'Make your point more specific.',
+    'Build on this with an example.',
+  ]
+  return { 
+    score: Math.min(30, score), 
+    feedback: fallbackFeedbacks[Math.floor(Math.random() * fallbackFeedbacks.length)]
+  }
 }
 
 // ─── Socket events ─────────────────────────────────────────────
@@ -777,7 +787,9 @@ async function getBotArgument(topic, personality, recentMessages) {
           content: `You are a regular person casually debating: "${topic}". ${qualityInstruction} Keep under 25 words. Sound like a real person texting, not a formal debater. No bullet points. Just one casual sentence or two.`
         }, {
           role: 'user',
-          content: context ? `Recent:\n${context}\n\nYour response:` : 'Your opening take:'
+ content: recentMessages.length === 0 
+  ? 'State your opening position on this topic in one casual sentence. Do NOT reference anyone else or say "I agree/disagree". Just state your own take.'
+  : `Recent:\n${context}\n\nYour response:`
         }]
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
@@ -886,8 +898,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 6000
-      const maxWait = 25000
+      const minWait = 30000
+      const maxWait = 45000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
