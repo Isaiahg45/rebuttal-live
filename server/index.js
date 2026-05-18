@@ -422,8 +422,7 @@ function createRoom(type) {
     emoji: topic.emoji, topic: topic.topic,
     duration: topic.duration, eloRequired: topic.eloRequired || 0,
     maxPlayers, players: {}, spectators: {}, messages: [],
-    status: 'waiting', countdown: 120, startCountdown: null,
-    debateEndsAt: null, createdAt: Date.now(),
+status: 'waiting', countdown: 1200, startCountdown: null, countdownCut: false,    debateEndsAt: null, createdAt: Date.now(),
   }
   console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
   return id
@@ -499,29 +498,39 @@ setInterval(() => {
     if (room.status === 'ended') return
     const playerCount = Object.keys(room.players).length
 
-    if (room.status === 'waiting') {
-      room.countdown = Math.max(0, room.countdown - 1)
-      if (playerCount >= room.maxPlayers) {
-        room.status = 'starting'
-        room.startCountdown = 5
-        io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-        scheduleRoom(room.type)
-        return
-      }
-      if (room.countdown <= 0) {
-        if (playerCount < 2) {
-          room.status = 'ended'
-          io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
-          console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
-          scheduleRoom(room.type)
-        } else {
-          room.status = 'starting'
-          room.startCountdown = 5
-          io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-          scheduleRoom(room.type)
-        }
-      }
+  if (room.status === 'waiting') {
+  room.countdown = Math.max(0, room.countdown - 1)
+
+  // Auto-start if full
+  if (playerCount >= room.maxPlayers) {
+    room.status = 'starting'
+    room.startCountdown = 5
+    io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
+    scheduleRoom(room.type)
+    return
+  }
+
+  // Cut countdown to 2 minutes when 2+ players join
+  if (playerCount >= 2 && room.countdown > 120 && !room.countdownCut) {
+    room.countdown = 120
+    room.countdownCut = true
+    io.to(room.instanceId).emit('system_message', { text: '⚡ 2+ players in — debate starting in 2 minutes!' })
+  }
+
+  if (room.countdown <= 0) {
+    if (playerCount < 2) {
+      room.status = 'ended'
+      io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
+      console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
+      scheduleRoom(room.type)
+    } else {
+      room.status = 'starting'
+      room.startCountdown = 5
+      io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
+      scheduleRoom(room.type)
     }
+  }
+}
 
     if (room.status === 'starting') {
       room.startCountdown = Math.max(0, room.startCountdown - 1)
