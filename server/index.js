@@ -689,19 +689,7 @@ io.on('connection', (socket) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-// Find if this username already has a score from a previous session
-const existingPlayer = Object.values(room.players).find(p => p.username === username)
-room.players[socket.id] = { 
-  username, 
-  score: existingPlayer ? existingPlayer.score : 0, 
-  elo: 0 
-}
-// Remove old socket entry if they reconnected
-Object.keys(room.players).forEach(key => {
-  if (key !== socket.id && room.players[key].username === username) {
-    delete room.players[key]
-  }
-})
+/socket.on('join_topic_of_day', ({ username }) => {
     const room = rooms['topic_of_the_day']
     if (!room) { socket.emit('error', { message: 'Debate of the Day not available.' }); return }
 
@@ -709,8 +697,11 @@ Object.keys(room.players).forEach(key => {
     currentUsername = username
     isSpectator = false
     socket.join('topic_of_the_day')
-    room.players[socket.id] = { username, score: 0, elo: 0 }
-
+    const existingPlayer = Object.values(room.players).find(p => p.username === username)
+    room.players[socket.id] = { username, score: existingPlayer ? existingPlayer.score : 0, elo: 0 }
+    Object.keys(room.players).forEach(key => {
+      if (key !== socket.id && room.players[key].username === username) delete room.players[key]
+    })
     const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
 
     socket.emit('message_history', room.messages)
