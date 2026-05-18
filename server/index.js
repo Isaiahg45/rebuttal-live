@@ -309,6 +309,7 @@ function getTopicForType(type) {
 
 // ─── Room management ───────────────────────────────────────────
 const rooms = {}
+const totdScores = {}
 let roomCounter = 0
 let pendingRoomCreations = 0
 let totalArgumentsMade = 0
