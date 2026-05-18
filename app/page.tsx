@@ -99,23 +99,34 @@ export default function Home() {
 
         {/* ✅ Debate of the Day Winner Banner */}
         {totdWinner && (
-          <div style={{ padding: '32px 48px 0' }}>
-            <div style={{ maxWidth: '720px', margin: '0 auto', background: 'linear-gradient(135deg, rgba(255,214,10,0.12), rgba(255,214,10,0.04))', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '16px', padding: '24px 32px', display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ fontSize: '40px' }}>👑</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,214,10,0.7)', marginBottom: '4px' }}>
-                  Last Debate of the Day Winner
+          <div style={{ padding: '40px 48px 0' }}>
+            <div style={{ maxWidth: '860px', margin: '0 auto', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,214,10,0.12), rgba(230,57,70,0.06), rgba(255,214,10,0.04))', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '20px', padding: '28px 32px' }}>
+              <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '220px', height: '220px', background: 'radial-gradient(ellipse, rgba(255,214,10,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', bottom: '-30px', left: '-30px', width: '150px', height: '150px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative' }}>
+                <div style={{ width: '68px', height: '68px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,214,10,0.3), rgba(255,214,10,0.08))', border: '2px solid rgba(255,214,10,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', flexShrink: 0 }}>
+                  👑
                 </div>
-                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '30px', letterSpacing: '3px', color: 'var(--gold)', lineHeight: 1 }}>
-                  {totdWinner}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,214,10,0.65)', marginBottom: '5px' }}>
+                    🔥 Debate of the Day — Last Champion
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '38px', letterSpacing: '3px', color: 'var(--gold)', lineHeight: 1, marginBottom: '6px' }}>
+                    {totdWinner}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                    Outlasted every debater · Crowned champion · Earned <span style={{ color: 'var(--gold)', fontWeight: 700 }}>+300 ELO</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
-                  Crowned champion · Claimed 300 ELO
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                  <Link href="/topic" style={{ background: 'rgba(255,214,10,0.18)', border: '1px solid rgba(255,214,10,0.4)', borderRadius: '10px', padding: '11px 22px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'center', display: 'block' }}>
+                    🔥 Join Today's Debate
+                  </Link>
+                  <Link href="/rankings" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '10px', padding: '9px 22px', color: 'var(--muted)', fontSize: '12px', whiteSpace: 'nowrap', textAlign: 'center', display: 'block' }}>
+                    View Rankings →
+                  </Link>
                 </div>
               </div>
-              <Link href="/topic" style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '10px', padding: '10px 20px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                🔥 Join Today's Debate
-              </Link>
             </div>
           </div>
         )}

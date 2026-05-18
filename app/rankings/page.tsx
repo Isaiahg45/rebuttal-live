@@ -38,6 +38,7 @@ export default function RankingsPage() {
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set())
+  const [totdWinner, setTotdWinner] = useState<string | null>(null)
   const prevPlayersRef = useRef<RankedUser[]>([])
 
   const fetchRankings = async () => {
@@ -51,7 +52,6 @@ export default function RankingsPage() {
     if (error) { console.error(error); return }
     const newPlayers = data ?? []
 
-    // Find changed ELOs to animate
     const prev = prevPlayersRef.current
     const changed = new Set<string>()
     newPlayers.forEach(p => {
@@ -76,7 +76,13 @@ export default function RankingsPage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Realtime subscription
+  useEffect(() => {
+    fetch('https://rebuttal-live-production-3388.up.railway.app/totd-winner')
+      .then(r => r.json())
+      .then(d => { if (d.winner) setTotdWinner(d.winner) })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     const channel = supabase
       .channel('rankings-live')
@@ -84,9 +90,7 @@ export default function RankingsPage() {
         event: 'UPDATE',
         schema: 'public',
         table: 'profiles',
-      }, () => {
-        fetchRankings()
-      })
+      }, () => { fetchRankings() })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
@@ -116,16 +120,21 @@ export default function RankingsPage() {
           from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes shimmer {
+          0% { opacity: 0.7; }
+          50% { opacity: 1; }
+          100% { opacity: 0.7; }
+        }
         .rank-row { transition: all 0.4s ease; }
         .rank-row.animating { animation: eloFlash 1.5s ease; }
         .rank-entry { animation: slideIn 0.4s ease forwards; }
       `}</style>
 
       <div style={{ minHeight: 'calc(100vh - 56px)', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto', padding: '40px 24px' }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 24px' }}>
 
           {/* Header */}
-          <div style={{ marginBottom: '32px' }}>
+          <div style={{ marginBottom: '28px' }}>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '42px', letterSpacing: '3px', marginBottom: '4px' }}>
               GLOBAL RANKINGS
             </div>
@@ -145,6 +154,33 @@ export default function RankingsPage() {
             </div>
           </div>
 
+          {/* ✅ Debate of the Day Winner Banner */}
+          {totdWinner && (
+            <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,214,10,0.12), rgba(230,57,70,0.06), rgba(255,214,10,0.04))', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '20px', padding: '24px 28px', marginBottom: '28px' }}>
+              <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '180px', height: '180px', background: 'radial-gradient(ellipse, rgba(255,214,10,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', bottom: '-20px', left: '-20px', width: '120px', height: '120px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '18px', position: 'relative' }}>
+                <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,214,10,0.3), rgba(255,214,10,0.08))', border: '2px solid rgba(255,214,10,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', flexShrink: 0, animation: 'shimmer 3s ease infinite' }}>
+                  👑
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,214,10,0.65)', marginBottom: '4px' }}>
+                    🔥 Debate of the Day — Reigning Champion
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', letterSpacing: '3px', color: 'var(--gold)', lineHeight: 1, marginBottom: '5px' }}>
+                    {totdWinner}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                    Won the 24-hour Debate of the Day · Earned <span style={{ color: 'var(--gold)', fontWeight: 700 }}>+300 ELO</span>
+                  </div>
+                </div>
+                <Link href="/topic" style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.4)', borderRadius: '12px', padding: '12px 20px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'center', display: 'block', flexShrink: 0 }}>
+                  🔥 Compete Today
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Your rank banner — if logged in and not in top 10 */}
           {user && myPlayer && !isInTop10 && myRank && (
             <div style={{ background: 'rgba(230,57,70,0.06)', border: '1px solid rgba(230,57,70,0.2)', borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -160,12 +196,12 @@ export default function RankingsPage() {
             </div>
           )}
 
-          {/* Top 10 podium for top 3 */}
+          {/* Top 3 Podium */}
           {!loading && top10.length >= 3 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '12px', marginBottom: '28px' }}>
               {/* 2nd place */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: avatarGrad(1), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: top10[1]?.id === user?.id ? '#fff' : '#fff', border: '2px solid var(--silver)' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: avatarGrad(1), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff', border: '2px solid var(--silver)' }}>
                   {top10[1]?.username.slice(0, 2).toUpperCase()}
                 </div>
                 <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text2)', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{top10[1]?.username}</div>
@@ -230,17 +266,12 @@ export default function RankingsPage() {
                       animationFillMode: 'both',
                     }}
                   >
-                    {/* Rank */}
                     <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', width: '32px', textAlign: 'center', color: medalColor(i), flexShrink: 0 }}>
                       {i < 3 ? ['🥇','🥈','🥉'][i] : `#${i + 1}`}
                     </div>
-
-                    {/* Avatar */}
                     <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : avatarGrad(i), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, color: i < 3 ? (i === 0 ? '#000' : '#fff') : '#fff', flexShrink: 0, border: isMe ? '2px solid rgba(230,57,70,0.5)' : 'none' }}>
                       {p.username.slice(0, 2).toUpperCase()}
                     </div>
-
-                    {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '14px', fontWeight: isMe ? 700 : 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.username}</span>
@@ -251,8 +282,6 @@ export default function RankingsPage() {
                         {p.debates > 0 && ` · ${Math.round((p.wins / p.debates) * 100)}% win rate`}
                       </div>
                     </div>
-
-                    {/* ELO */}
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '1px', color: i === 0 ? 'var(--gold)' : i === 1 ? 'var(--silver)' : i === 2 ? 'var(--bronze)' : isMe ? 'var(--accent)' : 'var(--accent2)', animation: isAnimating ? 'countUp 0.4s ease' : 'none' }}>
                         {p.elo}

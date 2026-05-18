@@ -469,20 +469,24 @@ setInterval(() => {
     const sorted = Object.values(totd.players).sort((a, b) => b.score - a.score)
     const winner = sorted[0]
 
-    if (winner && winner.username && !winner.username.startsWith('guest')) {
-      lastTotdWinner = winner.username
-      supabaseRest(
-        `profiles?username=eq.${encodeURIComponent(winner.username)}`,
-        'PATCH',
-        { elo: (winner.elo || 0) + 300 }
-      ).catch(() => {})
-      console.log(`🏆 Debate of the Day winner: ${winner.username} (+300 ELO)`)
-      io.to('topic_of_the_day').emit('debate_of_day_winner', {
-        username: winner.username,
-        score: winner.score,
-      })
-    }
-
+  if (winner && winner.username && !winner.username.startsWith('guest')) {
+  lastTotdWinner = winner.username
+  // Save to Supabase so it survives restarts
+  supabaseRest('totd_winner?id=eq.1', 'PATCH', {
+    username: winner.username,
+    won_at: new Date().toISOString()
+  }).catch(() => {})
+  supabaseRest(
+    `profiles?username=eq.${encodeURIComponent(winner.username)}`,
+    'PATCH',
+    { elo: (winner.elo || 0) + 300 }
+  ).catch(() => {})
+  console.log(`🏆 Debate of the Day winner: ${winner.username} (+300 ELO)`)
+  io.to('topic_of_the_day').emit('debate_of_day_winner', {
+    username: winner.username,
+    score: winner.score,
+  })
+}
     setTimeout(() => {
       createTopicOfTheDay()
       io.to('topic_of_the_day').emit('topic_reset', rooms['topic_of_the_day'])
@@ -933,6 +937,12 @@ function startBots() {
 
 // ─── Boot ──────────────────────────────────────────────────────
 async function boot() {
+  // Load last TOTD winner
+const totdData = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
+if (totdData?.[0]?.username) {
+  lastTotdWinner = totdData[0].username
+  console.log(`👑 Last Debate of the Day winner: ${lastTotdWinner}`)
+}
   createTopicOfTheDay()
   try {
     const data = await supabaseRest('stats?id=eq.1&select=arguments_made,debates_completed')
@@ -966,5 +976,11 @@ app.get('/stats', (req, res) => res.json({
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
 }))
-app.get('/totd-winner', (req, res) => res.json({ winner: lastTotdWinner }))
-httpServer.listen(3001, () => console.log('🚀 Socket server on port 3001'))
+app.get('/totd-winner', async (req, res) => {
+  try {
+    const data = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
+    res.json({ winner: data?.[0]?.username || null, wonAt: data?.[0]?.won_at || null })
+  } catch (e) {
+    res.json({ winner: lastTotdWinner, wonAt: null })
+  }
+})
