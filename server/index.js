@@ -744,6 +744,15 @@ io.on('connection', (socket) => {
       player.score += score
       if (instanceId === 'topic_of_the_day') totdScores[player.username] = player.score
     }
+if (score >= 20 && !username.startsWith('guest')) {
+      supabaseRest('top_arguments', 'POST', {
+        username, text, score,
+        ai_feedback: feedback,
+        topic: room.topic,
+        room_type: room.type,
+      }).catch(() => {})
+    }
+
     io.to(instanceId).emit('new_message', msg)
     io.to(instanceId).emit('players_update', Object.values(room.players))
   })
@@ -989,7 +998,16 @@ if (totdData?.[0]?.username) {
   setInterval(() => console.log('💓 keepalive'), 4 * 60 * 1000)
   setTimeout(startBots, 5000)
 }
-
+app.get('/top-arguments', async (req, res) => {
+  try {
+    const data = await supabaseRest(
+      'top_arguments?select=*&order=score.desc&limit=3'
+    )
+    res.json(data || [])
+  } catch (e) {
+    res.json([])
+  }
+})
 boot()
 app.get('/health', (req, res) => res.json({
   status: 'ok',

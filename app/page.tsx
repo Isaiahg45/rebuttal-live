@@ -7,6 +7,7 @@ import AuthRedirect from './components/AuthRedirect'
 export default function Home() {
   const [stats, setStats] = useState({ debatersOnline: 0, liveDebates: 0, argumentsMade: 0 })
   const [totdWinner, setTotdWinner] = useState<string | null>(null)
+  const [topArgs, setTopArgs] = useState<any[]>([])
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -23,8 +24,16 @@ export default function Home() {
         if (data.winner) setTotdWinner(data.winner)
       } catch (e) {}
     }
+    const fetchTopArgs = async () => {
+      try {
+        const res = await fetch('https://rebuttal-live-production-3388.up.railway.app/top-arguments')
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) setTopArgs(data)
+      } catch (e) {}
+    }
     fetchStats()
     fetchWinner()
+    fetchTopArgs()
     const interval = setInterval(fetchStats, 10000)
     return () => clearInterval(interval)
   }, [])
@@ -97,7 +106,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ✅ Debate of the Day Winner Banner */}
+        {/* Debate of the Day Winner Banner */}
         {totdWinner && (
           <div style={{ padding: '40px 48px 0' }}>
             <div style={{ maxWidth: '860px', margin: '0 auto', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,214,10,0.12), rgba(230,57,70,0.06), rgba(255,214,10,0.04))', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '20px', padding: '28px 32px' }}>
@@ -155,33 +164,38 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Featured Arguments */}
-        <div style={{ padding: '48px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Featured Arguments This Week</span>
-            <div style={{ height: '1px', flex: 1, background: 'var(--border)', marginLeft: '16px' }} />
+        {/* Featured Arguments — only shows when real data exists */}
+        {topArgs.length > 0 && (
+          <div style={{ padding: '48px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Featured Arguments This Week</span>
+              <div style={{ height: '1px', flex: 1, background: 'var(--border)', marginLeft: '16px' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              {topArgs.map((card: any) => {
+                const isSerious = card.room_type === 'serious' || card.room_type === 'competitive'
+                return (
+                  <div key={card.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', position: 'relative', overflow: 'hidden', transition: 'border-color 0.2s' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: isSerious ? 'var(--accent)' : 'var(--green)' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', padding: '2px 8px', borderRadius: '4px', background: isSerious ? 'rgba(230,57,70,.12)' : 'rgba(34,197,94,.12)', color: isSerious ? 'var(--accent)' : 'var(--green)' }}>
+                        {card.room_type}
+                      </span>
+                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>@{card.username}</span>
+                      <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-bebas)', fontSize: '16px', color: 'var(--gold)', letterSpacing: '1px' }}>+{card.score} PTS</span>
+                    </div>
+                    <p style={{ fontSize: '13px', lineHeight: 1.7, color: 'var(--text2)', fontStyle: 'italic', marginBottom: '14px' }}>"{card.text}"</p>
+                    {card.ai_feedback && (
+                      <div style={{ fontSize: '11px', color: 'var(--blue)', fontWeight: 500, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                        <span>🤖</span><span>{card.ai_feedback}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-            {[
-              { type: 'serious', typeLabel: 'Philosophy', user: 'rhetorical_rex', pts: '+30', quote: '"Free will is an illusion crafted by a brain that narrates its own decisions after the fact — Libet\'s experiments make this undeniable."', ai: 'Exceptional neuroscience evidence. Strong logical structure.' },
-              { type: 'serious', typeLabel: 'Politics', user: 'dialectic_dan', pts: '+28', quote: '"Finland\'s 2017 UBI pilot proved participants were more likely to seek employment. The assumption of laziness is ideologically driven, not empirical."', ai: 'Strong empirical grounding. Dismantles the opposition\'s premise.' },
-              { type: 'casual', typeLabel: 'Food', user: 'spice_lord_99', pts: '+22', quote: '"Pizza has existed in some form for over 1,000 years across multiple civilizations. Burgers are barely 150 years old — pizza won the test of time."', ai: 'Creative historical framing. Memorable comparative argument.' },
-            ].map(card => (
-              <div key={card.user} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', position: 'relative', overflow: 'hidden', transition: 'border-color 0.2s' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: card.type === 'serious' ? 'var(--accent)' : 'var(--green)' }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', padding: '2px 8px', borderRadius: '4px', background: card.type === 'serious' ? 'rgba(230,57,70,.12)' : 'rgba(34,197,94,.12)', color: card.type === 'serious' ? 'var(--accent)' : 'var(--green)' }}>{card.typeLabel}</span>
-                  <span style={{ fontSize: '12px', color: 'var(--muted)' }}>@{card.user}</span>
-                  <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-bebas)', fontSize: '16px', color: 'var(--gold)', letterSpacing: '1px' }}>{card.pts} PTS</span>
-                </div>
-                <p style={{ fontSize: '13px', lineHeight: 1.7, color: 'var(--text2)', fontStyle: 'italic', marginBottom: '14px' }}>{card.quote}</p>
-                <div style={{ fontSize: '11px', color: 'var(--blue)', fontWeight: 500, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                  <span>🤖</span><span>{card.ai}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
 
       </div>
     </>
