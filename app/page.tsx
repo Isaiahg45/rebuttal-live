@@ -6,6 +6,7 @@ import AuthRedirect from './components/AuthRedirect'
 
 export default function Home() {
   const [stats, setStats] = useState({ debatersOnline: 0, liveDebates: 0, argumentsMade: 0 })
+  const [totdWinner, setTotdWinner] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -15,7 +16,15 @@ export default function Home() {
         setStats(data)
       } catch (e) {}
     }
+    const fetchWinner = async () => {
+      try {
+        const res = await fetch('https://rebuttal-live-production-3388.up.railway.app/totd-winner')
+        const data = await res.json()
+        if (data.winner) setTotdWinner(data.winner)
+      } catch (e) {}
+    }
     fetchStats()
+    fetchWinner()
     const interval = setInterval(fetchStats, 10000)
     return () => clearInterval(interval)
   }, [])
@@ -87,6 +96,29 @@ export default function Home() {
 
           </div>
         </div>
+
+        {/* ✅ Debate of the Day Winner Banner */}
+        {totdWinner && (
+          <div style={{ padding: '32px 48px 0' }}>
+            <div style={{ maxWidth: '720px', margin: '0 auto', background: 'linear-gradient(135deg, rgba(255,214,10,0.12), rgba(255,214,10,0.04))', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '16px', padding: '24px 32px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ fontSize: '40px' }}>👑</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,214,10,0.7)', marginBottom: '4px' }}>
+                  Last Debate of the Day Winner
+                </div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '30px', letterSpacing: '3px', color: 'var(--gold)', lineHeight: 1 }}>
+                  {totdWinner}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
+                  Crowned champion · Claimed 300 ELO
+                </div>
+              </div>
+              <Link href="/topic" style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '10px', padding: '10px 20px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                🔥 Join Today's Debate
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* How to Win */}
         <div style={{ padding: '48px 48px 0' }}>

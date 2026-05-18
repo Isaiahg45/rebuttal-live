@@ -14,7 +14,6 @@ const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 })
 
-// ─── Supabase REST helper ───────────────────────────────────────
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -75,7 +74,6 @@ const PREWRITTEN = {
     { topic: 'Are open relationships ever a good idea?', emoji: '❤️', duration: 150 },
   ],
   serious: [
-    // US Politics & Trump era
     { topic: 'Is Donald Trump the most consequential president of the 21st century?', emoji: '🇺🇸', duration: 300 },
     { topic: 'Are Trump\'s tariffs destroying the American economy or rebuilding it?', emoji: '📊', duration: 300 },
     { topic: 'Is the Republican Party drifting toward authoritarianism?', emoji: '🏛️', duration: 360 },
@@ -91,8 +89,6 @@ const PREWRITTEN = {
     { topic: 'Was January 6th an insurrection or a protest that got out of hand?', emoji: '🏛️', duration: 360 },
     { topic: 'Is free speech under threat in America in 2026?', emoji: '🗣️', duration: 300 },
     { topic: 'Should the US military be the world\'s police force?', emoji: '🪖', duration: 360 },
-
-    // AI & Technology
     { topic: 'Will AI eliminate more jobs than it creates in the next decade?', emoji: '🤖', duration: 300 },
     { topic: 'Should AI companies be held legally liable for their models\' harm?', emoji: '⚖️', duration: 300 },
     { topic: 'Is the AI arms race between the US and China making the world less safe?', emoji: '🔬', duration: 360 },
@@ -108,8 +104,6 @@ const PREWRITTEN = {
     { topic: 'Is algorithmic content destroying our ability to think independently?', emoji: '🧩', duration: 300 },
     { topic: 'Should AI-generated art be protected by copyright?', emoji: '🖼️', duration: 300 },
     { topic: 'Will autonomous weapons make war more or less deadly?', emoji: '🤖', duration: 360 },
-
-    // Gen Z & Youth Culture
     { topic: 'Is looksmaxxing culture toxic or just self-improvement?', emoji: '💆', duration: 300 },
     { topic: 'Are boomers responsible for the housing crisis Gen Z faces?', emoji: '🏠', duration: 300 },
     { topic: 'Is hustle culture killing young people\'s mental health?', emoji: '😰', duration: 300 },
@@ -122,8 +116,6 @@ const PREWRITTEN = {
     { topic: 'Are young men falling behind and does anyone care?', emoji: '👦', duration: 360 },
     { topic: 'Is the cost of living genuinely making the American Dream impossible for Gen Z?', emoji: '🏘️', duration: 300 },
     { topic: 'Should influencing be regulated like any other media?', emoji: '📸', duration: 300 },
-
-    // Race, Identity & Society
     { topic: 'Is affirmative action fair or institutionalized discrimination?', emoji: '🎓', duration: 360 },
     { topic: 'Is DEI good for companies or just performative?', emoji: '🌈', duration: 300 },
     { topic: 'Is systemic racism still a defining feature of America?', emoji: '✊', duration: 360 },
@@ -136,8 +128,6 @@ const PREWRITTEN = {
     { topic: 'Are white men the most discriminated against group in modern America?', emoji: '🤔', duration: 300 },
     { topic: 'Is antisemitism rising faster on the left or the right?', emoji: '✡️', duration: 360 },
     { topic: 'Should hate speech be illegal?', emoji: '🔇', duration: 300 },
-
-    // Economy & Class
     { topic: 'Should billionaires exist in a functioning democracy?', emoji: '💰', duration: 300 },
     { topic: 'Is housing unaffordable because of government failure or market failure?', emoji: '🏠', duration: 300 },
     { topic: 'Should the minimum wage be $25 an hour?', emoji: '💵', duration: 300 },
@@ -148,8 +138,6 @@ const PREWRITTEN = {
     { topic: 'Should inheritance be taxed at 100% above a certain amount?', emoji: '👴', duration: 360 },
     { topic: 'Is the gig economy exploiting workers or giving them freedom?', emoji: '🚗', duration: 300 },
     { topic: 'Should there be a maximum wage?', emoji: '💸', duration: 300 },
-
-    // Environment & Future
     { topic: 'Is climate change still the biggest threat to humanity in 2026?', emoji: '🌡️', duration: 300 },
     { topic: 'Has the green energy transition been a failure so far?', emoji: '🌱', duration: 300 },
     { topic: 'Should nuclear power be the cornerstone of clean energy?', emoji: '⚛️', duration: 300 },
@@ -157,8 +145,6 @@ const PREWRITTEN = {
     { topic: 'Should meat be taxed like cigarettes to reduce emissions?', emoji: '🥩', duration: 300 },
     { topic: 'Is geoengineering the earth a good idea?', emoji: '🌍', duration: 360 },
     { topic: 'Should companies face criminal charges for environmental damage?', emoji: '⚖️', duration: 300 },
-
-    // Health & Body
     { topic: 'Should Ozempic and weight loss drugs be covered by insurance?', emoji: '💉', duration: 300 },
     { topic: 'Is the US healthcare system the worst in the developed world?', emoji: '🏥', duration: 300 },
     { topic: 'Should abortion be legal in all circumstances?', emoji: '⚕️', duration: 360 },
@@ -166,8 +152,6 @@ const PREWRITTEN = {
     { topic: 'Should drugs like MDMA and psilocybin be legal for therapeutic use?', emoji: '🍄', duration: 300 },
     { topic: 'Is the anti-vaccine movement a genuine public health threat?', emoji: '💊', duration: 300 },
     { topic: 'Should euthanasia be legal everywhere?', emoji: '🕊️', duration: 360 },
-
-    // Crime, Justice & Policing
     { topic: 'Should the US abolish the death penalty?', emoji: '⚖️', duration: 360 },
     { topic: 'Do police in America have too much power?', emoji: '👮', duration: 300 },
     { topic: 'Is mass incarceration a form of modern slavery?', emoji: '🔒', duration: 360 },
@@ -175,8 +159,6 @@ const PREWRITTEN = {
     { topic: 'Is gun control constitutionally possible in America?', emoji: '🔫', duration: 360 },
     { topic: 'Should the legal age for everything be 21 — including voting?', emoji: '🗳️', duration: 300 },
     { topic: 'Are prisons meant to punish or rehabilitate — and which is right?', emoji: '🏛️', duration: 300 },
-
-    // Global Affairs
     { topic: 'Should the West keep funding Ukraine indefinitely?', emoji: '🇺🇦', duration: 360 },
     { topic: 'Is Israel\'s military campaign in Gaza justified?', emoji: '🕊️', duration: 360 },
     { topic: 'Will China surpass the US as the world\'s dominant superpower?', emoji: '🐉', duration: 300 },
@@ -185,25 +167,18 @@ const PREWRITTEN = {
     { topic: 'Should rich countries have open borders?', emoji: '🚪', duration: 360 },
     { topic: 'Is Xi Jinping the most powerful person in the world?', emoji: '🌏', duration: 300 },
     { topic: 'Has the West\'s response to Russia proved it has double standards?', emoji: '🇷🇺', duration: 360 },
-
-    // Education
     { topic: 'Is college a scam for most people?', emoji: '🎓', duration: 300 },
     { topic: 'Should standardized tests like the SAT be abolished permanently?', emoji: '📝', duration: 300 },
     { topic: 'Are private schools making inequality worse?', emoji: '🏫', duration: 300 },
     { topic: 'Should teachers be paid as much as doctors?', emoji: '👩‍🏫', duration: 300 },
     { topic: 'Has critical race theory become a bogeyman or a real problem in schools?', emoji: '📚', duration: 360 },
     { topic: 'Should homeschooling be more regulated?', emoji: '🏠', duration: 300 },
-
-    // Media & Culture
     { topic: 'Is mainstream media completely untrustworthy in 2026?', emoji: '📰', duration: 300 },
     { topic: 'Has Joe Rogan done more harm or good for public discourse?', emoji: '🎙️', duration: 300 },
     { topic: 'Are podcasts replacing journalism — and is that a problem?', emoji: '🎧', duration: 300 },
-    { topic: 'Is the Hollywood strikes era proof that streaming is destroying creativity?', emoji: '🎬', duration: 300 },
     { topic: 'Should social media platforms be treated as publishers and held liable?', emoji: '⚖️', duration: 360 },
     { topic: 'Is Andrew Tate a symptom of a deeper problem with masculinity culture?', emoji: '💪', duration: 300 },
     { topic: 'Has celebrity culture completely destroyed our sense of reality?', emoji: '⭐', duration: 300 },
-
-    // Morality & Philosophy
     { topic: 'Do humans have a moral obligation to help strangers?', emoji: '🤲', duration: 300 },
     { topic: 'Is it ever morally acceptable to lie to protect someone?', emoji: '🤥', duration: 300 },
     { topic: 'Should eating meat be considered morally wrong?', emoji: '🥩', duration: 300 },
@@ -257,6 +232,7 @@ const PREWRITTEN = {
     { topic: 'If you could erase one memory, would you — and what might you lose?', emoji: '🧠', duration: 180 },
   ]
 }
+
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5) }
 
 const topicPool = {
@@ -338,6 +314,98 @@ let pendingRoomCreations = 0
 let totalArgumentsMade = 0
 let totalDebatesCompleted = 0
 const roomLastBotMessage = {}
+let lastTotdWinner = null
+
+// ─── Topic of the Day ──────────────────────────────────────────
+const TOTD_TOPICS = [
+  { topic: 'Is Donald Trump making America great again or tearing it apart?', emoji: '🇺🇸' },
+  { topic: 'Will AI take your job within 5 years?', emoji: '🤖' },
+  { topic: 'Is the housing crisis the biggest failure of modern government?', emoji: '🏠' },
+  { topic: 'Is social media destroying an entire generation?', emoji: '📱' },
+  { topic: 'Should billionaires be allowed to exist?', emoji: '💰' },
+  { topic: 'Is cancel culture out of control?', emoji: '❌' },
+  { topic: 'Are we heading toward World War 3?', emoji: '🌍' },
+  { topic: 'Is Gen Z the most politically divided generation ever?', emoji: '✊' },
+  { topic: 'Has feminism gone too far or not far enough?', emoji: '♀️' },
+  { topic: 'Is religion dying — and is that a good thing?', emoji: '⛪' },
+  { topic: 'Is democracy failing everywhere at once?', emoji: '🗳️' },
+  { topic: 'Should the US stay out of foreign wars entirely?', emoji: '🪖' },
+  { topic: 'Is the American Dream still real in 2026?', emoji: '🌟' },
+  { topic: 'Is China going to dominate the 21st century?', emoji: '🐉' },
+  { topic: 'Are young men in crisis — and who\'s responsible?', emoji: '👦' },
+]
+
+let totdResetting = false
+
+function createTopicOfTheDay() {
+  const topic = TOTD_TOPICS[Math.floor(Math.random() * TOTD_TOPICS.length)]
+  const duration = 24 * 60 * 60
+  rooms['topic_of_the_day'] = {
+    instanceId: 'topic_of_the_day',
+    type: 'topic_of_the_day',
+    emoji: topic.emoji,
+    topic: topic.topic,
+    duration,
+    eloRequired: 0,
+    maxPlayers: 999999,
+    players: {},
+    spectators: {},
+    messages: [],
+    status: 'active',
+    countdown: 0,
+    startCountdown: null,
+    debateEndsAt: Date.now() + duration * 1000,
+    createdAt: Date.now(),
+  }
+  totdResetting = false
+  console.log(`🔥 Debate of the Day: "${topic.topic}"`)
+}
+
+function getRoomList() {
+  return Object.values(rooms)
+    .filter(r => r.status !== 'ended' && r.instanceId !== 'topic_of_the_day')
+    .sort((a, b) => {
+      const order = { starting: 0, active: 1, waiting: 2 }
+      return (order[a.status] || 2) - (order[b.status] || 2)
+    })
+    .map(r => ({
+      instanceId: r.instanceId, emoji: r.emoji, topic: r.topic,
+      type: r.type, duration: r.duration, maxPlayers: r.maxPlayers,
+      eloRequired: r.eloRequired,
+      playerCount: Object.keys(r.players).length,
+      spectatorCount: Object.keys(r.spectators).length,
+      players: Object.values(r.players).map(p => p.username),
+      status: r.status, countdown: r.countdown,
+      startCountdown: r.startCountdown,
+      timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
+    }))
+}
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+function calculateEloChanges(type, playerCount, duration) {
+  const baseRanges = {
+    casual:      { min: 5,   max: 10  },
+    random:      { min: 8,   max: 18  },
+    serious:     { min: 15,  max: 40  },
+    competitive: { min: 50,  max: 120 },
+  }
+  const base = baseRanges[type] ?? { min: 8, max: 18 }
+  const maxDuration = 480
+  const durationMult = 0.7 + (Math.min(duration, maxDuration) / maxDuration) * 0.6
+  const playerMult = 0.4 + (Math.min(playerCount, 15) / 15) * 1.1
+  const scaledMin = Math.round(base.min * durationMult * playerMult)
+  const scaledMax = Math.round(base.max * durationMult * playerMult)
+  const winnerElo = randInt(scaledMin, scaledMax)
+  const caps = { casual: 20, random: 25, serious: 90, competitive: 200 }
+  const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
+  const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)
+  const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)
+  const loserBase = Math.round(cappedWinner * 0.4)
+  return { winnerElo: cappedWinner, secondElo, thirdElo, loserBase }
+}
 
 function createRoom(type) {
   const topic = getTopicForType(type)
@@ -391,103 +459,39 @@ function replenishRooms(immediate = false) {
   }
   refillAIQueue()
 }
-// ─── Topic of the Day ──────────────────────────────────────────
-const TOTD_TOPICS = [
-  { topic: 'Is Donald Trump making America great again or tearing it apart?', emoji: '🇺🇸' },
-  { topic: 'Will AI take your job within 5 years?', emoji: '🤖' },
-  { topic: 'Is the housing crisis the biggest failure of modern government?', emoji: '🏠' },
-  { topic: 'Is social media destroying an entire generation?', emoji: '📱' },
-  { topic: 'Should billionaires be allowed to exist?', emoji: '💰' },
-  { topic: 'Is cancel culture out of control?', emoji: '❌' },
-  { topic: 'Are we heading toward World War 3?', emoji: '🌍' },
-  { topic: 'Is Gen Z the most politically divided generation ever?', emoji: '✊' },
-  { topic: 'Has feminism gone too far or not far enough?', emoji: '♀️' },
-  { topic: 'Is religion dying — and is that a good thing?', emoji: '⛪' },
-  { topic: 'Is democracy failing everywhere at once?', emoji: '🗳️' },
-  { topic: 'Should the US stay out of foreign wars entirely?', emoji: '🪖' },
-  { topic: 'Is the American Dream still real in 2026?', emoji: '🌟' },
-  { topic: 'Is China going to dominate the 21st century?', emoji: '🐉' },
-  { topic: 'Are young men in crisis — and who\'s responsible?', emoji: '👦' },
-]
-
-function createTopicOfTheDay() {
-  const topic = TOTD_TOPICS[Math.floor(Math.random() * TOTD_TOPICS.length)]
-  const duration = 24 * 60 * 60 // 24 hours in seconds
-  rooms['topic_of_the_day'] = {
-    instanceId: 'topic_of_the_day',
-    type: 'topic_of_the_day',
-    emoji: topic.emoji,
-    topic: topic.topic,
-    duration,
-    eloRequired: 0,
-    maxPlayers: 100000000000000000,
-    players: {},
-    spectators: {},
-    messages: [],
-    status: 'active',
-    countdown: 0,
-    startCountdown: null,
-    debateEndsAt: Date.now() + duration * 1000,
-    createdAt: Date.now(),
-  }
-  console.log(`🔥 Topic of the Day: "${topic.topic}"`)
-}
-function getRoomList() {
-  return Object.values(rooms)
-    .filter(r => r.status !== 'ended' && r.instanceId !== 'topic_of_the_day')
-    .sort((a, b) => {
-      const order = { starting: 0, active: 1, waiting: 2 }
-      return (order[a.status] || 2) - (order[b.status] || 2)
-    })
-    .map(r => ({
-      instanceId: r.instanceId, emoji: r.emoji, topic: r.topic,
-      type: r.type, duration: r.duration, maxPlayers: r.maxPlayers,
-      eloRequired: r.eloRequired,
-      playerCount: Object.keys(r.players).length,
-      spectatorCount: Object.keys(r.spectators).length,
-      players: Object.values(r.players).map(p => p.username),
-      status: r.status, countdown: r.countdown,
-      startCountdown: r.startCountdown,
-      timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
-    }))
-}
-
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
-}
-
-function calculateEloChanges(type, playerCount, duration) {
-  const baseRanges = {
-    casual:      { min: 5,   max: 10  },
-    random:      { min: 8,   max: 18  },
-    serious:     { min: 15,  max: 40  },
-    competitive: { min: 50,  max: 120 },
-  }
-  const base = baseRanges[type] ?? { min: 8, max: 18 }
-  const maxDuration = 480
-  const durationMult = 0.7 + (Math.min(duration, maxDuration) / maxDuration) * 0.6
-  const playerMult = 0.4 + (Math.min(playerCount, 15) / 15) * 1.1
-  const scaledMin = Math.round(base.min * durationMult * playerMult)
-  const scaledMax = Math.round(base.max * durationMult * playerMult)
-  const winnerElo = randInt(scaledMin, scaledMax)
-  const caps = { casual: 20, random: 25, serious: 90, competitive: 200 }
-  const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
-  const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)
-  const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)
-  const loserBase = Math.round(cappedWinner * 0.4)
-  return { winnerElo: cappedWinner, secondElo, thirdElo, loserBase }
-}
 
 // ─── Game loop ─────────────────────────────────────────────────
 setInterval(() => {
-  // ✅ Refresh Topic of the Day every 30 minutes
+  // ✅ Debate of the Day reset with winner logic
   const totd = rooms['topic_of_the_day']
-  if (!totd || Date.now() > totd.debateEndsAt) {
-    createTopicOfTheDay()
-    io.to('topic_of_the_day').emit('topic_reset', rooms['topic_of_the_day'])
+  if (totd && Date.now() > totd.debateEndsAt && !totdResetting) {
+    totdResetting = true
+    const sorted = Object.values(totd.players).sort((a, b) => b.score - a.score)
+    const winner = sorted[0]
+
+    if (winner && winner.username && !winner.username.startsWith('guest')) {
+      lastTotdWinner = winner.username
+      supabaseRest(
+        `profiles?username=eq.${encodeURIComponent(winner.username)}`,
+        'PATCH',
+        { elo: (winner.elo || 0) + 300 }
+      ).catch(() => {})
+      console.log(`🏆 Debate of the Day winner: ${winner.username} (+300 ELO)`)
+      io.to('topic_of_the_day').emit('debate_of_day_winner', {
+        username: winner.username,
+        score: winner.score,
+      })
+    }
+
+    setTimeout(() => {
+      createTopicOfTheDay()
+      io.to('topic_of_the_day').emit('topic_reset', rooms['topic_of_the_day'])
+      io.emit('totd_winner_update', { winner: lastTotdWinner })
+    }, 5000)
   }
 
   Object.values(rooms).forEach(room => {
+    if (room.instanceId === 'topic_of_the_day') return
     if (room.status === 'ended') return
     const playerCount = Object.keys(room.players).length
 
@@ -544,6 +548,7 @@ setInterval(() => {
 
   const now = Date.now()
   Object.keys(rooms).forEach(id => {
+    if (id === 'topic_of_the_day') return
     if (rooms[id].status === 'ended' && now - rooms[id].createdAt > 30000) delete rooms[id]
   })
 
@@ -603,7 +608,9 @@ io.on('connection', (socket) => {
 
   socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
     const alreadyInRoom = Object.values(rooms).some(r =>
-      r.status !== 'ended' && Object.values(r.players).some(p => p.username === username)
+      r.instanceId !== 'topic_of_the_day' &&
+      r.status !== 'ended' &&
+      Object.values(r.players).some(p => p.username === username)
     )
     if (alreadyInRoom) {
       socket.emit('error', { message: 'You are already in a debate in another tab. Please close it first.' })
@@ -659,36 +666,40 @@ io.on('connection', (socket) => {
     io.emit('rooms_update', getRoomList())
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
-socket.on('join_topic_of_day', ({ username }) => {
-  const room = rooms['topic_of_the_day']
-  if (!room) { socket.emit('error', { message: 'Topic of the Day not available.' }); return }
-  currentRoomId = 'topic_of_the_day'
-  currentUsername = username
-  isSpectator = false
-  socket.join('topic_of_the_day')
-  room.players[socket.id] = { username, score: 0, elo: 0 }
 
-  const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
+  socket.on('join_topic_of_day', ({ username }) => {
+    const room = rooms['topic_of_the_day']
+    if (!room) { socket.emit('error', { message: 'Debate of the Day not available.' }); return }
 
-  socket.emit('message_history', room.messages)
-  socket.emit('room_info', {
-    instanceId: 'topic_of_the_day',
-    topic: room.topic,
-    emoji: room.emoji,
-    type: 'topic_of_the_day',
-    duration: room.duration,
-    status: 'active',
-    isSpectator: false,
-    timeLeft,
+    currentRoomId = 'topic_of_the_day'
+    currentUsername = username
+    isSpectator = false
+    socket.join('topic_of_the_day')
+    room.players[socket.id] = { username, score: 0, elo: 0 }
+
+    const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
+
+    socket.emit('message_history', room.messages)
+    socket.emit('room_info', {
+      instanceId: 'topic_of_the_day',
+      topic: room.topic,
+      emoji: room.emoji,
+      type: 'topic_of_the_day',
+      duration: room.duration,
+      status: 'active',
+      isSpectator: false,
+      timeLeft,
+    })
+    socket.emit('totd_info', { topic: room.topic, emoji: room.emoji, timeLeft })
+    io.to('topic_of_the_day').emit('players_update', Object.values(room.players))
+    io.to('topic_of_the_day').emit('system_message', { text: `${username} joined` })
+    console.log(`💬 ${username} joined Debate of the Day — "${room.topic}"`)
   })
-  socket.emit('totd_info', { topic: room.topic, emoji: room.emoji, timeLeft })
-  io.to('topic_of_the_day').emit('players_update', Object.values(room.players))
-  io.to('topic_of_the_day').emit('system_message', { text: `${username} joined` })
-  console.log(`💬 ${username} joined Topic of the Day — "${room.topic}"`)
-})
+
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]
-    if (!room || room.status !== 'active') return
+    if (!room) return
+    if (instanceId !== 'topic_of_the_day' && room.status !== 'active') return
     if (isSpectator) return
 
     totalArgumentsMade++
@@ -714,7 +725,9 @@ socket.on('join_topic_of_day', ({ username }) => {
       delete room.spectators[socket.id]
     } else {
       delete room.players[socket.id]
-      if (currentUsername) io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+      if (currentUsername && currentRoomId !== 'topic_of_the_day') {
+        io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+      }
       io.to(currentRoomId).emit('players_update', Object.values(room.players))
     }
     io.emit('rooms_update', getRoomList())
@@ -783,7 +796,9 @@ async function getBotArgument(topic, personality, recentMessages) {
 
 function findRoomForBot() {
   const available = Object.values(rooms).filter(r =>
-    r.status === 'waiting' && Object.keys(r.players).length < r.maxPlayers
+    r.instanceId !== 'topic_of_the_day' &&
+    r.status === 'waiting' &&
+    Object.keys(r.players).length < r.maxPlayers
   )
   if (available.length === 0) return null
   return available[Math.floor(Math.random() * available.length)]
@@ -793,7 +808,7 @@ async function runBot(botName, personality) {
   const state = { roomId: null, active: true }
 
   async function goOnline() {
-  const onlineDuration = (15 + Math.random() * 10) * 60 * 1000
+    const onlineDuration = (15 + Math.random() * 10) * 60 * 1000
     console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
     state.active = true
     setTimeout(() => goOffline(), onlineDuration)
@@ -905,7 +920,6 @@ async function runBot(botName, personality) {
     sendBotMessage()
   }
 
-  // Stagger initial start so bots don't all go offline at the same time
   const initialDelay = Math.random() * 5 * 60 * 1000
   setTimeout(goOnline, initialDelay)
 }
@@ -919,7 +933,7 @@ function startBots() {
 
 // ─── Boot ──────────────────────────────────────────────────────
 async function boot() {
-  createTopicOfTheDay() // ✅ add this line
+  createTopicOfTheDay()
   try {
     const data = await supabaseRest('stats?id=eq.1&select=arguments_made,debates_completed')
     if (data?.[0]) {
@@ -948,8 +962,9 @@ app.get('/health', (req, res) => res.json({
 app.get('/stats', (req, res) => res.json({
   debatersOnline: io.engine.clientsCount + Object.values(rooms).reduce((acc, r) =>
     acc + Object.keys(r.players).filter(k => k.startsWith('bot_')).length, 0),
-  liveDebates: Object.values(rooms).filter(r => r.status === 'active').length,
+  liveDebates: Object.values(rooms).filter(r => r.status === 'active' && r.instanceId !== 'topic_of_the_day').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
 }))
+app.get('/totd-winner', (req, res) => res.json({ winner: lastTotdWinner }))
 httpServer.listen(3001, () => console.log('🚀 Socket server on port 3001'))
