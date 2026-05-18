@@ -338,6 +338,7 @@ const TOTD_TOPICS = [
 let totdResetting = false
 
 function createTopicOfTheDay() {
+  Object.keys(totdScores).forEach(k => delete totdScores[k])
   const topic = TOTD_TOPICS[Math.floor(Math.random() * TOTD_TOPICS.length)]
   const duration = 24 * 60 * 60
   rooms['topic_of_the_day'] = {
@@ -697,11 +698,11 @@ io.on('connection', (socket) => {
     currentUsername = username
     isSpectator = false
     socket.join('topic_of_the_day')
-    const existingPlayer = Object.values(room.players).find(p => p.username === username)
-    room.players[socket.id] = { username, score: existingPlayer ? existingPlayer.score : 0, elo: 0 }
+  if (!(username in totdScores)) totdScores[username] = 0
     Object.keys(room.players).forEach(key => {
-      if (key !== socket.id && room.players[key].username === username) delete room.players[key]
+      if (room.players[key].username === username) delete room.players[key]
     })
+    room.players[socket.id] = { username, score: totdScores[username], elo: 0 }
     const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
 
     socket.emit('message_history', room.messages)
@@ -737,8 +738,11 @@ io.on('connection', (socket) => {
       timestamp: Date.now(),
     }
     room.messages.push(msg)
-    const player = room.players[socket.id]
-    if (player) player.score += score
+   const player = room.players[socket.id]
+    if (player) {
+      player.score += score
+      if (instanceId === 'topic_of_the_day') totdScores[player.username] = player.score
+    }
     io.to(instanceId).emit('new_message', msg)
     io.to(instanceId).emit('players_update', Object.values(room.players))
   })
