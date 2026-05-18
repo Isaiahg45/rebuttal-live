@@ -33,10 +33,6 @@ const faqs = [
     a: 'Copy-pasting is disabled to keep debates authentic. The AI scores your arguments — if you paste someone else\'s words, you\'re not actually debating. Write your own arguments for a fair fight.'
   },
   {
-    q: 'What gets you penalized?',
-    a: 'Hard slurs result in an immediate -10 point penalty. Arguments that are too short (under 15 characters) score 0. Weak, vague, or repetitive arguments score low. The AI rewards specificity, evidence, and original thinking.'
-  },
-  {
     q: 'Why is there a cooldown between messages?',
     a: 'In rooms with 6 or fewer players, the cooldown is 15 seconds. In larger rooms it\'s 30 seconds. This prevents spam and encourages thoughtful, considered arguments rather than rapid-fire low-quality messages.'
   },

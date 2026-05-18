@@ -572,7 +572,7 @@ setInterval(() => {
 async function scoreArgument(text, topic, roomType) {
   const hardSlurs = /\b(nigger|nigga|faggot|chink|spic|kike|wetback|tranny)\b/i.test(text)
   if (hardSlurs) return { score: -10, feedback: 'Slur detected. Hard penalty applied.' }
-  const hasCasualProfanity = /\b(fuck|shit|ass|bitch|damn|crap|hell|bastard)\b/i.test(text)
+  const hasCasualProfanity = false
   if (text.trim().length < 15) return { score: 0, feedback: 'Too brief to evaluate.' }
   try {
     const result = await Promise.race([
@@ -581,7 +581,7 @@ async function scoreArgument(text, topic, roomType) {
         max_tokens: 100,
         messages: [{
           role: 'system',
-          content: `You are a debate judge. Topic: "${topic}" (${roomType}).
+         content: `You are a debate judge. Topic: "${topic}" (${roomType}).
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
@@ -607,7 +607,6 @@ function fallbackScore(text, hasProfanity) {
     : wordCount < 60 ? Math.floor(Math.random() * 7) + 12
     : Math.floor(Math.random() * 8) + 18
   if (/\b(study|research|statistics|data|evidence|example|proves|according|percent)\b/i.test(text)) score = Math.min(30, score + 3)
-  if (hasProfanity && score < 10) score = Math.max(0, score - 2)
   const fallbackFeedbacks = [
     'Keep developing your argument.',
     'Try adding more evidence.',
