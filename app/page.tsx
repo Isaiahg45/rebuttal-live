@@ -80,14 +80,17 @@ export default function Home() {
             </p>
 
             {/* Buttons */}
-            <div className="animate-fade-up" style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', animationDelay: '0.3s', opacity: 0 }}>
-              <Link href="/rebut" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'var(--accent)', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid var(--accent)', transition: 'all 0.2s' }}>
-                ⚡ DEBATE NOW
-              </Link>
-              <Link href="/rankings" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'transparent', borderRadius: '10px', padding: '14px 24px', color: 'var(--text2)', fontSize: '14px', fontWeight: 500, border: '1px solid var(--border)', transition: 'all 0.2s' }}>
-                View Rankings →
-              </Link>
-            </div>
+          <div className="animate-fade-up" style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', animationDelay: '0.3s', opacity: 0, flexWrap: 'wrap' }}>
+  <Link href="/rebut" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'var(--accent)', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid var(--accent)', transition: 'all 0.2s' }}>
+    ⚡ DEBATE NOW
+  </Link>
+  <a href="https://discord.gg/GFuDp48Tk" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid #5865F2', transition: 'all 0.2s' }}>
+    ⚔️ JOIN DISCORD
+  </a>
+  <Link href="/rankings" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'transparent', borderRadius: '10px', padding: '14px 24px', color: 'var(--text2)', fontSize: '14px', fontWeight: 500, border: '1px solid var(--border)', transition: 'all 0.2s' }}>
+    View Rankings →
+  </Link>
+</div>
 
             {/* Live Stats */}
             <div className="animate-fade-up" style={{ display: 'flex', gap: '48px', marginTop: '56px', justifyContent: 'center', animationDelay: '0.4s', opacity: 0 }}>

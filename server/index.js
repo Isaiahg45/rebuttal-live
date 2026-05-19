@@ -720,7 +720,10 @@ io.on('connection', (socket) => {
       timeLeft,
     })
     socket.emit('totd_info', { topic: room.topic, emoji: room.emoji, timeLeft })
-    io.to('topic_of_the_day').emit('players_update', Object.values(room.players))
+   const leaderboard = Object.entries(totdScores)
+  .map(([username, score]) => ({ username, score, elo: 0 }))
+  .sort((a, b) => b.score - a.score)
+io.to('topic_of_the_day').emit('players_update', leaderboard)
     io.to('topic_of_the_day').emit('system_message', { text: `${username} joined` })
     console.log(`💬 ${username} joined Debate of the Day — "${room.topic}"`)
   })
@@ -755,10 +758,16 @@ if (score >= 20 && !username.startsWith('guest')) {
       }).catch(() => {})
     }
 
-    io.to(instanceId).emit('new_message', msg)
-    io.to(instanceId).emit('players_update', Object.values(room.players))
+io.to(instanceId).emit('new_message', msg)
+    if (instanceId === 'topic_of_the_day') {
+      const leaderboard = Object.entries(totdScores)
+        .map(([username, score]) => ({ username, score, elo: 0 }))
+        .sort((a, b) => b.score - a.score)
+      io.to(instanceId).emit('players_update', leaderboard)
+    } else {
+      io.to(instanceId).emit('players_update', Object.values(room.players))
+    }
   })
-
   socket.on('disconnect', () => {
     if (!currentRoomId || !rooms[currentRoomId]) return
     const room = rooms[currentRoomId]
@@ -769,12 +778,18 @@ if (score >= 20 && !username.startsWith('guest')) {
       if (currentUsername && currentRoomId !== 'topic_of_the_day') {
         io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
       }
-      io.to(currentRoomId).emit('players_update', Object.values(room.players))
+      if (currentRoomId === 'topic_of_the_day') {
+        const leaderboard = Object.entries(totdScores)
+          .map(([username, score]) => ({ username, score, elo: 0 }))
+          .sort((a, b) => b.score - a.score)
+        io.to('topic_of_the_day').emit('players_update', leaderboard)
+      } else {
+        io.to(currentRoomId).emit('players_update', Object.values(room.players))
+      }
     }
     io.emit('rooms_update', getRoomList())
   })
 })
-
 // ─── Bots ──────────────────────────────────────────────────────
 const BOT_NAMES = Array.from({ length: 8 }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
@@ -1018,8 +1033,7 @@ app.get('/health', (req, res) => res.json({
   total: Object.keys(rooms).length,
 }))
 app.get('/stats', (req, res) => res.json({
-  debatersOnline: io.engine.clientsCount + Object.values(rooms).reduce((acc, r) =>
-    acc + Object.keys(r.players).filter(k => k.startsWith('bot_')).length, 0),
+ debatersOnline: io.engine.clientsCount,
   liveDebates: Object.values(rooms).filter(r => r.status === 'active' && r.instanceId !== 'topic_of_the_day').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
