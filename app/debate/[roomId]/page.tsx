@@ -554,8 +554,8 @@ if (isSystem) return (
                     timestamp: Date.now(),
                   }])
                 }}
-                disabled={cooldown > 0 || !connected}
-                placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? `Cooldown — ${cooldown}s` : 'Make your argument. Be precise, use evidence, stay civil.'}
+                disabled={!connected}
+                placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? `Type your next argument — sends when cooldown ends...` : 'Make your argument. Be precise, use evidence, stay civil.'}
                 style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
               />
               <button
