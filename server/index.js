@@ -424,7 +424,7 @@ function createRoom(type) {
     emoji: topic.emoji, topic: topic.topic,
     duration: topic.duration, eloRequired: topic.eloRequired || 0,
     maxPlayers, players: {}, spectators: {}, messages: [],
-status: 'waiting', countdown: 1200, startCountdown: null, countdownCut: false,    debateEndsAt: null, createdAt: Date.now(),
+status: 'waiting', countdown: 1200, startCountdown: null,
   }
   console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
   return id
@@ -512,11 +512,13 @@ setInterval(() => {
     return
   }
 
-  // Cut countdown to 2 minutes when 2+ players join
-  if (playerCount >= 2 && room.countdown > 120 && !room.countdownCut) {
-    room.countdown = 120
-    room.countdownCut = true
-    io.to(room.instanceId).emit('system_message', { text: '⚡ 2+ players in — debate starting in 2 minutes!' })
+// Dynamic countdown based on player count
+  if (playerCount >= 2) {
+    const targetCountdown = 30 + (playerCount - 2) * 10
+    if (room.countdown > targetCountdown) {
+      room.countdown = targetCountdown
+      io.to(room.instanceId).emit('system_message', { text: `⚡ ${playerCount} players joined — starting in ${targetCountdown}s!` })
+    }
   }
 
   if (room.countdown <= 0) {
