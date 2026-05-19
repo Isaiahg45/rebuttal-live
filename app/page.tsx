@@ -80,13 +80,13 @@ export default function Home() {
             </p>
 
             {/* Buttons */}
-          <div className="animate-fade-up" style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', animationDelay: '0.3s', opacity: 0, flexWrap: 'wrap' }}>
-  <Link href="/rebut" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'var(--accent)', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid var(--accent)', transition: 'all 0.2s' }}>
-    ⚡ DEBATE NOW
-  </Link>
-  <a href="https://discord.gg/GFuDp48Tk" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid #5865F2', transition: 'all 0.2s' }}>
+<div className="animate-fade-up" style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', animationDelay: '0.3s', opacity: 0, flexWrap: 'wrap' }}>
+  <a href="https://discord.gg/GFuDp48Tk" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid #5865F2', animation: 'pulseDiscord 2s ease-in-out infinite' }}>
     ⚔️ JOIN DISCORD
   </a>
+  <Link href="/rebut" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'var(--accent)', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid var(--accent)', animation: 'pulseRebut 2s ease-in-out infinite' }}>
+    ⚔️ DEBATE NOW
+  </Link>
   <Link href="/rankings" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'transparent', borderRadius: '10px', padding: '14px 24px', color: 'var(--text2)', fontSize: '14px', fontWeight: 500, border: '1px solid var(--border)', transition: 'all 0.2s' }}>
     View Rankings →
   </Link>
@@ -201,6 +201,16 @@ export default function Home() {
         )}
 
       </div>
+      <style>{`
+  @keyframes pulseDiscord {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.7); background: #5865F2; }
+    50% { box-shadow: 0 0 20px 8px rgba(88,101,242,0.3); background: #6875f5; }
+  }
+  @keyframes pulseRebut {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(230,57,70,0.7); background: var(--accent); }
+    50% { box-shadow: 0 0 20px 8px rgba(230,57,70,0.3); background: #ff4d5e; }
+  }
+`}</style>
     </>
   )
 }
