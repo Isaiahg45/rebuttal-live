@@ -81,7 +81,7 @@ export default function Home() {
 
             {/* Buttons */}
 <div className="animate-fade-up" style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', animationDelay: '0.3s', opacity: 0, flexWrap: 'wrap' }}>
-  <a href="https://discord.gg/GFuDp48Tk" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid #5865F2', animation: 'pulseDiscord 2s ease-in-out infinite' }}>
+  <a href=" https://discord.gg/v6csM2v2r" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid #5865F2', animation: 'pulseDiscord 2s ease-in-out infinite' }}>
     💬 JOIN DISCORD
   </a>
   <Link href="/rebut" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'var(--accent)', borderRadius: '10px', padding: '14px 32px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid var(--accent)', animation: 'pulseRebut 2s ease-in-out infinite' }}>
