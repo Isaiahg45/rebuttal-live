@@ -791,7 +791,7 @@ io.to(instanceId).emit('new_message', msg)
   })
 })
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 8 }, () =>
+const BOT_NAMES = Array.from({ length: 3 }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
 )
 
@@ -866,7 +866,7 @@ async function runBot(botName, personality) {
   const state = { roomId: null, active: true }
 
   async function goOnline() {
-    const onlineDuration = (15 + Math.random() * 10) * 60 * 1000
+    const onlineDuration = (10 + Math.random() * 10) * 60 * 1000
     console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
     state.active = true
     setTimeout(() => goOffline(), onlineDuration)
@@ -883,7 +883,7 @@ async function runBot(botName, personality) {
     }
     state.roomId = null
     state.active = false
-    const offlineDuration = (2 + Math.random() * 3) * 60 * 1000
+    const offlineDuration = (20 + Math.random() * 40) * 60 * 1000
     console.log(`🤖 Bot ${botName} offline for ${Math.round(offlineDuration / 60000)} mins`)
     setTimeout(() => goOnline(), offlineDuration)
   }
@@ -940,8 +940,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 30000
-      const maxWait = 45000
+      const minWait = 90000
+      const maxWait = 120000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
