@@ -24,136 +24,86 @@ export default function Nav({ active }: NavProps) {
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
-    { id: 'topic', label: '🔥 Debate of the Day', href: '/topic' },
+    { id: 'topic', label: '🔥 Debate of the Day', href: '/topic', special: true },
     { id: 'rankings', label: 'Rankings', href: '/rankings' },
     { id: 'help', label: 'Help', href: '/help' },
   ]
 
   return (
     <>
-      <style>{`
-        .nav-root {
-          background: rgba(8,8,8,0.97);
-          backdrop-filter: blur(20px);
-          border-bottom: 1px solid var(--border);
-          padding: 0 24px;
-          display: flex;
-          align-items: center;
-          height: 56px;
-          position: sticky;
-          top: 0;
-          z-index: 100;
-        }
-        .nav-tabs { display: flex; gap: 4px; }
-        .nav-hamburger { display: none; }
-        .nav-mobile-menu {
-          display: none;
-          position: fixed;
-          top: 56px;
-          left: 0;
-          right: 0;
-          background: rgba(8,8,8,0.98);
-          border-bottom: 1px solid var(--border);
-          padding: 12px 16px;
-          flex-direction: column;
-          gap: 4px;
-          z-index: 99;
-          backdrop-filter: blur(20px);
-        }
-        .nav-mobile-menu.open { display: flex; }
-        .nav-mobile-link {
-          padding: 12px 16px;
-          font-size: 15px;
-          font-weight: 500;
-          border-radius: 8px;
-          color: var(--text2);
-          text-decoration: none;
-          display: block;
-        }
-        .nav-mobile-link.active {
-          background: var(--surface2);
-          color: var(--text);
-          border: 1px solid var(--border);
-        }
-        .nav-mobile-link.topic-link {
-          background: linear-gradient(90deg, #e63946, #ff6b35);
-          color: #fff;
-          font-weight: 700;
-        }
-        .nav-elo-pill {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: 20px;
-          padding: 4px 12px;
-        }
-        @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:0.6} }
-        @keyframes navPulse {
-          0%, 100% { box-shadow: 0 0 8px rgba(230,57,70,0.7), 0 0 16px rgba(255,107,53,0.4); }
-          50% { box-shadow: 0 0 18px rgba(230,57,70,1), 0 0 36px rgba(255,107,53,0.7), 0 0 54px rgba(230,57,70,0.3); }
-        }
-        @media (max-width: 768px) {
-          .nav-root { padding: 0 16px; }
-          .nav-tabs { display: none; }
-          .nav-hamburger { display: flex; align-items: center; justify-content: center; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; cursor: pointer; color: var(--text2); font-size: 18px; margin-left: 8px; }
-          .nav-elo-pill { padding: 3px 8px; }
-          .nav-elo-pill span:last-child { display: none; }
-        }
-      `}</style>
-
       <nav className="nav-root">
-        <Link href="/" style={{ marginRight: 'auto', display: 'flex', alignItems: 'baseline' }}>
-          <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '3px', color: 'var(--accent)' }}>REBUTTAL</span>
-          <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '3px', color: 'var(--text)' }}>.LIVE</span>
+        {/* Logo */}
+        <Link href="/" style={{ marginRight: 'auto', display: 'flex', alignItems: 'baseline', gap: 0, flexShrink: 0 }}>
+          <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '3px', color: 'var(--accent)', textShadow: '0 0 20px rgba(230,57,70,0.5)' }}>REBUTTAL</span>
+          <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '3px', color: 'var(--text)' }}>.LIVE</span>
         </Link>
 
         {/* Desktop tabs */}
-        <div className="nav-tabs">
-          {tabs.map(tab => tab.id === 'topic' ? (
+        <div className="nav-tabs" style={{ marginLeft: '8px' }}>
+          {tabs.map(tab => tab.special ? (
             <Link key={tab.id} href={tab.href} style={{
-              padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px',
-              color: '#fff', background: 'linear-gradient(90deg, #e63946, #ff6b35)',
-              border: 'none', animation: 'navPulse 2s ease-in-out infinite', whiteSpace: 'nowrap',
+              padding: '6px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              borderRadius: '6px',
+              color: '#fff',
+              background: 'linear-gradient(90deg, #e63946, #ff6b35)',
+              border: 'none',
+              animation: 'navPulse 2s ease-in-out infinite',
+              whiteSpace: 'nowrap',
+              display: 'inline-block',
             }}>{tab.label}</Link>
           ) : (
             <Link key={tab.id} href={tab.href} style={{
-              padding: '6px 16px', fontSize: '13px', fontWeight: 500, borderRadius: '6px',
+              padding: '6px 14px',
+              fontSize: '13px',
+              fontWeight: 500,
+              borderRadius: '6px',
               color: active === tab.id ? 'var(--text)' : 'var(--muted)',
               background: active === tab.id ? 'var(--surface2)' : 'transparent',
-              border: active === tab.id ? '1px solid var(--border)' : '1px solid transparent',
+              border: active === tab.id ? '1px solid var(--border2)' : '1px solid transparent',
               transition: 'all 0.2s',
+              whiteSpace: 'nowrap',
+              display: 'inline-block',
             }}>{tab.label}</Link>
           ))}
         </div>
 
-        {/* Auth section */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '16px' }}>
+        {/* Auth */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px', flexShrink: 0 }}>
           {loading ? (
             <div style={{ width: '80px', height: '28px', background: 'var(--surface2)', borderRadius: '20px', opacity: 0.3, animation: 'pulse 1.5s infinite' }} />
           ) : user ? (
             <>
               <div className="nav-elo-pill">
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{profile?.elo ?? 0}</span>
-                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>ELO</span>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 6px rgba(230,57,70,0.8)', flexShrink: 0 }} />
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{profile?.elo ?? 0}</span>
+                <span className="elo-label" style={{ fontSize: '11px', color: 'var(--muted)' }}>ELO</span>
               </div>
               <div
                 onClick={() => { router.push('/profile'); setMenuOpen(false) }}
                 title={profile?.username ?? 'Profile'}
-                style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', border: '2px solid rgba(230,57,70,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, cursor: 'pointer', color: '#fff', flexShrink: 0 }}
+                style={{
+                  width: '34px', height: '34px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg,var(--accent),#ff8c69)',
+                  border: '2px solid rgba(230,57,70,0.4)',
+                  boxShadow: '0 0 12px rgba(230,57,70,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#fff', flexShrink: 0,
+                  transition: 'box-shadow 0.2s',
+                }}
               >{initials}</div>
-              <button onClick={handleSignOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif' }}>
-                Sign out
-              </button>
+              <button
+                onClick={handleSignOut}
+                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
+              >Sign out</button>
             </>
           ) : (
             <>
-              <Link href="/login" style={{ padding: '7px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+              <Link href="/login" style={{ padding: '7px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
                 Log in
               </Link>
-              <Link href="/signup" style={{ padding: '7px 14px', fontSize: '13px', fontWeight: 700, color: '#fff', background: 'var(--accent)', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+              <Link href="/signup" style={{ padding: '7px 14px', fontSize: '13px', fontWeight: 700, color: '#fff', background: 'var(--accent)', borderRadius: '8px', whiteSpace: 'nowrap', boxShadow: '0 0 12px rgba(230,57,70,0.4)', transition: 'all 0.2s' }}>
                 Sign up
               </Link>
             </>
@@ -166,19 +116,49 @@ export default function Nav({ active }: NavProps) {
         </button>
       </nav>
 
-      {/* Mobile dropdown menu */}
+      {/* Mobile dropdown */}
       <div className={`nav-mobile-menu${menuOpen ? ' open' : ''}`}>
         {tabs.map(tab => (
           <Link
             key={tab.id}
             href={tab.href}
-            className={`nav-mobile-link${active === tab.id ? ' active' : ''}${tab.id === 'topic' ? ' topic-link' : ''}`}
+            className={`nav-mobile-link${active === tab.id ? ' active' : ''}${tab.special ? ' topic-link' : ''}`}
             onClick={() => setMenuOpen(false)}
           >
             {tab.label}
           </Link>
         ))}
+
+        {/* Mobile auth section */}
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: '8px', paddingTop: '12px' }}>
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>
+                  {initials}
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{profile?.username}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>{profile?.elo ?? 0} ELO</div>
+                </div>
+              </div>
+              <button onClick={handleSignOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px', padding: '4px 8px' }}>
+              <Link href="/login" onClick={() => setMenuOpen(false)} style={{ flex: 1, padding: '10px', textAlign: 'center', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text2)', fontSize: '13px', fontWeight: 500 }}>Log in</Link>
+              <Link href="/signup" onClick={() => setMenuOpen(false)} style={{ flex: 1, padding: '10px', textAlign: 'center', background: 'var(--accent)', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 700 }}>Sign up</Link>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Overlay to close menu */}
+      {menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, top: '56px', zIndex: 98, background: 'transparent' }} />
+      )}
     </>
   )
 }

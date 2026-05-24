@@ -235,7 +235,7 @@ const PREWRITTEN = {
   ]
 }
 
-// VC-specific topics (serious/debate-worthy for 1v1)
+// VC-specific topics
 const VC_TOPICS = [
   { topic: 'Is social media doing more harm than good to society?', emoji: '📱', duration: 240 },
   { topic: 'Should universal basic income replace the welfare state?', emoji: '💵', duration: 240 },
@@ -405,11 +405,8 @@ function getRoomList() {
     return (order[a.status] || 2) - (order[b.status] || 2)
   }
 
-  // Text rooms: all active/starting + max 2 waiting
   const activeText = textRooms.filter(r => r.status !== 'waiting').sort(sortFn)
-  const waitingText = textRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 2)
-
-  // VC rooms: all active/starting + max 1 waiting
+  const waitingText = textRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 4)
   const activeVC = vcRooms.filter(r => r.status !== 'waiting').sort(sortFn)
   const waitingVC = vcRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 1)
 
@@ -417,20 +414,24 @@ function getRoomList() {
 
   return combined.map(r => ({
     instanceId: r.instanceId,
-    emoji: r.emoji,
-    topic: r.topic,
+    emoji: r.isPrivate ? '🔒' : r.emoji,
+    topic: r.isPrivate ? '???' : r.topic,
     type: r.type,
-    duration: r.duration,
+    duration: r.isPrivate ? 0 : r.duration,
     maxPlayers: r.maxPlayers,
     eloRequired: r.eloRequired,
     playerCount: Object.keys(r.players).length,
     spectatorCount: Object.keys(r.spectators || {}).length,
-    players: Object.values(r.players).map(p => p.username),
+    players: r.isPrivate ? [] : Object.values(r.players).map(p => p.username),
     status: r.status,
     countdown: r.countdown,
     startCountdown: r.startCountdown,
     timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
-    // VC extras
+    isCustom: r.isCustom || false,
+    isPrivate: r.isPrivate || false,
+    createdBy: r.createdBy || null,
+    eloStake: r.eloStake || 0,
+    requiresPassword: !!(r.isPrivate && r.password),
     vcState: r.type === 'vc' && r.vcState ? {
       currentSpeakerUsername: r.vcState.currentSpeaker ? r.players[r.vcState.currentSpeaker]?.username : null,
       turnNumber: r.vcState.turnNumber,
@@ -450,6 +451,7 @@ function calculateEloChanges(type, playerCount, duration) {
     serious:     { min: 15,  max: 40  },
     competitive: { min: 50,  max: 120 },
     vc:          { min: 20,  max: 60  },
+    custom:      { min: 10,  max: 30  },
   }
   const base = baseRanges[type] ?? { min: 8, max: 18 }
   const maxDuration = 480
@@ -458,7 +460,7 @@ function calculateEloChanges(type, playerCount, duration) {
   const scaledMin = Math.round(base.min * durationMult * playerMult)
   const scaledMax = Math.round(base.max * durationMult * playerMult)
   const winnerElo = randInt(scaledMin, scaledMax)
-  const caps = { casual: 20, random: 25, serious: 90, competitive: 200, vc: 80 }
+  const caps = { casual: 20, random: 25, serious: 90, competitive: 200, vc: 80, custom: 50 }
   const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
   const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)
   const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)
@@ -499,7 +501,7 @@ function createVCRoom() {
     type: 'vc',
     emoji: '🎙️',
     topic: topic.topic,
-    duration: 4 * 60,       // 4 minutes total
+    duration: 4 * 60,
     eloRequired: 0,
     maxPlayers: 2,
     players: {},
@@ -553,7 +555,6 @@ function getVCWaitingCount() {
 }
 
 function replenishRooms(immediate = false) {
-  // Ensure 1 VC room always waiting
   if (getVCWaitingCount() === 0) {
     scheduleVCRoom(immediate)
   }
@@ -617,7 +618,6 @@ setInterval(() => {
       if (room.status === 'waiting') {
         room.countdown = Math.max(0, room.countdown - 1)
 
-        // VC needs exactly 2 players
         if (playerCount >= 2 && room.countdown > 30) {
           room.countdown = 30
         }
@@ -647,7 +647,6 @@ setInterval(() => {
           room.status = 'active'
           room.debateEndsAt = Date.now() + room.duration * 1000
 
-          // Determine first speaker
           const playerIds = Object.keys(room.players)
           const firstSpeakerId = room.vcState.paidToGoFirst || playerIds[0]
           room.vcState.currentSpeaker = firstSpeakerId
@@ -685,7 +684,7 @@ setInterval(() => {
       return // skip text room logic
     }
 
-    // ─── Text room game loop ────────────────────────────────────
+    // ─── Text / Custom room game loop ───────────────────────────
     if (room.status === 'waiting') {
       room.countdown = Math.max(0, room.countdown - 1)
 
@@ -693,7 +692,7 @@ setInterval(() => {
         room.status = 'starting'
         room.startCountdown = 5
         io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-        scheduleRoom(room.type)
+        if (!room.isCustom) scheduleRoom(room.type)
         return
       }
 
@@ -710,12 +709,12 @@ setInterval(() => {
           room.status = 'ended'
           io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
           console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
-          scheduleRoom(room.type)
+          if (!room.isCustom) scheduleRoom(room.type)
         } else {
           room.status = 'starting'
           room.startCountdown = 5
           io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-          scheduleRoom(room.type)
+          if (!room.isCustom) scheduleRoom(room.type)
         }
       }
     }
@@ -738,7 +737,20 @@ setInterval(() => {
         totalDebatesCompleted++
         supabaseRest('rpc/increment_debates', 'POST').catch(() => {})
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
-        const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
+
+        // Custom rooms use eloStake for win/loss
+        let eloChanges
+        if (room.isCustom && room.eloStake) {
+          eloChanges = {
+            winnerElo: room.eloStake,
+            secondElo: 0,
+            thirdElo: 0,
+            loserBase: room.eloStake,
+          }
+        } else {
+          eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
+        }
+
         io.to(room.instanceId).emit('debate_ended', { standings: sorted, eloChanges, type: room.type })
         console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players, winner +${eloChanges.winnerElo} ELO`)
       }
@@ -756,39 +768,79 @@ setInterval(() => {
   if (Math.random() < 0.1) replenishRooms()
 }, 1000)
 
+// ─── Redundancy check ──────────────────────────────────────────
+// Returns similarity 0-1 between two strings using word overlap (Jaccard)
+function jaccardSimilarity(a, b) {
+  const setA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 3))
+  const setB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 3))
+  if (setA.size === 0 || setB.size === 0) return 0
+  const intersection = new Set([...setA].filter(w => setB.has(w)))
+  const union = new Set([...setA, ...setB])
+  return intersection.size / union.size
+}
+
+function checkRedundancy(text, priorMessages) {
+  if (!priorMessages || priorMessages.length === 0) return { isRedundant: false, similarity: 0 }
+  // Check against last 5 messages from this player
+  let maxSimilarity = 0
+  for (const prior of priorMessages.slice(-5)) {
+    const sim = jaccardSimilarity(text, prior)
+    if (sim > maxSimilarity) maxSimilarity = sim
+  }
+  // 0.65+ = very redundant, 0.45+ = somewhat redundant
+  return { isRedundant: maxSimilarity >= 0.65, similarity: maxSimilarity }
+}
+
 // ─── Argument scoring ──────────────────────────────────────────
-async function scoreArgument(text, topic, roomType) {
+// priorMessages: array of strings (this player's previous argument texts in this room)
+async function scoreArgument(text, topic, roomType, priorMessages = []) {
   const hardSlurs = /\b(nigger|nigga|faggot|chink|spic|kike|wetback|tranny)\b/i.test(text)
   if (hardSlurs) return { score: -10, feedback: 'Slur detected. Hard penalty applied.' }
-  const hasCasualProfanity = false
   if (text.trim().length < 15) return { score: 0, feedback: 'Too brief to evaluate.' }
+
+  // Fast local redundancy check before hitting the API
+  const { isRedundant, similarity } = checkRedundancy(text, priorMessages)
+  if (isRedundant) {
+    const score = similarity >= 0.85 ? 0 : 1
+    return {
+      score,
+      feedback: score === 0
+        ? 'Exact repeat of a previous argument. Zero points.'
+        : 'Nearly identical to a previous argument — add something new.',
+      redundant: true,
+    }
+  }
+
   try {
+    const priorContext = priorMessages.slice(-3).join(' | ')
     const result = await Promise.race([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 100,
+        max_tokens: 120,
         messages: [{
           role: 'system',
           content: `You are a debate judge. Topic: "${topic}" (${roomType}).
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
-Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
+
+REDUNDANCY RULE: If this argument is saying the same thing as the player's prior arguments without adding anything new, score it 0-2 regardless of quality. Prior arguments from this player: "${priorContext || 'none yet'}"
+
+Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant": boolean}`
         }, { role: 'user', content: text }]
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
     ])
     const parsed = JSON.parse(result.choices[0].message.content.trim())
-    let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
-    if (hasCasualProfanity && score < 10) score = Math.max(0, score - 2)
-    return { score, feedback: parsed.feedback || '' }
+    const score = Math.max(0, Math.min(30, Math.round(parsed.score)))
+    return { score, feedback: parsed.feedback || '', redundant: parsed.redundant || false }
   } catch (e) {
     console.log('Scoring fallback:', e.message)
-    return fallbackScore(text, hasCasualProfanity)
+    return fallbackScore(text)
   }
 }
 
-function fallbackScore(text, hasProfanity) {
+function fallbackScore(text) {
   const wordCount = text.trim().split(/\s+/).length
   let score = wordCount < 5 ? 1 : wordCount < 15 ? Math.floor(Math.random() * 4) + 3
     : wordCount < 30 ? Math.floor(Math.random() * 6) + 7
@@ -817,7 +869,7 @@ io.on('connection', (socket) => {
   socket.emit('rooms_update', getRoomList())
 
   // ── Join text room ────────────────────────────────────────────
-  socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
+  socket.on('join_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
     const alreadyInRoom = Object.values(rooms).some(r =>
       r.instanceId !== 'topic_of_the_day' &&
       r.status !== 'ended' &&
@@ -833,6 +885,14 @@ io.on('connection', (socket) => {
     if (room.status === 'active') { socket.emit('join_as_spectator', { instanceId }); return }
     if (elo < room.eloRequired) { socket.emit('error', { message: `You need ${room.eloRequired}+ ELO to join.` }); return }
     if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Room is full.' }); return }
+
+    // Password check for private rooms
+    if (room.isPrivate && room.password) {
+      if (!joinPassword || joinPassword !== room.password) {
+        socket.emit('error', { message: 'Wrong password.' })
+        return
+      }
+    }
 
     currentRoomId = instanceId
     currentUsername = username
@@ -851,6 +911,66 @@ io.on('connection', (socket) => {
     io.to(instanceId).emit('system_message', { text: `${username} joined the debate` })
     io.emit('rooms_update', getRoomList())
     console.log(`👤 ${username} joined "${room.topic}"`)
+  })
+
+  // ── Create custom room ────────────────────────────────────────
+  socket.on('create_custom_room', ({ username, topic, duration, eloStake, isPrivate, password, debateType }) => {
+    if (!username) { socket.emit('error', { message: 'Must be logged in.' }); return }
+    if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
+    if (isPrivate && !password) { socket.emit('error', { message: 'Private rooms need a password.' }); return }
+
+    const isVC = debateType === 'vc'
+    const id = isVC
+      ? `vc_custom_${++roomCounter}_${Date.now()}`
+      : `custom_${++roomCounter}_${Date.now()}`
+
+    const baseRoom = {
+      instanceId: id,
+      emoji: isPrivate ? '🔒' : '⚔️',
+      topic: topic.trim(),
+      duration: duration || (isVC ? 240 : 300),
+      eloRequired: 0,
+      eloStake: eloStake || 25,
+      maxPlayers: 2,
+      players: {},
+      spectators: {},
+      messages: [],
+      status: 'waiting',
+      countdown: 1800,
+      startCountdown: null,
+      createdAt: Date.now(),
+      isCustom: true,
+      isPrivate: isPrivate || false,
+      password: isPrivate ? password : null,
+      createdBy: username,
+    }
+
+    if (isVC) {
+      rooms[id] = {
+        ...baseRoom,
+        type: 'vc',
+        vcState: {
+          currentSpeaker: null, turnNumber: 0, turnStartTime: null,
+          turnDuration: 30, turnCooldown: 3, inCooldown: false,
+          scores: {}, paidToGoFirst: null, firstSpeakerLocked: false, transcripts: [],
+        }
+      }
+    } else {
+      rooms[id] = { ...baseRoom, type: 'custom' }
+    }
+
+    console.log(`⚔️ Custom room by ${username}: "${topic.trim()}" (${isPrivate ? 'private' : 'public'}, ${isVC ? 'vc' : 'text'})`)
+
+    // Auto-join the creator
+    currentRoomId = id
+    currentUsername = username
+    isSpectator = false
+    socket.join(id)
+    rooms[id].players[socket.id] = { username, score: 0, elo: 0 }
+    if (isVC) rooms[id].vcState.scores[socket.id] = 0
+
+    socket.emit('custom_room_created', { instanceId: id, type: isVC ? 'vc' : 'text' })
+    io.emit('rooms_update', getRoomList())
   })
 
   // ── Spectate text room ────────────────────────────────────────
@@ -920,7 +1040,12 @@ io.on('connection', (socket) => {
     totalArgumentsMade++
     supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
 
-    const { score, feedback } = await scoreArgument(text, room.topic, room.type)
+    // Collect this player's prior arguments for redundancy checking
+    const priorMessages = room.messages
+      .filter(m => m.username === username)
+      .map(m => m.text)
+
+    const { score, feedback } = await scoreArgument(text, room.topic, room.type, priorMessages)
     const msg = {
       id: `${Date.now()}-${Math.random()}`,
       username, text, score, aiFeedback: feedback,
@@ -968,6 +1093,15 @@ io.on('connection', (socket) => {
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
     if (Object.keys(room.players).length >= 2) { socket.emit('error', { message: 'VC room is full — only 2 debaters allowed.' }); return }
 
+    // Password check for private VC rooms
+    if (room.isPrivate && room.password) {
+      const joinPassword = arguments[0]?.password
+      if (!joinPassword || joinPassword !== room.password) {
+        socket.emit('error', { message: 'Wrong password.' })
+        return
+      }
+    }
+
     currentRoomId = instanceId
     currentUsername = username
     isSpectator = false
@@ -991,7 +1125,6 @@ io.on('connection', (socket) => {
     io.to(instanceId).emit('vc_system_message', { text: `${username} joined` })
     io.emit('rooms_update', getRoomList())
 
-    // If 2 players now, trigger starting sequence (game loop handles it)
     if (Object.keys(room.players).length === 2) {
       room.status = 'starting'
       room.startCountdown = 10
@@ -999,9 +1132,8 @@ io.on('connection', (socket) => {
         startCountdown: 10,
         players: Object.values(room.players),
       })
-      scheduleVCRoom() // spawn replacement immediately
+      scheduleVCRoom()
 
-      // Tell the FIRST player (not the one who just joined) to initiate WebRTC
       const allIds = Object.keys(room.players)
       const firstPlayerId = allIds.find(sid => sid !== socket.id)
       if (firstPlayerId) {
@@ -1052,10 +1184,16 @@ io.on('connection', (socket) => {
     const username = room.players[socket.id]?.username
     if (!username) return
 
+    // Collect this player's prior VC transcripts for redundancy checking
+    const priorVC = room.vcState.transcripts
+      .filter(t => t.username === username)
+      .map(t => t.text)
+
     const { score, feedback } = await scoreArgument(
       transcript || '[no speech detected]',
       room.topic,
-      'vc'
+      'vc',
+      priorVC
     )
 
     room.vcState.scores[socket.id] = (room.vcState.scores[socket.id] || 0) + score
@@ -1073,7 +1211,6 @@ io.on('connection', (socket) => {
     room.vcState.transcripts.push(entry)
     room.messages.push(entry)
 
-    // Build scores map by username
     const scoresMap = {}
     Object.entries(room.vcState.scores).forEach(([sid, s]) => {
       const p = room.players[sid]
@@ -1082,7 +1219,6 @@ io.on('connection', (socket) => {
 
     io.to(instanceId).emit('vc_turn_scored', { entry, scores: scoresMap })
 
-    // Cooldown then switch
     room.vcState.inCooldown = true
     room.vcState.currentSpeaker = null
     io.to(instanceId).emit('vc_cooldown_start', { duration: room.vcState.turnCooldown })
@@ -1237,6 +1373,7 @@ function findRoomForBot() {
   const available = Object.values(rooms).filter(r =>
     r.instanceId !== 'topic_of_the_day' &&
     r.type !== 'vc' &&
+    r.type !== 'custom' &&
     r.status === 'waiting' &&
     Object.keys(r.players).length < r.maxPlayers
   )
