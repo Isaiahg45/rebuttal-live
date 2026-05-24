@@ -37,9 +37,11 @@ async function supabaseRest(path, method = 'GET', body = null) {
   }
 }
 
+// ─── Constants ─────────────────────────────────────────────────
 const TARGET_AVAILABLE = 4
-const DISTRIBUTION = { casual: 0.25, serious: 0.50, competitive: 0.15, random: 0.10 }
+const DISTRIBUTION = { casual: 0.25, serious: 0.45, competitive: 0.15, random: 0.15 }
 
+// ─── Topic pools ───────────────────────────────────────────────
 const PREWRITTEN = {
   casual: [
     { topic: 'Is the iPhone overrated or genuinely the best smartphone?', emoji: '📱', duration: 120 },
@@ -233,6 +235,30 @@ const PREWRITTEN = {
   ]
 }
 
+// VC-specific topics (serious/debate-worthy for 1v1)
+const VC_TOPICS = [
+  { topic: 'Is social media doing more harm than good to society?', emoji: '📱', duration: 240 },
+  { topic: 'Should universal basic income replace the welfare state?', emoji: '💵', duration: 240 },
+  { topic: 'Is capitalism the best economic system humanity has found?', emoji: '📈', duration: 240 },
+  { topic: 'Should college education be free for everyone?', emoji: '🎓', duration: 240 },
+  { topic: 'Is cancel culture a threat to free speech?', emoji: '🗣️', duration: 240 },
+  { topic: 'Should billionaires be allowed to exist?', emoji: '💰', duration: 240 },
+  { topic: 'Is AI going to be humanity\'s greatest achievement or biggest mistake?', emoji: '🤖', duration: 240 },
+  { topic: 'Should voting be mandatory?', emoji: '🗳️', duration: 240 },
+  { topic: 'Is religion a net positive or negative for society?', emoji: '⛪', duration: 240 },
+  { topic: 'Should the US have stricter gun control laws?', emoji: '🔫', duration: 240 },
+  { topic: 'Is the death penalty ever justified?', emoji: '⚖️', duration: 240 },
+  { topic: 'Should drugs be fully legalized and regulated?', emoji: '💊', duration: 240 },
+  { topic: 'Is remote work better than working in an office?', emoji: '🏠', duration: 240 },
+  { topic: 'Should the voting age be lowered to 16?', emoji: '🗳️', duration: 240 },
+  { topic: 'Is the American Dream still achievable in 2026?', emoji: '🌟', duration: 240 },
+  { topic: 'Should tech companies be broken up to prevent monopolies?', emoji: '💻', duration: 240 },
+  { topic: 'Is democracy the best form of government?', emoji: '🏛️', duration: 240 },
+  { topic: 'Should there be a wealth tax on the ultra-rich?', emoji: '💸', duration: 240 },
+  { topic: 'Is nuclear energy the solution to climate change?', emoji: '⚛️', duration: 240 },
+  { topic: 'Should athletes be allowed to use performance-enhancing drugs?', emoji: '🏃', duration: 240 },
+]
+
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5) }
 
 const topicPool = {
@@ -240,11 +266,13 @@ const topicPool = {
   serious: shuffle(PREWRITTEN.serious),
   competitive: shuffle(PREWRITTEN.competitive),
   random: shuffle(PREWRITTEN.random),
+  vc: shuffle(VC_TOPICS),
 }
 const usedTopics = new Set()
 
 function getTopicFromPool(type) {
   const pool = topicPool[type]
+  if (!pool) return { topic: 'Is AI good or bad for society?', emoji: '🤖', duration: 240 }
   for (let i = 0; i < pool.length; i++) {
     if (!usedTopics.has(pool[i].topic)) {
       usedTopics.add(pool[i].topic)
@@ -252,7 +280,7 @@ function getTopicFromPool(type) {
       return pool[i]
     }
   }
-  topicPool[type] = shuffle(PREWRITTEN[type])
+  topicPool[type] = shuffle(type === 'vc' ? VC_TOPICS : PREWRITTEN[type])
   usedTopics.clear()
   return topicPool[type][0]
 }
@@ -303,7 +331,7 @@ async function refillAIQueue() {
 }
 
 function getTopicForType(type) {
-  if (aiQueue[type].length > 0 && Math.random() < 0.3) return aiQueue[type].shift()
+  if (type !== 'vc' && aiQueue[type] && aiQueue[type].length > 0 && Math.random() < 0.3) return aiQueue[type].shift()
   return getTopicFromPool(type)
 }
 
@@ -363,24 +391,52 @@ function createTopicOfTheDay() {
   console.log(`🔥 Debate of the Day: "${topic.topic}"`)
 }
 
+// ─── Room list builder ─────────────────────────────────────────
 function getRoomList() {
-  return Object.values(rooms)
-    .filter(r => r.status !== 'ended' && r.instanceId !== 'topic_of_the_day')
-    .sort((a, b) => {
-      const order = { starting: 0, active: 1, waiting: 2 }
-      return (order[a.status] || 2) - (order[b.status] || 2)
-    })
-    .map(r => ({
-      instanceId: r.instanceId, emoji: r.emoji, topic: r.topic,
-      type: r.type, duration: r.duration, maxPlayers: r.maxPlayers,
-      eloRequired: r.eloRequired,
-      playerCount: Object.keys(r.players).length,
-      spectatorCount: Object.keys(r.spectators).length,
-      players: Object.values(r.players).map(p => p.username),
-      status: r.status, countdown: r.countdown,
-      startCountdown: r.startCountdown,
-      timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
-    }))
+  const allRooms = Object.values(rooms).filter(
+    r => r.status !== 'ended' && r.instanceId !== 'topic_of_the_day'
+  )
+
+  const vcRooms = allRooms.filter(r => r.type === 'vc')
+  const textRooms = allRooms.filter(r => r.type !== 'vc')
+
+  const sortFn = (a, b) => {
+    const order = { starting: 0, active: 1, waiting: 2 }
+    return (order[a.status] || 2) - (order[b.status] || 2)
+  }
+
+  // Text rooms: all active/starting + max 2 waiting
+  const activeText = textRooms.filter(r => r.status !== 'waiting').sort(sortFn)
+  const waitingText = textRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 2)
+
+  // VC rooms: all active/starting + max 1 waiting
+  const activeVC = vcRooms.filter(r => r.status !== 'waiting').sort(sortFn)
+  const waitingVC = vcRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 1)
+
+  const combined = [...activeText, ...activeVC, ...waitingText, ...waitingVC]
+
+  return combined.map(r => ({
+    instanceId: r.instanceId,
+    emoji: r.emoji,
+    topic: r.topic,
+    type: r.type,
+    duration: r.duration,
+    maxPlayers: r.maxPlayers,
+    eloRequired: r.eloRequired,
+    playerCount: Object.keys(r.players).length,
+    spectatorCount: Object.keys(r.spectators || {}).length,
+    players: Object.values(r.players).map(p => p.username),
+    status: r.status,
+    countdown: r.countdown,
+    startCountdown: r.startCountdown,
+    timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
+    // VC extras
+    vcState: r.type === 'vc' && r.vcState ? {
+      currentSpeakerUsername: r.vcState.currentSpeaker ? r.players[r.vcState.currentSpeaker]?.username : null,
+      turnNumber: r.vcState.turnNumber,
+      inCooldown: r.vcState.inCooldown,
+    } : null,
+  }))
 }
 
 function randInt(min, max) {
@@ -393,6 +449,7 @@ function calculateEloChanges(type, playerCount, duration) {
     random:      { min: 8,   max: 18  },
     serious:     { min: 15,  max: 40  },
     competitive: { min: 50,  max: 120 },
+    vc:          { min: 20,  max: 60  },
   }
   const base = baseRanges[type] ?? { min: 8, max: 18 }
   const maxDuration = 480
@@ -401,7 +458,7 @@ function calculateEloChanges(type, playerCount, duration) {
   const scaledMin = Math.round(base.min * durationMult * playerMult)
   const scaledMax = Math.round(base.max * durationMult * playerMult)
   const winnerElo = randInt(scaledMin, scaledMax)
-  const caps = { casual: 20, random: 25, serious: 90, competitive: 200 }
+  const caps = { casual: 20, random: 25, serious: 90, competitive: 200, vc: 80 }
   const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
   const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)
   const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)
@@ -409,6 +466,7 @@ function calculateEloChanges(type, playerCount, duration) {
   return { winnerElo: cappedWinner, secondElo, thirdElo, loserBase }
 }
 
+// ─── Text room creator ─────────────────────────────────────────
 function createRoom(type) {
   const topic = getTopicForType(type)
   const id = `room_${++roomCounter}_${Date.now()}`
@@ -424,9 +482,47 @@ function createRoom(type) {
     emoji: topic.emoji, topic: topic.topic,
     duration: topic.duration, eloRequired: topic.eloRequired || 0,
     maxPlayers, players: {}, spectators: {}, messages: [],
-status: 'waiting', countdown: 1200, startCountdown: null,
+    status: 'waiting', countdown: 1200, startCountdown: null,
+    createdAt: Date.now(),
   }
   console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
+  return id
+}
+
+// ─── VC room creator ───────────────────────────────────────────
+function createVCRoom() {
+  const topic = getTopicForType('vc')
+  const id = `vc_${++roomCounter}_${Date.now()}`
+
+  rooms[id] = {
+    instanceId: id,
+    type: 'vc',
+    emoji: '🎙️',
+    topic: topic.topic,
+    duration: 4 * 60,       // 4 minutes total
+    eloRequired: 0,
+    maxPlayers: 2,
+    players: {},
+    spectators: {},
+    messages: [],
+    status: 'waiting',
+    countdown: 1200,
+    startCountdown: null,
+    createdAt: Date.now(),
+    vcState: {
+      currentSpeaker: null,
+      turnNumber: 0,
+      turnStartTime: null,
+      turnDuration: 30,
+      turnCooldown: 3,
+      inCooldown: false,
+      scores: {},
+      paidToGoFirst: null,
+      firstSpeakerLocked: false,
+      transcripts: [],
+    }
+  }
+  console.log(`🎙️ Created VC room: "${topic.topic}"`)
   return id
 }
 
@@ -440,11 +536,28 @@ function scheduleRoom(type, immediate = false) {
   }, delay)
 }
 
+function scheduleVCRoom(immediate = false) {
+  const delay = immediate ? 0 : 10000
+  setTimeout(() => {
+    createVCRoom()
+    io.emit('rooms_update', getRoomList())
+  }, delay)
+}
+
 function getAvailableCount() {
-  return Object.values(rooms).filter(r => r.status === 'waiting').length + pendingRoomCreations
+  return Object.values(rooms).filter(r => r.status === 'waiting' && r.type !== 'vc').length + pendingRoomCreations
+}
+
+function getVCWaitingCount() {
+  return Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting').length
 }
 
 function replenishRooms(immediate = false) {
+  // Ensure 1 VC room always waiting
+  if (getVCWaitingCount() === 0) {
+    scheduleVCRoom(immediate)
+  }
+
   const needed = TARGET_AVAILABLE - getAvailableCount()
   if (needed <= 0) return
   for (let i = 0; i < needed; i++) {
@@ -463,31 +576,30 @@ function replenishRooms(immediate = false) {
 
 // ─── Game loop ─────────────────────────────────────────────────
 setInterval(() => {
-  // ✅ Debate of the Day reset with winner logic
+  // Debate of the Day reset
   const totd = rooms['topic_of_the_day']
   if (totd && Date.now() > totd.debateEndsAt && !totdResetting) {
     totdResetting = true
     const sorted = Object.values(totd.players).sort((a, b) => b.score - a.score)
     const winner = sorted[0]
 
-  if (winner && winner.username && !winner.username.startsWith('guest')) {
-  lastTotdWinner = winner.username
-  // Save to Supabase so it survives restarts
-  supabaseRest('totd_winner?id=eq.1', 'PATCH', {
-    username: winner.username,
-    won_at: new Date().toISOString()
-  }).catch(() => {})
-  supabaseRest(
-    `profiles?username=eq.${encodeURIComponent(winner.username)}`,
-    'PATCH',
-    { elo: (winner.elo || 0) + 300 }
-  ).catch(() => {})
-  console.log(`🏆 Debate of the Day winner: ${winner.username} (+300 ELO)`)
-  io.to('topic_of_the_day').emit('debate_of_day_winner', {
-    username: winner.username,
-    score: winner.score,
-  })
-}
+    if (winner && winner.username && !winner.username.startsWith('guest')) {
+      lastTotdWinner = winner.username
+      supabaseRest('totd_winner?id=eq.1', 'PATCH', {
+        username: winner.username,
+        won_at: new Date().toISOString()
+      }).catch(() => {})
+      supabaseRest(
+        `profiles?username=eq.${encodeURIComponent(winner.username)}`,
+        'PATCH',
+        { elo: (winner.elo || 0) + 300 }
+      ).catch(() => {})
+      console.log(`🏆 Debate of the Day winner: ${winner.username} (+300 ELO)`)
+      io.to('topic_of_the_day').emit('debate_of_day_winner', {
+        username: winner.username,
+        score: winner.score,
+      })
+    }
     setTimeout(() => {
       createTopicOfTheDay()
       io.to('topic_of_the_day').emit('topic_reset', rooms['topic_of_the_day'])
@@ -500,41 +612,113 @@ setInterval(() => {
     if (room.status === 'ended') return
     const playerCount = Object.keys(room.players).length
 
-  if (room.status === 'waiting') {
-  room.countdown = Math.max(0, room.countdown - 1)
+    // ─── VC room game loop ──────────────────────────────────────
+    if (room.type === 'vc') {
+      if (room.status === 'waiting') {
+        room.countdown = Math.max(0, room.countdown - 1)
 
-  // Auto-start if full
-  if (playerCount >= room.maxPlayers) {
-    room.status = 'starting'
-    room.startCountdown = 5
-    io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-    scheduleRoom(room.type)
-    return
-  }
+        // VC needs exactly 2 players
+        if (playerCount >= 2 && room.countdown > 30) {
+          room.countdown = 30
+        }
 
-// Dynamic countdown based on player count
-  if (playerCount >= 2) {
-    const targetCountdown = 30 + (playerCount - 2) * 10
-    if (room.countdown > targetCountdown) {
-      room.countdown = targetCountdown
-      io.to(room.instanceId).emit('system_message', { text: `⚡ ${playerCount} players joined — starting in ${targetCountdown}s!` })
+        if (room.countdown <= 0) {
+          if (playerCount < 2) {
+            room.status = 'ended'
+            io.to(room.instanceId).emit('vc_expired', { message: 'No opponent joined in time.' })
+            console.log(`💨 VC Expired: "${room.topic}"`)
+            scheduleVCRoom()
+          } else {
+            room.status = 'starting'
+            room.startCountdown = 10
+            io.to(room.instanceId).emit('vc_starting', {
+              startCountdown: 10,
+              players: Object.values(room.players),
+            })
+          }
+        }
+      }
+
+      if (room.status === 'starting') {
+        room.startCountdown = Math.max(0, room.startCountdown - 1)
+        io.to(room.instanceId).emit('vc_start_countdown_tick', { count: room.startCountdown })
+
+        if (room.startCountdown <= 0) {
+          room.status = 'active'
+          room.debateEndsAt = Date.now() + room.duration * 1000
+
+          // Determine first speaker
+          const playerIds = Object.keys(room.players)
+          const firstSpeakerId = room.vcState.paidToGoFirst || playerIds[0]
+          room.vcState.currentSpeaker = firstSpeakerId
+          room.vcState.firstSpeakerLocked = true
+          room.vcState.turnStartTime = Date.now()
+          room.vcState.turnNumber = 1
+
+          io.to(room.instanceId).emit('vc_debate_started', {
+            firstSpeakerSocketId: firstSpeakerId,
+            firstSpeakerUsername: room.players[firstSpeakerId]?.username,
+            duration: room.duration,
+            turnDuration: room.vcState.turnDuration,
+          })
+          console.log(`🎙️ VC Started: "${room.topic}"`)
+        }
+      }
+
+      if (room.status === 'active') {
+        const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
+        if (timeLeft <= 0) {
+          room.status = 'ended'
+          totalDebatesCompleted++
+          supabaseRest('rpc/increment_debates', 'POST').catch(() => {})
+          const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+          const eloChanges = calculateEloChanges('vc', sorted.length, room.duration)
+          io.to(room.instanceId).emit('vc_debate_ended', {
+            standings: sorted,
+            transcripts: room.vcState.transcripts,
+            eloChanges,
+          })
+          console.log(`🎙️ VC Ended: "${room.topic}" — winner: ${sorted[0]?.username}`)
+          scheduleVCRoom()
+        }
+      }
+      return // skip text room logic
     }
-  }
 
-  if (room.countdown <= 0) {
-    if (playerCount < 2) {
-      room.status = 'ended'
-      io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
-      console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
-      scheduleRoom(room.type)
-    } else {
-      room.status = 'starting'
-      room.startCountdown = 5
-      io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
-      scheduleRoom(room.type)
+    // ─── Text room game loop ────────────────────────────────────
+    if (room.status === 'waiting') {
+      room.countdown = Math.max(0, room.countdown - 1)
+
+      if (playerCount >= room.maxPlayers) {
+        room.status = 'starting'
+        room.startCountdown = 5
+        io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
+        scheduleRoom(room.type)
+        return
+      }
+
+      if (playerCount >= 2) {
+        const targetCountdown = 30 + (playerCount - 2) * 10
+        if (room.countdown > targetCountdown) {
+          room.countdown = targetCountdown
+          io.to(room.instanceId).emit('system_message', { text: `⚡ ${playerCount} players joined — starting in ${targetCountdown}s!` })
+        }
+      }
+
+      if (room.countdown <= 0) {
+        if (playerCount < 2) {
+          room.status = 'ended'
+          io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
+          console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
+          scheduleRoom(room.type)
+        } else {
+          room.status = 'starting'
+          room.startCountdown = 5
+          io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
+          scheduleRoom(room.type)
+        }
+      }
     }
-  }
-}
 
     if (room.status === 'starting') {
       room.startCountdown = Math.max(0, room.startCountdown - 1)
@@ -585,14 +769,14 @@ async function scoreArgument(text, topic, roomType) {
         max_tokens: 100,
         messages: [{
           role: 'system',
-         content: `You are a debate judge. Topic: "${topic}" (${roomType}).
+          content: `You are a debate judge. Topic: "${topic}" (${roomType}).
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
 Return ONLY JSON: {"score": number, "feedback": "one short sentence"}`
         }, { role: 'user', content: text }]
       }),
-   new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
     ])
     const parsed = JSON.parse(result.choices[0].message.content.trim())
     let score = Math.max(0, Math.min(30, Math.round(parsed.score)))
@@ -618,8 +802,8 @@ function fallbackScore(text, hasProfanity) {
     'Make your point more specific.',
     'Build on this with an example.',
   ]
-  return { 
-    score: Math.min(30, score), 
+  return {
+    score: Math.min(30, score),
     feedback: fallbackFeedbacks[Math.floor(Math.random() * fallbackFeedbacks.length)]
   }
 }
@@ -632,6 +816,7 @@ io.on('connection', (socket) => {
 
   socket.emit('rooms_update', getRoomList())
 
+  // ── Join text room ────────────────────────────────────────────
   socket.on('join_room', ({ instanceId, username, elo = 0 }) => {
     const alreadyInRoom = Object.values(rooms).some(r =>
       r.instanceId !== 'topic_of_the_day' &&
@@ -668,6 +853,7 @@ io.on('connection', (socket) => {
     console.log(`👤 ${username} joined "${room.topic}"`)
   })
 
+  // ── Spectate text room ────────────────────────────────────────
   socket.on('spectate_room', ({ instanceId, username }) => {
     const room = rooms[instanceId]
     if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
@@ -693,7 +879,8 @@ io.on('connection', (socket) => {
     console.log(`👁 ${username} spectating "${room.topic}"`)
   })
 
-    socket.on('join_topic_of_day', ({ username }) => {
+  // ── Join topic of day ─────────────────────────────────────────
+  socket.on('join_topic_of_day', ({ username }) => {
     const room = rooms['topic_of_the_day']
     if (!room) { socket.emit('error', { message: 'Debate of the Day not available.' }); return }
 
@@ -701,7 +888,7 @@ io.on('connection', (socket) => {
     currentUsername = username
     isSpectator = false
     socket.join('topic_of_the_day')
-  if (!(username in totdScores)) totdScores[username] = 0
+    if (!(username in totdScores)) totdScores[username] = 0
     Object.keys(room.players).forEach(key => {
       if (room.players[key].username === username) delete room.players[key]
     })
@@ -710,24 +897,20 @@ io.on('connection', (socket) => {
 
     socket.emit('message_history', room.messages)
     socket.emit('room_info', {
-      instanceId: 'topic_of_the_day',
-      topic: room.topic,
-      emoji: room.emoji,
-      type: 'topic_of_the_day',
-      duration: room.duration,
-      status: 'active',
-      isSpectator: false,
-      timeLeft,
+      instanceId: 'topic_of_the_day', topic: room.topic, emoji: room.emoji,
+      type: 'topic_of_the_day', duration: room.duration, status: 'active',
+      isSpectator: false, timeLeft,
     })
     socket.emit('totd_info', { topic: room.topic, emoji: room.emoji, timeLeft })
-   const leaderboard = Object.entries(totdScores)
-  .map(([username, score]) => ({ username, score, elo: 0 }))
-  .sort((a, b) => b.score - a.score)
-io.to('topic_of_the_day').emit('players_update', leaderboard)
+    const leaderboard = Object.entries(totdScores)
+      .map(([username, score]) => ({ username, score, elo: 0 }))
+      .sort((a, b) => b.score - a.score)
+    io.to('topic_of_the_day').emit('players_update', leaderboard)
     io.to('topic_of_the_day').emit('system_message', { text: `${username} joined` })
     console.log(`💬 ${username} joined Debate of the Day — "${room.topic}"`)
   })
 
+  // ── Send text message ─────────────────────────────────────────
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]
     if (!room) return
@@ -744,12 +927,12 @@ io.to('topic_of_the_day').emit('players_update', leaderboard)
       timestamp: Date.now(),
     }
     room.messages.push(msg)
-   const player = room.players[socket.id]
+    const player = room.players[socket.id]
     if (player) {
       player.score += score
       if (instanceId === 'topic_of_the_day') totdScores[player.username] = player.score
     }
-if (score >= 20 && !username.startsWith('guest')) {
+    if (score >= 20 && !username.startsWith('guest')) {
       supabaseRest('top_arguments', 'POST', {
         username, text, score,
         ai_feedback: feedback,
@@ -758,7 +941,7 @@ if (score >= 20 && !username.startsWith('guest')) {
       }).catch(() => {})
     }
 
-io.to(instanceId).emit('new_message', msg)
+    io.to(instanceId).emit('new_message', msg)
     if (instanceId === 'topic_of_the_day') {
       const leaderboard = Object.entries(totdScores)
         .map(([username, score]) => ({ username, score, elo: 0 }))
@@ -768,28 +951,226 @@ io.to(instanceId).emit('new_message', msg)
       io.to(instanceId).emit('players_update', Object.values(room.players))
     }
   })
+
+  // ── Join VC room ──────────────────────────────────────────────
+  socket.on('join_vc_room', ({ instanceId, username, elo = 0 }) => {
+    const alreadyInRoom = Object.values(rooms).some(r =>
+      r.instanceId !== 'topic_of_the_day' &&
+      r.status !== 'ended' &&
+      Object.values(r.players).some(p => p.username === username)
+    )
+    if (alreadyInRoom) {
+      socket.emit('error', { message: 'You are already in a debate in another tab.' })
+      return
+    }
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') { socket.emit('error', { message: 'VC room not found.' }); return }
+    if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
+    if (Object.keys(room.players).length >= 2) { socket.emit('error', { message: 'VC room is full — only 2 debaters allowed.' }); return }
+
+    currentRoomId = instanceId
+    currentUsername = username
+    isSpectator = false
+    socket.join(instanceId)
+    room.players[socket.id] = { username, score: 0, elo }
+    room.vcState.scores[socket.id] = 0
+
+    socket.emit('message_history', room.messages)
+    socket.emit('vc_room_info', {
+      instanceId: room.instanceId,
+      topic: room.topic,
+      emoji: room.emoji,
+      duration: room.duration,
+      status: room.status,
+      countdown: room.countdown,
+      eloRequired: room.eloRequired,
+      players: Object.values(room.players),
+    })
+
+    io.to(instanceId).emit('vc_players_update', Object.values(room.players))
+    io.to(instanceId).emit('vc_system_message', { text: `${username} joined` })
+    io.emit('rooms_update', getRoomList())
+
+    // If 2 players now, trigger starting sequence (game loop handles it)
+    if (Object.keys(room.players).length === 2) {
+      room.status = 'starting'
+      room.startCountdown = 10
+      io.to(instanceId).emit('vc_starting', {
+        startCountdown: 10,
+        players: Object.values(room.players),
+      })
+      scheduleVCRoom() // spawn replacement immediately
+
+      // Tell the FIRST player (not the one who just joined) to initiate WebRTC
+      const allIds = Object.keys(room.players)
+      const firstPlayerId = allIds.find(sid => sid !== socket.id)
+      if (firstPlayerId) {
+        io.to(firstPlayerId).emit('vc_initiate_webrtc', { instanceId })
+      }
+    }
+
+    console.log(`🎙️ ${username} joined VC room "${room.topic}"`)
+  })
+
+  // ── VC pay to go first ────────────────────────────────────────
+  socket.on('vc_pay_to_go_first', ({ instanceId }) => {
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') return
+    if (room.vcState.firstSpeakerLocked) {
+      socket.emit('vc_error', { message: 'First speaker already locked.' })
+      return
+    }
+    room.vcState.paidToGoFirst = socket.id
+    const username = room.players[socket.id]?.username
+    io.to(instanceId).emit('vc_go_first_update', {
+      paidUsername: username,
+      paidSocketId: socket.id,
+    })
+    io.to(instanceId).emit('vc_system_message', { text: `${username} chose to go first` })
+  })
+
+  // ── VC override go first ──────────────────────────────────────
+  socket.on('vc_override_go_first', ({ instanceId }) => {
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') return
+    const prevPayer = room.players[room.vcState.paidToGoFirst]?.username
+    room.vcState.paidToGoFirst = socket.id
+    const username = room.players[socket.id]?.username
+    io.to(instanceId).emit('vc_go_first_update', {
+      paidUsername: username,
+      paidSocketId: socket.id,
+    })
+    io.to(instanceId).emit('vc_system_message', { text: `${username} overrode ${prevPayer} — going first` })
+  })
+
+  // ── VC turn complete ──────────────────────────────────────────
+  socket.on('vc_turn_complete', async ({ instanceId, transcript }) => {
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') return
+    if (room.vcState.currentSpeaker !== socket.id) return
+
+    const username = room.players[socket.id]?.username
+    if (!username) return
+
+    const { score, feedback } = await scoreArgument(
+      transcript || '[no speech detected]',
+      room.topic,
+      'vc'
+    )
+
+    room.vcState.scores[socket.id] = (room.vcState.scores[socket.id] || 0) + score
+    room.players[socket.id].score = room.vcState.scores[socket.id]
+
+    const entry = {
+      id: `${Date.now()}-${Math.random()}`,
+      username,
+      text: transcript || '[no speech detected]',
+      score,
+      aiFeedback: feedback,
+      timestamp: Date.now(),
+      turnNumber: room.vcState.turnNumber,
+    }
+    room.vcState.transcripts.push(entry)
+    room.messages.push(entry)
+
+    // Build scores map by username
+    const scoresMap = {}
+    Object.entries(room.vcState.scores).forEach(([sid, s]) => {
+      const p = room.players[sid]
+      if (p) scoresMap[p.username] = s
+    })
+
+    io.to(instanceId).emit('vc_turn_scored', { entry, scores: scoresMap })
+
+    // Cooldown then switch
+    room.vcState.inCooldown = true
+    room.vcState.currentSpeaker = null
+    io.to(instanceId).emit('vc_cooldown_start', { duration: room.vcState.turnCooldown })
+
+    setTimeout(() => {
+      if (!rooms[instanceId] || rooms[instanceId].status === 'ended') return
+      room.vcState.inCooldown = false
+
+      const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
+      if (!otherSocketId) return
+
+      room.vcState.currentSpeaker = otherSocketId
+      room.vcState.turnNumber++
+      room.vcState.turnStartTime = Date.now()
+
+      io.to(instanceId).emit('vc_turn_start', {
+        speakerSocketId: otherSocketId,
+        speakerUsername: room.players[otherSocketId]?.username,
+        turnNumber: room.vcState.turnNumber,
+        turnDuration: room.vcState.turnDuration,
+      })
+      io.emit('rooms_update', getRoomList())
+    }, room.vcState.turnCooldown * 1000)
+  })
+
+  // ── WebRTC signaling ──────────────────────────────────────────
+  socket.on('vc_offer', ({ instanceId, offer }) => {
+    socket.to(instanceId).emit('vc_offer', { offer })
+  })
+  socket.on('vc_answer', ({ instanceId, answer }) => {
+    socket.to(instanceId).emit('vc_answer', { answer })
+  })
+  socket.on('vc_ice_candidate', ({ instanceId, candidate }) => {
+    socket.to(instanceId).emit('vc_ice_candidate', { candidate })
+  })
+
+  // ── Disconnect ────────────────────────────────────────────────
   socket.on('disconnect', () => {
     if (!currentRoomId || !rooms[currentRoomId]) return
     const room = rooms[currentRoomId]
+
     if (isSpectator) {
       delete room.spectators[socket.id]
     } else {
+      // VC disconnect: opponent wins automatically if game was active
+      if (room.type === 'vc' && room.status === 'active') {
+        const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
+        if (otherSocketId && room.players[otherSocketId]) {
+          const winner = room.players[otherSocketId]
+          const loser = room.players[socket.id]
+          room.status = 'ended'
+          const eloChanges = calculateEloChanges('vc', 2, room.duration)
+          io.to(currentRoomId).emit('vc_debate_ended', {
+            standings: [winner, loser].filter(Boolean),
+            transcripts: room.vcState.transcripts,
+            eloChanges,
+            forfeit: true,
+            forfeitUsername: currentUsername,
+          })
+          console.log(`🎙️ VC forfeit: ${currentUsername} left — ${winner.username} wins`)
+          scheduleVCRoom()
+        }
+      }
+
       delete room.players[socket.id]
+
       if (currentUsername && currentRoomId !== 'topic_of_the_day') {
         io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+        if (room.type === 'vc') {
+          io.to(currentRoomId).emit('vc_system_message', { text: `${currentUsername} left` })
+        }
       }
+
       if (currentRoomId === 'topic_of_the_day') {
         const leaderboard = Object.entries(totdScores)
           .map(([username, score]) => ({ username, score, elo: 0 }))
           .sort((a, b) => b.score - a.score)
         io.to('topic_of_the_day').emit('players_update', leaderboard)
-      } else {
+      } else if (room.type !== 'vc') {
         io.to(currentRoomId).emit('players_update', Object.values(room.players))
+      } else {
+        io.to(currentRoomId).emit('vc_players_update', Object.values(room.players))
       }
     }
     io.emit('rooms_update', getRoomList())
   })
 })
+
 // ─── Bots ──────────────────────────────────────────────────────
 const BOT_NAMES = Array.from({ length: 3 }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
@@ -829,9 +1210,9 @@ async function getBotArgument(topic, personality, recentMessages) {
           content: `You are a regular person casually debating: "${topic}". ${qualityInstruction} Keep under 25 words. Sound like a real person texting, not a formal debater. No bullet points. Just one casual sentence or two.`
         }, {
           role: 'user',
- content: recentMessages.length === 0 
-  ? 'State your opening position on this topic in one casual sentence. Do NOT reference anyone else or say "I agree/disagree". Just state your own take.'
-  : `Recent:\n${context}\n\nYour response:`
+          content: recentMessages.length === 0
+            ? 'State your opening position on this topic in one casual sentence. Do NOT reference anyone else or say "I agree/disagree". Just state your own take.'
+            : `Recent:\n${context}\n\nYour response:`
         }]
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
@@ -855,6 +1236,7 @@ async function getBotArgument(topic, personality, recentMessages) {
 function findRoomForBot() {
   const available = Object.values(rooms).filter(r =>
     r.instanceId !== 'topic_of_the_day' &&
+    r.type !== 'vc' &&
     r.status === 'waiting' &&
     Object.keys(r.players).length < r.maxPlayers
   )
@@ -991,12 +1373,11 @@ function startBots() {
 
 // ─── Boot ──────────────────────────────────────────────────────
 async function boot() {
-  // Load last TOTD winner
-const totdData = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
-if (totdData?.[0]?.username) {
-  lastTotdWinner = totdData[0].username
-  console.log(`👑 Last Debate of the Day winner: ${lastTotdWinner}`)
-}
+  const totdData = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
+  if (totdData?.[0]?.username) {
+    lastTotdWinner = totdData[0].username
+    console.log(`👑 Last Debate of the Day winner: ${lastTotdWinner}`)
+  }
   createTopicOfTheDay()
   try {
     const data = await supabaseRest('stats?id=eq.1&select=arguments_made,debates_completed')
@@ -1009,35 +1390,36 @@ if (totdData?.[0]?.username) {
     console.log('Could not load stats:', e.message)
   }
   replenishRooms(true)
-  console.log(`✅ Server booting with ${TARGET_AVAILABLE} available rooms`)
+  console.log(`✅ Server booting with ${TARGET_AVAILABLE} text rooms + 1 VC room`)
   setTimeout(refillAIQueue, 2000)
   setInterval(refillAIQueue, 5 * 60 * 1000)
   setInterval(() => console.log('💓 keepalive'), 4 * 60 * 1000)
   setTimeout(startBots, 5000)
 }
+
+// ─── Routes ────────────────────────────────────────────────────
 app.get('/top-arguments', async (req, res) => {
   try {
-    const data = await supabaseRest(
-      'top_arguments?select=*&order=score.desc&limit=3'
-    )
+    const data = await supabaseRest('top_arguments?select=*&order=score.desc&limit=3')
     res.json(data || [])
-  } catch (e) {
-    res.json([])
-  }
+  } catch (e) { res.json([]) }
 })
-boot()
+
 app.get('/health', (req, res) => res.json({
   status: 'ok',
   available: getAvailableCount(),
+  vcWaiting: getVCWaitingCount(),
   ongoing: Object.values(rooms).filter(r => r.status === 'active').length,
   total: Object.keys(rooms).length,
 }))
+
 app.get('/stats', (req, res) => res.json({
- debatersOnline: io.engine.clientsCount,
+  debatersOnline: io.engine.clientsCount,
   liveDebates: Object.values(rooms).filter(r => r.status === 'active' && r.instanceId !== 'topic_of_the_day').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
 }))
+
 app.get('/totd-winner', async (req, res) => {
   try {
     const data = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
@@ -1046,4 +1428,6 @@ app.get('/totd-winner', async (req, res) => {
     res.json({ winner: lastTotdWinner, wonAt: null })
   }
 })
+
+boot()
 httpServer.listen(3001, () => console.log('🚀 Socket server running on port 3001'))
