@@ -243,7 +243,7 @@ export default function RankingsPage() {
                         {isMe && <span style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 700, background: 'rgba(230,57,70,0.1)', padding: '1px 6px', borderRadius: '4px', flexShrink: 0 }}>YOU</span>}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>
-                        {p.wins ?? 0}W · {p.debates ?? 0} debates{p.debates > 0 && ` · ${Math.round(((p.wins ?? 0) / p.debates) * 100)}%`}
+                        {p.wins ?? 0} wins · {p.debates ?? 0} debates{p.debates > 0 && ` · ${Math.round(((p.wins ?? 0) / p.debates) * 100)}% win rate`}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
