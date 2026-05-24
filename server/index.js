@@ -1420,18 +1420,47 @@ io.on('connection', (socket) => {
           .sort((a, b) => b.score - a.score)
         if (sorted.length > 0 && Object.keys(room.players).length <= 2) {
           room.status = 'ended'
-          const eloChanges = room.isCustom && room.eloStake
-            ? { winnerElo: room.eloStake, secondElo: 0, thirdElo: 0, loserBase: room.eloStake }
-            : calculateEloChanges(room.type, 2, room.duration)
           const allPlayers = Object.values(room.players).sort((a, b) => b.score - a.score)
-          io.to(currentRoomId).emit('debate_ended', {
-            standings: allPlayers,
-            eloChanges,
-            type: room.type,
-            forfeit: true,
-            forfeitUsername: currentUsername,
-            customStake: room.isCustom ? room.eloStake : undefined,
-          })
+
+          if (room.isCustom && room.eloStake) {
+            const stake = room.eloStake
+            const eloChanges = { winnerElo: stake, secondElo: 0, thirdElo: 0, loserBase: stake }
+            // Apply ELO server-side
+            for (const [p, delta] of [[allPlayers[0], stake], [allPlayers[1], -stake]]) {
+              if (!p || !p.username || p.username.startsWith('guest')) continue
+              supabaseRest(`profiles?username=eq.${encodeURIComponent(p.username)}`, 'GET')
+                .then(data => {
+                  if (!data?.[0]) return
+                  supabaseRest(
+                    `profiles?username=eq.${encodeURIComponent(p.username)}`,
+                    'PATCH',
+                    {
+                      elo: Math.max(0, (data[0].elo ?? 0) + delta),
+                      wins: delta > 0 ? (data[0].wins ?? 0) + 1 : (data[0].wins ?? 0),
+                      debates: (data[0].debates ?? 0) + 1,
+                    }
+                  ).catch(() => {})
+                }).catch(() => {})
+            }
+            io.to(currentRoomId).emit('debate_ended', {
+              standings: allPlayers,
+              eloChanges,
+              type: room.type,
+              forfeit: true,
+              forfeitUsername: currentUsername,
+              customStake: stake,
+              serverHandledElo: true,
+            })
+          } else {
+            const eloChanges = calculateEloChanges(room.type, 2, room.duration)
+            io.to(currentRoomId).emit('debate_ended', {
+              standings: allPlayers,
+              eloChanges,
+              type: room.type,
+              forfeit: true,
+              forfeitUsername: currentUsername,
+            })
+          }
           console.log(`🏁 2-player forfeit: ${currentUsername} left — ${sorted[0].username} wins`)
         }
         // 3+ player rooms: debate continues, leaver just loses ELO (handled client-side via standings)
