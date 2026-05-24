@@ -52,6 +52,7 @@ const typeBadge = (type: string) => {
 
 const eloLabel = (type: string, stake?: number) => {
   if (type === 'custom' && stake) return `🏆 ±${stake} ELO`
+  if (type === 'vc' && stake) return `🏆 ±${stake} ELO`
   if (type === 'vc') return '🏆 +20–80 ELO'
   if (type === 'casual') return '🏆 +5–20 ELO'
   if (type === 'random') return '🏆 +8–25 ELO'
@@ -379,17 +380,21 @@ export default function RebutPage() {
                         className="rebut-card"
                         onClick={() => handleJoinClick(room)}
                         style={{
-                          background: isVC
-                            ? (isStarting ? 'rgba(0,180,216,0.08)' : 'var(--surface)')
-                            : (isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)'),
                           border: `1px solid ${
                             isVC
                               ? (isStarting ? vcColor : urgent ? `rgba(0,180,216,.5)` : `rgba(0,180,216,.2)`)
+                              : room.isCustom
+                              ? 'rgba(239,68,68,0.5)'
                               : (isStarting ? 'var(--accent)' : urgent ? 'rgba(244,162,97,.5)' : locked ? 'rgba(255,214,10,.2)' : 'var(--border)')
                           }`,
-                          boxShadow: isStarting
+                          boxShadow: room.isCustom
+                            ? '0 0 18px rgba(239,68,68,0.18), inset 0 0 30px rgba(239,68,68,0.04)'
+                            : isStarting
                             ? `0 0 20px ${isVC ? 'rgba(0,180,216,0.15)' : 'rgba(230,57,70,0.15)'}`
                             : 'none',
+                          background: room.isCustom ? 'rgba(239,68,68,0.05)' : isVC
+                            ? (isStarting ? 'rgba(0,180,216,0.08)' : 'var(--surface)')
+                            : (isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)'),
                         }}
                       >
                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type) }} />
@@ -415,8 +420,17 @@ export default function RebutPage() {
                           <div style={{ fontSize: '9px', color: 'var(--gold)', fontWeight: 600, marginTop: '4px', filter: room.isPrivate ? 'blur(3px)' : 'none' }}>
                             {eloLabel(room.type, room.eloStake)}
                           </div>
+                          {room.isCustom && !room.isPrivate && room.createdBy && (
+                            <div style={{ fontSize: '9px', color: '#ff6b35', marginTop: '4px', fontWeight: 600 }}>
+                              ⚔️ Custom · by <span style={{ color: 'var(--text2)' }}>{room.createdBy}</span>
+                              {room.duration && <span style={{ color: 'var(--muted)', marginLeft: '4px' }}>· {Math.floor(room.duration / 60)}min</span>}
+                            </div>
+                          )}
                           {room.isPrivate && (
-                            <div style={{ fontSize: '9px', color: '#00b4d8', marginTop: '4px', fontWeight: 600 }}>🔒 Private · by <span style={{ color: 'var(--text2)' }}>{room.createdBy}</span></div>
+                            <div style={{ fontSize: '9px', color: '#00b4d8', marginTop: '4px', fontWeight: 600 }}>
+                              🔒 Private · by <span style={{ color: 'var(--text2)' }}>{room.createdBy}</span>
+                              {room.duration && <span style={{ color: 'var(--muted)', marginLeft: '4px' }}>· {Math.floor(room.duration / 60)}min</span>}
+                            </div>
                           )}
                         </div>
 
