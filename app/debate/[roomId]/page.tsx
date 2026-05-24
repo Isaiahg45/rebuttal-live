@@ -185,17 +185,19 @@ export default function DebatePage() {
     })
 
     socket.on('debate_ended', async ({
-      standings: s,
-      eloChanges,
-      forfeit,
-      forfeitUsername,
-    }: {
-      standings: Player[]
-      eloChanges: EloChanges
-      type: string
-      forfeit?: boolean
-      forfeitUsername?: string
-    }) => {
+  standings: s,
+  eloChanges,
+  forfeit,
+  forfeitUsername,
+  customStake,
+}: {
+  standings: Player[]
+  eloChanges: EloChanges
+  type: string
+  forfeit?: boolean
+  forfeitUsername?: string
+  customStake?: number
+}) => {
       setStatus('ended')
       setStandings(s)
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
@@ -209,17 +211,20 @@ export default function DebatePage() {
       if (myPlace === -1) return
 
       const totalPlayers = s.length
-      const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
-      let change = 0
+     const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
+let change = 0
 
-      if (totalPlayers <= 6) {
-        if (myPlace === 0) {
-          change = winnerElo
-        } else {
-          const lossFraction = myPlace / (totalPlayers - 1)
-          change = -Math.round(loserBase * (0.4 + lossFraction * 0.6))
-        }
-      } else {
+if (customStake) {
+  // Custom rooms always use exact stake
+  change = myPlace === 0 ? customStake : -customStake
+} else if (totalPlayers <= 6) {
+  if (myPlace === 0) {
+    change = winnerElo
+  } else {
+    const lossFraction = myPlace / (totalPlayers - 1)
+    change = -Math.round(loserBase * (0.4 + lossFraction * 0.6))
+  }
+} else {
         if (myPlace === 0) change = winnerElo
         else if (myPlace === 1) change = secondElo
         else if (myPlace === 2) change = thirdElo
