@@ -738,6 +738,12 @@ setInterval(() => {
     }
 
     if (room.status === 'active') {
+      // End immediately if room is completely empty
+      if (playerCount === 0) {
+        room.status = 'ended'
+        console.log(`🏁 Active room auto-expired (empty): "${room.topic}"`)
+        return
+      }
       const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
       if (timeLeft <= 0) {
         room.status = 'ended'
@@ -1269,48 +1275,135 @@ io.on('connection', (socket) => {
 
     if (isSpectator) {
       delete room.spectators[socket.id]
-    } else {
-      // VC disconnect: opponent wins automatically if game was active
-      if (room.type === 'vc' && room.status === 'active') {
+      io.emit('rooms_update', getRoomList())
+      return
+    }
+
+    const remainingCount = Object.keys(room.players).length - 1 // after this player leaves
+
+    // ── VC disconnect: opponent wins automatically if active ──────
+    if (room.type === 'vc' && room.status === 'active') {
+      const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
+      if (otherSocketId && room.players[otherSocketId]) {
+        const winner = room.players[otherSocketId]
+        const loser = room.players[socket.id]
+        room.status = 'ended'
+        const eloChanges = calculateEloChanges('vc', 2, room.duration)
+        io.to(currentRoomId).emit('vc_debate_ended', {
+          standings: [winner, loser].filter(Boolean),
+          transcripts: room.vcState.transcripts,
+          eloChanges,
+          forfeit: true,
+          forfeitUsername: currentUsername,
+        })
+        console.log(`🎙️ VC forfeit: ${currentUsername} left — ${winner.username} wins`)
+        const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+        for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
+      } else {
+        // No opponent — just expire the room
+        room.status = 'ended'
+        io.to(currentRoomId).emit('vc_expired', { message: 'Your opponent left. Room closed.' })
+        const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+        for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
+      }
+      delete room.players[socket.id]
+      io.emit('rooms_update', getRoomList())
+      return
+    }
+
+    // ── Custom room disconnect ────────────────────────────────────
+    if (room.isCustom) {
+      if (room.status === 'active') {
         const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
         if (otherSocketId && room.players[otherSocketId]) {
+          // Opponent wins by forfeit
           const winner = room.players[otherSocketId]
           const loser = room.players[socket.id]
           room.status = 'ended'
-          const eloChanges = calculateEloChanges('vc', 2, room.duration)
-          io.to(currentRoomId).emit('vc_debate_ended', {
+          const eloChanges = {
+            winnerElo: room.eloStake || 25,
+            secondElo: 0,
+            thirdElo: 0,
+            loserBase: room.eloStake || 25,
+          }
+          io.to(currentRoomId).emit('debate_ended', {
             standings: [winner, loser].filter(Boolean),
-            transcripts: room.vcState.transcripts,
             eloChanges,
+            type: room.type,
             forfeit: true,
             forfeitUsername: currentUsername,
           })
-          console.log(`🎙️ VC forfeit: ${currentUsername} left — ${winner.username} wins`)
-          const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
-          for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
+          console.log(`⚔️ Custom forfeit: ${currentUsername} left — ${winner.username} wins`)
+        } else {
+          // Last player left — just expire
+          room.status = 'ended'
+          io.to(currentRoomId).emit('room_expired', { message: 'All players left. Room closed.' })
+          console.log(`⚔️ Custom room empty: "${room.topic}" — expired`)
+        }
+      } else if (room.status === 'waiting' || room.status === 'starting') {
+        if (remainingCount === 0) {
+          // Creator left before anyone joined — expire immediately
+          room.status = 'ended'
+          io.to(currentRoomId).emit('room_expired', { message: 'Room creator left. Room closed.' })
+          console.log(`⚔️ Custom room abandoned: "${room.topic}"`)
         }
       }
-
       delete room.players[socket.id]
-
-      if (currentUsername && currentRoomId !== 'topic_of_the_day') {
-        io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
-        if (room.type === 'vc') {
-          io.to(currentRoomId).emit('vc_system_message', { text: `${currentUsername} left` })
-        }
-      }
-
-      if (currentRoomId === 'topic_of_the_day') {
-        const leaderboard = Object.entries(totdScores)
-          .map(([username, score]) => ({ username, score, elo: 0 }))
-          .sort((a, b) => b.score - a.score)
-        io.to('topic_of_the_day').emit('players_update', leaderboard)
-      } else if (room.type !== 'vc') {
-        io.to(currentRoomId).emit('players_update', Object.values(room.players))
-      } else {
-        io.to(currentRoomId).emit('vc_players_update', Object.values(room.players))
-      }
+      io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+      io.to(currentRoomId).emit('players_update', Object.values(room.players))
+      io.emit('rooms_update', getRoomList())
+      return
     }
+
+    // ── Standard text room disconnect ─────────────────────────────
+    if (room.status === 'active') {
+      const playersAfter = remainingCount
+      if (playersAfter === 0) {
+        // Last player left — end the room silently
+        room.status = 'ended'
+        console.log(`🏁 Room empty after disconnect: "${room.topic}"`)
+      } else if (playersAfter === 1) {
+        // Only 1 player left in a 2-player room — end with forfeit
+        const sorted = Object.values(room.players)
+          .filter((p) => p.username !== currentUsername)
+          .sort((a, b) => b.score - a.score)
+        if (sorted.length > 0 && Object.keys(room.players).length <= 2) {
+          room.status = 'ended'
+          const eloChanges = calculateEloChanges(room.type, 2, room.duration)
+          const allPlayers = Object.values(room.players).sort((a, b) => b.score - a.score)
+          io.to(currentRoomId).emit('debate_ended', {
+            standings: allPlayers,
+            eloChanges,
+            type: room.type,
+            forfeit: true,
+            forfeitUsername: currentUsername,
+          })
+          console.log(`🏁 2-player forfeit: ${currentUsername} left — ${sorted[0].username} wins`)
+        }
+        // 3+ player rooms: debate continues, leaver just loses ELO (handled client-side via standings)
+      }
+    } else if ((room.status === 'waiting' || room.status === 'starting') && remainingCount === 0) {
+      // Room empty during countdown — expire it
+      room.status = 'ended'
+      io.to(currentRoomId).emit('room_expired', { message: 'Game expired: less than 2 debaters in server.' })
+      console.log(`💨 Room expired (all left during countdown): "${room.topic}"`)
+    }
+
+    delete room.players[socket.id]
+
+    if (currentUsername && currentRoomId !== 'topic_of_the_day') {
+      io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+    }
+
+    if (currentRoomId === 'topic_of_the_day') {
+      const leaderboard = Object.entries(totdScores)
+        .map(([username, score]) => ({ username, score, elo: 0 }))
+        .sort((a, b) => b.score - a.score)
+      io.to('topic_of_the_day').emit('players_update', leaderboard)
+    } else {
+      io.to(currentRoomId).emit('players_update', Object.values(room.players))
+    }
+
     io.emit('rooms_update', getRoomList())
   })
 })
