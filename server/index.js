@@ -739,9 +739,15 @@ setInterval(() => {
 
     if (room.status === 'active') {
       // End immediately if room is completely empty
-      if (playerCount === 0) {
+      // But skip custom waiting rooms — they stay open until someone joins
+      if (playerCount === 0 && !room.isCustom) {
         room.status = 'ended'
         console.log(`🏁 Active room auto-expired (empty): "${room.topic}"`)
+        return
+      }
+      if (playerCount === 0 && room.isCustom) {
+        room.status = 'ended'
+        console.log(`⚔️ Custom active room auto-expired (empty): "${room.topic}"`)
         return
       }
       const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
@@ -1335,21 +1341,18 @@ io.on('connection', (socket) => {
           })
           console.log(`⚔️ Custom forfeit: ${currentUsername} left — ${winner.username} wins`)
         } else {
-          // Last player left — just expire
+          // Last player left during active game — expire
           room.status = 'ended'
           io.to(currentRoomId).emit('room_expired', { message: 'All players left. Room closed.' })
-          console.log(`⚔️ Custom room empty: "${room.topic}" — expired`)
-        }
-      } else if (room.status === 'waiting' || room.status === 'starting') {
-        if (remainingCount === 0) {
-          // Creator left before anyone joined — expire immediately
-          room.status = 'ended'
-          io.to(currentRoomId).emit('room_expired', { message: 'Room creator left. Room closed.' })
-          console.log(`⚔️ Custom room abandoned: "${room.topic}"`)
+          console.log(`⚔️ Custom room empty during active: "${room.topic}" — expired`)
         }
       }
+      // During waiting/starting: just remove the player, keep room open
+      // Room will auto-expire via the countdown in the game loop if nobody joins
       delete room.players[socket.id]
-      io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+      if (currentUsername) {
+        io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
+      }
       io.to(currentRoomId).emit('players_update', Object.values(room.players))
       io.emit('rooms_update', getRoomList())
       return
