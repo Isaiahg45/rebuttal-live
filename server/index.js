@@ -757,26 +757,53 @@ setInterval(() => {
         supabaseRest('rpc/increment_debates', 'POST').catch(() => {})
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
 
-        // Custom rooms use eloStake for win/loss
-        let eloChanges
+        // Custom rooms: server applies ELO directly to Supabase
         if (room.isCustom && room.eloStake) {
-          eloChanges = {
-            winnerElo: room.eloStake,
-            secondElo: 0,
-            thirdElo: 0,
-            loserBase: room.eloStake,
-          }
-        } else {
-          eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
-        }
+          const stake = room.eloStake
+          const eloChanges = { winnerElo: stake, secondElo: 0, thirdElo: 0, loserBase: stake }
 
-        io.to(room.instanceId).emit('debate_ended', {
-          standings: sorted,
-          eloChanges,
-          type: room.type,
-          customStake: room.isCustom ? room.eloStake : undefined,
-        })
-        console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players, winner +${eloChanges.winnerElo} ELO`)
+          // Apply ELO server-side for each player
+          for (let i = 0; i < sorted.length; i++) {
+            const player = sorted[i]
+            if (!player.username || player.username.startsWith('guest')) continue
+            const delta = i === 0 ? stake : -stake
+            const currentElo = player.elo ?? 0
+            const newElo = Math.max(0, currentElo + delta)
+            const isWinner = i === 0
+            supabaseRest(
+              `profiles?username=eq.${encodeURIComponent(player.username)}`,
+              'GET'
+            ).then(data => {
+              if (!data?.[0]) return
+              supabaseRest(
+                `profiles?username=eq.${encodeURIComponent(player.username)}`,
+                'PATCH',
+                {
+                  elo: Math.max(0, (data[0].elo ?? 0) + delta),
+                  wins: isWinner ? (data[0].wins ?? 0) + 1 : (data[0].wins ?? 0),
+                  debates: (data[0].debates ?? 0) + 1,
+                }
+              ).catch(() => {})
+            }).catch(() => {})
+          }
+
+          io.to(room.instanceId).emit('debate_ended', {
+            standings: sorted,
+            eloChanges,
+            type: room.type,
+            customStake: stake,
+            serverHandledElo: true, // tell client not to recalculate
+          })
+          console.log(`🏁 Custom ended: "${room.topic}" — winner +${stake}, loser -${stake} ELO`)
+        } else {
+          const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
+          io.to(room.instanceId).emit('debate_ended', {
+            standings: sorted,
+            eloChanges,
+            type: room.type,
+          })
+          console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players, winner +${eloChanges.winnerElo} ELO`)
+        }
       }
     }
   })
@@ -1327,17 +1354,30 @@ io.on('connection', (socket) => {
       if (room.status === 'active') {
         const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
         if (otherSocketId && room.players[otherSocketId]) {
-          // Opponent wins by forfeit — use exact eloStake, never calculateEloChanges
           const winner = room.players[otherSocketId]
           const loser = room.players[socket.id]
           room.status = 'ended'
           const stake = room.eloStake || 25
-          const eloChanges = {
-            winnerElo: stake,
-            secondElo: 0,
-            thirdElo: 0,
-            loserBase: stake,
+          const eloChanges = { winnerElo: stake, secondElo: 0, thirdElo: 0, loserBase: stake }
+
+          // Apply ELO server-side directly
+          for (const [p, delta] of [[winner, stake], [loser, -stake]]) {
+            if (!p.username || p.username.startsWith('guest')) continue
+            supabaseRest(`profiles?username=eq.${encodeURIComponent(p.username)}`, 'GET')
+              .then(data => {
+                if (!data?.[0]) return
+                supabaseRest(
+                  `profiles?username=eq.${encodeURIComponent(p.username)}`,
+                  'PATCH',
+                  {
+                    elo: Math.max(0, (data[0].elo ?? 0) + delta),
+                    wins: delta > 0 ? (data[0].wins ?? 0) + 1 : (data[0].wins ?? 0),
+                    debates: (data[0].debates ?? 0) + 1,
+                  }
+                ).catch(() => {})
+              }).catch(() => {})
           }
+
           io.to(currentRoomId).emit('debate_ended', {
             standings: [winner, loser].filter(Boolean),
             eloChanges,
@@ -1345,6 +1385,7 @@ io.on('connection', (socket) => {
             forfeit: true,
             forfeitUsername: currentUsername,
             customStake: stake,
+            serverHandledElo: true,
           })
           console.log(`⚔️ Custom forfeit: ${currentUsername} left — ${winner.username} wins ±${stake} ELO`)
         } else {

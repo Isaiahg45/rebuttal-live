@@ -184,20 +184,23 @@ export default function DebatePage() {
       }, 1000)
     })
 
-    socket.on('debate_ended', async ({
-  standings: s,
-  eloChanges,
-  forfeit,
-  forfeitUsername,
-  customStake,
-}: {
-  standings: Player[]
-  eloChanges: EloChanges
-  type: string
-  forfeit?: boolean
-  forfeitUsername?: string
-  customStake?: number
-}) => {
+    
+ socket.on('debate_ended', async ({
+      standings: s,
+      eloChanges,
+      forfeit,
+      forfeitUsername,
+      customStake,
+      serverHandledElo,
+    }: {
+      standings: Player[]
+      eloChanges: EloChanges
+      type: string
+      forfeit?: boolean
+      forfeitUsername?: string
+      customStake?: number
+      serverHandledElo?: boolean
+    }) => {
       setStatus('ended')
       setStandings(s)
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
@@ -211,13 +214,17 @@ export default function DebatePage() {
       if (myPlace === -1) return
 
       const totalPlayers = s.length
-     const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
-let change = 0
+      const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
+      let change = 0
 
-if (customStake) {
-  // Custom rooms always use exact stake
-  change = myPlace === 0 ? customStake : -customStake
-} else if (totalPlayers <= 6) {
+      if (serverHandledElo && customStake) {
+        change = myPlace === 0 ? customStake : -customStake
+        setEloChange(change)
+        const newWins = myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0)
+        const newDebates = (currentProfile.debates ?? 0) + 1
+        await supabase.from('profiles').update({ wins: newWins, debates: newDebates }).eq('id', currentUser.id)
+        return
+      } else if (totalPlayers <= 6) {
   if (myPlace === 0) {
     change = winnerElo
   } else {
