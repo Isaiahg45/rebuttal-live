@@ -73,6 +73,9 @@ export default function DebatePage() {
   const [standings, setStandings] = useState<Player[]>([])
   const [expiredMsg, setExpiredMsg] = useState('')
   const [eloChange, setEloChange] = useState<number | null>(null)
+  const [gameStarted, setGameStarted] = useState(false)
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false)
+  const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
 
   const socketRef = useRef<Socket | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
@@ -82,11 +85,15 @@ export default function DebatePage() {
   const userRef = useRef(user)
   const myUsernameRef = useRef(myUsername)
   const isSpectatorRef = useRef(isSpectator)
+  const statusRef = useRef(status)
+  const gameStartedRef = useRef(gameStarted)
 
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { myUsernameRef.current = myUsername }, [myUsername])
   useEffect(() => { isSpectatorRef.current = isSpectator }, [isSpectator])
+  useEffect(() => { statusRef.current = status }, [status])
+  useEffect(() => { gameStartedRef.current = gameStarted }, [gameStarted])
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const myScore = players.find(p => p.username === myUsername)?.score ?? 0
@@ -99,6 +106,19 @@ export default function DebatePage() {
     if (profile?.username) { setMyUsername(profile.username); setMyElo(profile.elo ?? 0); return }
     if (!user) { setMyUsername('guest' + Math.floor(1000 + Math.random() * 9000)) }
   }, [loading, profile, user, guestParam])
+
+  // Tab close warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (gameStartedRef.current && statusRef.current === 'active' && !isSpectatorRef.current) {
+        e.preventDefault()
+        e.returnValue = 'Leaving will count as a forfeit and you will lose ELO. Are you sure?'
+        return e.returnValue
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
 
   useEffect(() => {
     if (!myUsername) return
@@ -121,7 +141,6 @@ export default function DebatePage() {
     })
 
     socket.on('disconnect', () => setConnected(false))
-
     socket.on('message_history', (msgs: Message[]) => setMessages(msgs))
 
     socket.on('new_message', (msg: Message) => {
@@ -139,6 +158,7 @@ export default function DebatePage() {
       setLobbyCountdown(info.countdown)
       if (info.timeLeft) setTimeLeft(info.timeLeft)
       if (info.isSpectator) setIsSpectator(true)
+      if (info.status === 'active') setGameStarted(true)
     })
 
     socket.on('room_starting', ({ startCountdown: sc }: { startCountdown: number }) => {
@@ -148,10 +168,12 @@ export default function DebatePage() {
 
     socket.on('start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
+      if (count <= 5) setGameStarted(true)
     })
 
     socket.on('debate_started', ({ duration }: { duration: number }) => {
       setStatus('active')
+      setGameStarted(true)
       setTimeLeft(duration)
       clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {
@@ -165,13 +187,18 @@ export default function DebatePage() {
     socket.on('debate_ended', async ({
       standings: s,
       eloChanges,
+      forfeit,
+      forfeitUsername,
     }: {
       standings: Player[]
       eloChanges: EloChanges
       type: string
+      forfeit?: boolean
+      forfeitUsername?: string
     }) => {
       setStatus('ended')
       setStandings(s)
+      if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
 
       if (isSpectatorRef.current) return
       const currentProfile = profileRef.current
@@ -203,7 +230,6 @@ export default function DebatePage() {
       }
 
       setEloChange(change)
-
       const newElo = Math.max(0, (currentProfile.elo ?? 0) + change)
       const newWins = myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0)
       const newDebates = (currentProfile.debates ?? 0) + 1
@@ -212,7 +238,6 @@ export default function DebatePage() {
         .from('profiles')
         .update({ elo: newElo, wins: newWins, debates: newDebates })
         .eq('id', currentUser.id)
-
       if (error) console.error('ELO save error:', error)
     })
 
@@ -260,13 +285,11 @@ export default function DebatePage() {
   const sendMessage = () => {
     if (!input.trim() || cooldown > 0 || status !== 'active' || !socketRef.current || !connected || isSpectator) return
     const text = input.trim()
-
     setMessages(prev => [...prev, {
       id: `pending-${Date.now()}`,
       username: myUsername, text, score: 0, aiFeedback: '',
       timestamp: Date.now(), pending: true,
     }])
-
     socketRef.current.emit('send_message', { instanceId, username: myUsername, text })
     setInput('')
     setCooldown(cooldownTime)
@@ -277,6 +300,19 @@ export default function DebatePage() {
         return prev - 1
       })
     }, 1000)
+  }
+
+  const handleLeaveClick = () => {
+    if (gameStarted && status === 'active' && !isSpectator) {
+      setShowLeaveWarning(true)
+    } else {
+      router.push('/rebut')
+    }
+  }
+
+  const confirmLeave = () => {
+    setShowLeaveWarning(false)
+    router.push('/rebut')
   }
 
   // ── EXPIRED ──
@@ -310,6 +346,11 @@ export default function DebatePage() {
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '40px', letterSpacing: '3px', marginBottom: '4px' }}>DEBATE OVER</div>
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{roomInfo?.topic}</div>
               {isSpectator && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>You watched this debate as a spectator</div>}
+              {forfeitInfo && (
+                <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '8px 14px' }}>
+                  🏳️ {forfeitInfo.username} forfeited the debate
+                </div>
+              )}
             </div>
 
             {eloChange !== null && !isSpectator && (
@@ -368,9 +409,14 @@ export default function DebatePage() {
           <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '28px', lineHeight: 1.6 }}>{roomInfo?.topic}</div>
 
           {status === 'starting' ? (
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '96px', color: 'var(--accent)', lineHeight: 1, marginBottom: '24px', animation: 'pulse 0.6s infinite' }}>
-              {startCountdown}
-            </div>
+            <>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '96px', color: 'var(--accent)', lineHeight: 1, marginBottom: '16px', animation: 'pulse 0.6s infinite' }}>
+                {startCountdown}
+              </div>
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px 16px', marginBottom: '20px', fontSize: '12px', color: 'var(--red)', lineHeight: 1.6 }}>
+                ⚠️ Leaving from this point will result in an ELO loss
+              </div>
+            </>
           ) : (
             <>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: lobbyCountdown <= 30 ? 'var(--accent)' : 'var(--text)', marginBottom: '6px', letterSpacing: '2px' }}>
@@ -403,7 +449,7 @@ export default function DebatePage() {
             </div>
           </div>
 
-          <button onClick={() => router.push('/rebut')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 20px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+          <button onClick={handleLeaveClick} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 20px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
             Leave Room
           </button>
         </div>
@@ -415,6 +461,25 @@ export default function DebatePage() {
   // ── ACTIVE DEBATE ──
   return (
     <>
+      {showLeaveWarning && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(6px)' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '16px', padding: '32px', maxWidth: '380px', width: '90%', textAlign: 'center' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', color: 'var(--red)', marginBottom: '8px' }}>FORFEIT DEBATE?</div>
+            <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.7, marginBottom: '24px' }}>
+              Leaving now counts as a forfeit. You will <b style={{ color: 'var(--red)' }}>lose ELO</b> and your opponent wins automatically.
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowLeaveWarning(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                Stay & Fight
+              </button>
+              <button onClick={confirmLeave} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: 'var(--red)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                Leave & Forfeit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Nav active="rebut" />
       <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -439,6 +504,11 @@ export default function DebatePage() {
             <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
               {connected ? `${players.length} debating` : 'Reconnecting...'}
             </span>
+            {!isSpectator && (
+              <button onClick={handleLeaveClick} style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 10px', color: 'var(--muted)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                Leave
+              </button>
+            )}
           </div>
         </div>
 
@@ -471,17 +541,11 @@ export default function DebatePage() {
             const isMe = msg.username === myUsername && !isSpectator
             const isPending = msg.pending === true
 
-if (isSystem) return (
-  <div key={msg.id} style={{
-    textAlign: 'center',
-    fontSize: '11px',
-    color: msg.text.includes('NO COPY') ? 'var(--red)' : 'var(--muted)',
-    fontWeight: msg.text.includes('NO COPY') ? 700 : 400,
-    padding: '4px 0'
-  }}>
-    — {msg.text} —
-  </div>
-)
+            if (isSystem) return (
+              <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: msg.text.includes('NO COPY') ? 'var(--red)' : 'var(--muted)', fontWeight: msg.text.includes('NO COPY') ? 700 : 400, padding: '4px 0' }}>
+                — {msg.text} —
+              </div>
+            )
 
             return (
               <div key={msg.id} style={{ display: 'flex', gap: '10px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', opacity: isPending ? 0.75 : 1 }}>
@@ -539,7 +603,7 @@ if (isSystem) return (
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px' }}>
-<input
+              <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
@@ -555,7 +619,7 @@ if (isSystem) return (
                   }])
                 }}
                 disabled={!connected}
-                placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? `Type your next argument — sends when cooldown ends...` : 'Make your argument. Be precise, use evidence, stay civil.'}
+                placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? 'Type your next argument — sends when cooldown ends...' : 'Make your argument. Be precise, use evidence, stay civil.'}
                 style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
               />
               <button
