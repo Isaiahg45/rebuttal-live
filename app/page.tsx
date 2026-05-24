@@ -5,7 +5,7 @@ import Link from 'next/link'
 import AuthRedirect from './components/AuthRedirect'
 
 export default function Home() {
-  const [stats, setStats] = useState({ debatersOnline: 0, liveDebates: 0, argumentsMade: 0 })
+  const [stats, setStats] = useState({ liveDebates: 0, argumentsMade: 0 })
   const [totdWinner, setTotdWinner] = useState<string | null>(null)
   const [topArgs, setTopArgs] = useState<any[]>([])
 
@@ -48,11 +48,9 @@ export default function Home() {
       <AuthRedirect />
       <div style={{ minHeight: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
 
-        {/* ── Hero ─────────────────────────────────────────────── */}
+        {/* Hero */}
         <div style={{ position: 'relative', padding: 'clamp(48px, 8vw, 90px) clamp(16px, 5vw, 48px) clamp(40px, 6vw, 64px)', overflow: 'hidden', borderBottom: '1px solid var(--border)' }}>
-          {/* Grid bg */}
           <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(230,57,70,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(230,57,70,0.04) 1px, transparent 1px)', backgroundSize: '40px 40px', zIndex: 0 }} />
-          {/* Red glow */}
           <div style={{ position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)', width: 'min(700px, 100vw)', height: '400px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.15) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
@@ -60,9 +58,7 @@ export default function Home() {
             {/* Live badge */}
             <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '28px', boxShadow: '0 0 20px rgba(230,57,70,0.1)' }}>
               <div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 6px var(--accent)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>
-                {stats.debatersOnline > 0 ? `${stats.debatersOnline.toLocaleString()} debaters online` : 'Live debate battles'}
-              </span>
+              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>Live debate battles</span>
             </div>
 
             {/* Title */}
@@ -111,7 +107,7 @@ export default function Home() {
                 ['100', 'Global Rankings'],
               ].map(([val, label]) => (
                 <div key={label as string} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(24px, 4vw, 34px)', letterSpacing: '2px', color: 'var(--text)', textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>{val}</div>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(24px, 4vw, 34px)', letterSpacing: '2px', color: 'var(--text)' }}>{val}</div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', letterSpacing: '0.5px' }}>{label}</div>
                 </div>
               ))}
@@ -119,7 +115,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── TOTD Winner banner ──────────────────────────────── */}
+        {/* TOTD Winner banner */}
         {totdWinner && (
           <div style={{ padding: 'clamp(24px, 4vw, 40px) clamp(16px, 4vw, 48px) 0' }}>
             <div style={{ maxWidth: '860px', margin: '0 auto', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,214,10,0.1), rgba(230,57,70,0.05), rgba(255,214,10,0.03))', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '20px', padding: 'clamp(18px, 3vw, 28px) clamp(16px, 3vw, 32px)', boxShadow: '0 0 40px rgba(255,214,10,0.05)' }}>
@@ -132,7 +128,7 @@ export default function Home() {
                   <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Outlasted every debater · Earned <span style={{ color: 'var(--gold)', fontWeight: 700 }}>+300 ELO</span></div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, width: 'clamp(140px, 20vw, 180px)' }}>
-                  <Link href="/topic" className="totd-banner-btn" style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '10px', padding: '11px 18px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block', transition: 'all 0.2s', boxShadow: '0 0 16px rgba(255,214,10,0.1)' }}>
+                  <Link href="/topic" style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.35)', borderRadius: '10px', padding: '11px 18px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block', boxShadow: '0 0 16px rgba(255,214,10,0.1)' }}>
                     🔥 Join Today's Debate
                   </Link>
                   <Link href="/rankings" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '10px', padding: '9px 18px', color: 'var(--muted)', fontSize: '12px', textAlign: 'center', display: 'block' }}>
@@ -144,7 +140,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── How to Win ─────────────────────────────────────── */}
+        {/* How to Win */}
         <div style={{ padding: 'clamp(32px, 5vw, 48px) clamp(16px, 4vw, 48px) 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
             <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)', whiteSpace: 'nowrap' }}>How to Win</span>
@@ -160,8 +156,8 @@ export default function Home() {
               { icon: '🧠', label: 'Structure', text: 'Claim → Reason → Example. AI rewards organized arguments.' },
             ].map(tip => (
               <div key={tip.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', minWidth: '180px', flexShrink: 0, transition: 'all 0.2s', cursor: 'default' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
               >
                 <div style={{ fontSize: '18px', marginBottom: '8px' }}>{tip.icon}</div>
                 <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>{tip.label}</div>
@@ -171,7 +167,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Featured Arguments ─────────────────────────────── */}
+        {/* Featured Arguments */}
         {topArgs.length > 0 && (
           <div style={{ padding: 'clamp(32px, 5vw, 48px) clamp(16px, 4vw, 48px)' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
@@ -207,18 +203,29 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Footer ─────────────────────────────────────────── */}
+        {/* Footer */}
         <div style={{ padding: '32px clamp(16px, 4vw, 48px)', borderTop: '1px solid var(--border)', marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '16px', letterSpacing: '2px', color: 'var(--muted)' }}>
             <span style={{ color: 'var(--accent)' }}>REBUTTAL</span>.LIVE
           </span>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <Link href="/tos" style={{ fontSize: '12px', color: 'var(--muted)', transition: 'color 0.2s' }}>Terms of Service</Link>
-            <Link href="/privacy" style={{ fontSize: '12px', color: 'var(--muted)', transition: 'color 0.2s' }}>Privacy Policy</Link>
+            <Link href="/tos" style={{ fontSize: '12px', color: 'var(--muted)' }}>Terms of Service</Link>
+            <Link href="/privacy" style={{ fontSize: '12px', color: 'var(--muted)' }}>Privacy Policy</Link>
           </div>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>© 2026 ViralBot AI LLC</span>
         </div>
+
       </div>
+      <style>{`
+        @keyframes pulseDiscord {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.7); }
+          50% { box-shadow: 0 0 20px 8px rgba(88,101,242,0.3); }
+        }
+        @keyframes pulseRebut {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(230,57,70,0.7); }
+          50% { box-shadow: 0 0 20px 8px rgba(230,57,70,0.3); }
+        }
+      `}</style>
     </>
   )
 }
