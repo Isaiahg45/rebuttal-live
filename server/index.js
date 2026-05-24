@@ -520,7 +520,7 @@ function createVCRoom() {
       turnNumber: 0,
       turnStartTime: null,
       turnDuration: 30,
-      turnCooldown: 3,
+      turnCooldown: 10,
       inCooldown: false,
       scores: {},
       paidToGoFirst: null,
@@ -970,7 +970,7 @@ io.on('connection', (socket) => {
         type: 'vc',
         vcState: {
           currentSpeaker: null, turnNumber: 0, turnStartTime: null,
-          turnDuration: 30, turnCooldown: 3, inCooldown: false,
+          turnDuration: 30, turnCooldown: 10, inCooldown: false,
           scores: {}, paidToGoFirst: null, firstSpeakerLocked: false, transcripts: [],
         }
       }
