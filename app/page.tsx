@@ -69,7 +69,7 @@ export default function Home() {
             <div className="animate-fade-up" style={{ animationDelay: '0.1s', opacity: 0 }}>
               <h1 style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(56px, 12vw, 120px)', letterSpacing: '4px', lineHeight: 0.9, marginBottom: '24px' }}>
                 <span style={{ display: 'block', color: 'var(--text)' }}>ARGUE.</span>
-                <span style={{ display: 'block', color: 'var(--accent)', textShadow: '0 0 60px rgba(230,57,70,0.5), 0 0 120px rgba(230,57,70,0.2)' }}>DEBATE.</span>
+                <span style={{ display: 'block', color: 'var(--accent)' }}>DEBATE.</span>
                 <span style={{ display: 'block', color: 'var(--text)' }}>RANK UP.</span>
               </h1>
             </div>

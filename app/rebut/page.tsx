@@ -410,13 +410,13 @@ export default function RebutPage() {
 
                         <div>
                           <div style={{ fontSize: '20px', marginBottom: '4px' }}>{room.emoji}</div>
-                          <div style={{ fontSize: '11px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '5px' }}>{room.topic}</div>
+                          <div style={{ fontSize: '11px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '5px', filter: room.isPrivate ? 'blur(4px)' : 'none', userSelect: room.isPrivate ? 'none' : 'auto' }}>{room.topic}</div>
                           <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
-                          <div style={{ fontSize: '9px', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
+                          <div style={{ fontSize: '9px', color: 'var(--gold)', fontWeight: 600, marginTop: '4px', filter: room.isPrivate ? 'blur(3px)' : 'none' }}>
                             {eloLabel(room.type, room.eloStake)}
                           </div>
                           {room.isPrivate && (
-                            <div style={{ fontSize: '9px', color: 'var(--muted)', marginTop: '2px' }}>🔒 Private · by {room.createdBy}</div>
+                            <div style={{ fontSize: '9px', color: '#00b4d8', marginTop: '4px', fontWeight: 600 }}>🔒 Private · by <span style={{ color: 'var(--text2)' }}>{room.createdBy}</span></div>
                           )}
                         </div>
 

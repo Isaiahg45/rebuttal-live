@@ -39,6 +39,7 @@ async function supabaseRest(path, method = 'GET', body = null) {
 
 // ─── Constants ─────────────────────────────────────────────────
 const TARGET_AVAILABLE = 4
+const TARGET_VC_AVAILABLE = 3
 const DISTRIBUTION = { casual: 0.25, serious: 0.45, competitive: 0.15, random: 0.15 }
 
 // ─── Topic pools ───────────────────────────────────────────────
@@ -398,7 +399,8 @@ function getRoomList() {
   )
 
   const vcRooms = allRooms.filter(r => r.type === 'vc')
-  const textRooms = allRooms.filter(r => r.type !== 'vc')
+  const customRooms = allRooms.filter(r => r.isCustom)
+  const textRooms = allRooms.filter(r => r.type !== 'vc' && !r.isCustom)
 
   const sortFn = (a, b) => {
     const order = { starting: 0, active: 1, waiting: 2 }
@@ -408,9 +410,11 @@ function getRoomList() {
   const activeText = textRooms.filter(r => r.status !== 'waiting').sort(sortFn)
   const waitingText = textRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 4)
   const activeVC = vcRooms.filter(r => r.status !== 'waiting').sort(sortFn)
-  const waitingVC = vcRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 1)
+  const waitingVC = vcRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, TARGET_VC_AVAILABLE)
+  const activeCustom = customRooms.filter(r => r.status !== 'waiting').sort(sortFn)
+  const waitingCustom = customRooms.filter(r => r.status === 'waiting').sort(sortFn)
 
-  const combined = [...activeText, ...activeVC, ...waitingText, ...waitingVC]
+  const combined = [...activeText, ...activeVC, ...activeCustom, ...waitingText, ...waitingVC, ...waitingCustom]
 
   return combined.map(r => ({
     instanceId: r.instanceId,
@@ -555,7 +559,8 @@ function getVCWaitingCount() {
 }
 
 function replenishRooms(immediate = false) {
-  if (getVCWaitingCount() === 0) {
+  const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+  for (let i = 0; i < vcNeeded; i++) {
     scheduleVCRoom(immediate)
   }
 
@@ -627,7 +632,8 @@ setInterval(() => {
             room.status = 'ended'
             io.to(room.instanceId).emit('vc_expired', { message: 'No opponent joined in time.' })
             console.log(`💨 VC Expired: "${room.topic}"`)
-            scheduleVCRoom()
+            const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+            for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
           } else {
             room.status = 'starting'
             room.startCountdown = 10
@@ -678,7 +684,8 @@ setInterval(() => {
             eloChanges,
           })
           console.log(`🎙️ VC Ended: "${room.topic}" — winner: ${sorted[0]?.username}`)
-          scheduleVCRoom()
+          const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+          for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
         }
       }
       return // skip text room logic
@@ -1279,7 +1286,8 @@ io.on('connection', (socket) => {
             forfeitUsername: currentUsername,
           })
           console.log(`🎙️ VC forfeit: ${currentUsername} left — ${winner.username} wins`)
-          scheduleVCRoom()
+          const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+          for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
         }
       }
 
