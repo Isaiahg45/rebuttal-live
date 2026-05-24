@@ -770,7 +770,12 @@ setInterval(() => {
           eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
         }
 
-        io.to(room.instanceId).emit('debate_ended', { standings: sorted, eloChanges, type: room.type })
+        io.to(room.instanceId).emit('debate_ended', {
+          standings: sorted,
+          eloChanges,
+          type: room.type,
+          customStake: room.isCustom ? room.eloStake : undefined,
+        })
         console.log(`🏁 Ended: "${room.topic}" — ${sorted.length} players, winner +${eloChanges.winnerElo} ELO`)
       }
     }
