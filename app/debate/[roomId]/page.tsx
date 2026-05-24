@@ -505,9 +505,9 @@ export default function DebatePage() {
               {connected ? `${players.length} debating` : 'Reconnecting...'}
             </span>
             {!isSpectator && (
-              <button onClick={handleLeaveClick} style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 10px', color: 'var(--muted)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                Leave
-              </button>
+              <button onClick={handleLeaveClick} style={{ marginLeft: 'auto', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '4px 12px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+  🏳️ Forfeit
+</button>
             )}
           </div>
         </div>

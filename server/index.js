@@ -1322,15 +1322,16 @@ io.on('connection', (socket) => {
       if (room.status === 'active') {
         const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
         if (otherSocketId && room.players[otherSocketId]) {
-          // Opponent wins by forfeit
+          // Opponent wins by forfeit — use exact eloStake, never calculateEloChanges
           const winner = room.players[otherSocketId]
           const loser = room.players[socket.id]
           room.status = 'ended'
+          const stake = room.eloStake || 25
           const eloChanges = {
-            winnerElo: room.eloStake || 25,
+            winnerElo: stake,
             secondElo: 0,
             thirdElo: 0,
-            loserBase: room.eloStake || 25,
+            loserBase: stake,
           }
           io.to(currentRoomId).emit('debate_ended', {
             standings: [winner, loser].filter(Boolean),
@@ -1338,8 +1339,9 @@ io.on('connection', (socket) => {
             type: room.type,
             forfeit: true,
             forfeitUsername: currentUsername,
+            customStake: stake,
           })
-          console.log(`⚔️ Custom forfeit: ${currentUsername} left — ${winner.username} wins`)
+          console.log(`⚔️ Custom forfeit: ${currentUsername} left — ${winner.username} wins ±${stake} ELO`)
         } else {
           // Last player left during active game — expire
           room.status = 'ended'
@@ -1372,7 +1374,9 @@ io.on('connection', (socket) => {
           .sort((a, b) => b.score - a.score)
         if (sorted.length > 0 && Object.keys(room.players).length <= 2) {
           room.status = 'ended'
-          const eloChanges = calculateEloChanges(room.type, 2, room.duration)
+          const eloChanges = room.isCustom && room.eloStake
+            ? { winnerElo: room.eloStake, secondElo: 0, thirdElo: 0, loserBase: room.eloStake }
+            : calculateEloChanges(room.type, 2, room.duration)
           const allPlayers = Object.values(room.players).sort((a, b) => b.score - a.score)
           io.to(currentRoomId).emit('debate_ended', {
             standings: allPlayers,
@@ -1380,6 +1384,7 @@ io.on('connection', (socket) => {
             type: room.type,
             forfeit: true,
             forfeitUsername: currentUsername,
+            customStake: room.isCustom ? room.eloStake : undefined,
           })
           console.log(`🏁 2-player forfeit: ${currentUsername} left — ${sorted[0].username} wins`)
         }

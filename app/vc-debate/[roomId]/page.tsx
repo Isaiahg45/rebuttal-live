@@ -460,15 +460,18 @@ export default function VCDebatePage() {
     }, 1000)
   }
 
-  function endMyTurn(socket: Socket) {
-    if (turnEnded) return
-    setTurnEnded(true)
+function endMyTurn(socket: Socket) {
+  if (turnEnded) return
+  setTurnEnded(true)
+  stopListening()
+  setMicActive(false)
+  // Wait for Web Speech API to fire final onresult before grabbing transcript
+  setTimeout(() => {
     const transcript = getTranscript()
-    stopListening()
-    setMicActive(false)
     socket.emit('vc_turn_complete', { instanceId, transcript })
     setLiveTranscript('')
-  }
+  }, 400)
+}
 
   const handleEndTurnEarly = () => {
     if (!isMyTurn || turnEnded || !socketRef.current) return
@@ -682,19 +685,22 @@ export default function VCDebatePage() {
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Switching speakers...</div>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '28px', color: 'var(--text2)', letterSpacing: '2px' }}>{cooldownLeft}</div>
             </div>
-          ) : isMyTurn ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite' }} />
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>YOUR TURN — SPEAK NOW</span>
-              </div>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '48px', color: turnTimeLeft <= 10 ? 'var(--red)' : 'var(--accent)', letterSpacing: '2px', lineHeight: 1 }}>
-                {turnTimeLeft}s
-              </div>
-              <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                Done Speaking Early
-              </button>
-            </div>
+        ) : isMyTurn ? (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite' }} />
+      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>YOUR TURN — SPEAK NOW</span>
+    </div>
+    <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '48px', color: turnTimeLeft <= 10 ? 'var(--red)' : 'var(--accent)', letterSpacing: '2px', lineHeight: 1 }}>
+      {turnTimeLeft}s
+    </div>
+    <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+      Done Speaking Early
+    </button>
+    <button onClick={() => router.push('/rebut')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 14px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginTop: '4px' }}>
+      🏳️ Forfeit & Leave
+    </button>
+  </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
