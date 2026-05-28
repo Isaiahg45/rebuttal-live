@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from 'next/navigation'
 import { io } from 'socket.io-client'
+import { supabase } from '../../lib/supabase'
 
 interface RoomData {
   instanceId: string
@@ -105,6 +106,8 @@ export default function RebutPage() {
   const [passwordInput, setPasswordInput] = useState('')
   const [connected, setConnected] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [hoveredPlayer, setHoveredPlayer] = useState<{ username: string; elo?: number; x: number; y: number } | null>(null)
+  const [playerElos, setPlayerElos] = useState<Record<string, number>>({})
   const guestName = useRef('guest' + Math.floor(1000 + Math.random() * 9000)).current
 
   useEffect(() => {
@@ -114,6 +117,18 @@ export default function RebutPage() {
     s.on('rooms_update', (data: RoomData[]) => setRooms(data))
     return () => { s.disconnect() }
   }, [])
+
+  useEffect(() => {
+    const allUsernames = [...new Set(rooms.flatMap(r => r.players))].filter(u => !u.startsWith('guest') && !(u in playerElos))
+    if (allUsernames.length === 0) return
+    supabase.from('profiles').select('username, elo').in('username', allUsernames).then(({ data }) => {
+      if (data) {
+        const map: Record<string, number> = {}
+        data.forEach(p => { map[p.username] = p.elo })
+        setPlayerElos(prev => ({ ...prev, ...map }))
+      }
+    })
+  }, [rooms])
 
   const matchFilter = (r: RoomData) => {
     if (filter === 'All') return true
@@ -153,8 +168,8 @@ export default function RebutPage() {
       <Nav active="rebut" />
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-        @keyframes vcPulse { 0%,100%{box-shadow:0 0 12px rgba(0,212,255,0.4),0 0 24px rgba(0,212,255,0.2)} 50%{box-shadow:0 0 24px rgba(0,212,255,0.8),0 0 48px rgba(0,212,255,0.4),0 0 72px rgba(0,212,255,0.15)} }
-        @keyframes seriousPulse { 0%,100%{box-shadow:0 0 20px rgba(230,57,70,0.3),0 0 40px rgba(193,18,31,0.15)} 50%{box-shadow:0 0 40px rgba(230,57,70,0.6),0 0 80px rgba(193,18,31,0.3)} }
+        @keyframes vcPulse { 0%,100%{box-shadow:0 0 0 1px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.08)} 50%{box-shadow:0 0 0 1px rgba(0,212,255,0.3), 0 0 24px rgba(0,212,255,0.15)} }
+        @keyframes seriousPulse { 0%,100%{box-shadow:0 0 0 1px rgba(230,57,70,0.2), 0 0 20px rgba(230,57,70,0.08)} 50%{box-shadow:0 0 0 1px rgba(230,57,70,0.4), 0 0 30px rgba(230,57,70,0.12)} }
         @keyframes scanlines { 0%{background-position:0 0} 100%{background-position:0 4px} }
         @keyframes liveFlash { 0%,100%{opacity:1} 50%{opacity:.5} }
         @keyframes countdownPop { 0%{transform:scale(1.3)} 100%{transform:scale(1)} }
@@ -271,7 +286,7 @@ export default function RebutPage() {
                 <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '3px', color: '#e63946' }}>LIVE NOW — {live.length} DEBATE{live.length !== 1 ? 'S' : ''}</span>
                 <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(230,57,70,0.4) 0%, transparent 100%)' }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
                 {live.map(room => {
                   const c = cfg(room.type)
                   const isVC = room.type === 'vc'
@@ -289,7 +304,19 @@ export default function RebutPage() {
                         <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '4px', background: c.badgeBg, color: c.badge }}>{c.label}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{room.playerCount} debating{room.spectatorCount > 0 ? ` · ${room.spectatorCount} watching` : ''}</span>
+                        {/* Player dots with hover tooltip */}
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          {room.players.slice(0, 5).map((username, i) => (
+                            <div
+                              key={i}
+                              onMouseEnter={e => setHoveredPlayer({ username, elo: playerElos[username], x: e.clientX, y: e.clientY })}
+                              onMouseLeave={() => setHoveredPlayer(null)}
+                              style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.3)', background: `hsl(${i * 47 + room.instanceId.length * 7}, 65%, 55%)`, marginLeft: i === 0 ? 0 : '-4px', cursor: 'default', transition: 'transform 0.1s', flexShrink: 0 }}
+                            />
+                          ))}
+                          {room.playerCount > 5 && <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.35)', marginLeft: '4px', lineHeight: '18px' }}>+{room.playerCount - 5}</div>}
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginLeft: '8px' }}>{room.spectatorCount > 0 ? `· ${room.spectatorCount} watching` : ''}</span>
+                        </div>
                         <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '14px', color: c.badge, letterSpacing: '1px' }}>
                           {room.timeLeft != null ? fmt(room.timeLeft) : '—'}
                         </span>
@@ -322,7 +349,7 @@ export default function RebutPage() {
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '16px', letterSpacing: '2px' }}>ROOMS SPAWNING...</div>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
                   {available.map(room => {
                     const c = cfg(room.type)
                     const isVC = room.type === 'vc'
@@ -436,6 +463,14 @@ export default function RebutPage() {
           )}
         </div>
       </div>
+
+      {/* Player tooltip */}
+      {hoveredPlayer && (
+        <div style={{ position: 'fixed', left: hoveredPlayer.x + 10, top: hoveredPlayer.y - 40, background: 'rgba(10,10,10,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '6px 10px', zIndex: 1000, pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>{hoveredPlayer.username}</div>
+          {hoveredPlayer.elo !== undefined && <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '1px' }}>{hoveredPlayer.elo} ELO</div>}
+        </div>
+      )}
     </>
   )
 }
