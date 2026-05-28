@@ -21,6 +21,8 @@ export default function Nav({ active }: NavProps) {
     ? profile.username.slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() ?? '?'
 
+  const avatarUrl = profile?.avatar_url ?? null
+
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
@@ -80,19 +82,36 @@ export default function Nav({ active }: NavProps) {
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{profile?.elo ?? 0}</span>
                 <span className="elo-label" style={{ fontSize: '11px', color: 'var(--muted)' }}>ELO</span>
               </div>
+
+              {/* Avatar — shows profile pic if available, else initials */}
               <div
                 onClick={() => { router.push('/profile'); setMenuOpen(false) }}
                 title={profile?.username ?? 'Profile'}
                 style={{
                   width: '34px', height: '34px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg,var(--accent),#ff8c69)',
-                  border: '2px solid rgba(230,57,70,0.4)',
-                  boxShadow: '0 0 12px rgba(230,57,70,0.3)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#fff', flexShrink: 0,
+                  overflow: 'hidden',
+                  border: '2px solid rgba(230,57,70,0.5)',
+                  boxShadow: '0 0 10px rgba(230,57,70,0.25)',
+                  cursor: 'pointer', flexShrink: 0,
                   transition: 'box-shadow 0.2s',
                 }}
-              >{initials}</div>
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={initials}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '100%', height: '100%',
+                    background: 'linear-gradient(135deg,var(--accent),#ff8c69)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '12px', fontWeight: 700, color: '#fff',
+                  }}>{initials}</div>
+                )}
+              </div>
+
               <button
                 onClick={handleSignOut}
                 style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}
@@ -134,8 +153,14 @@ export default function Nav({ active }: NavProps) {
           {user ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>
-                  {initials}
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(230,57,70,0.4)', flexShrink: 0 }}>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>
+                      {initials}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{profile?.username}</div>
