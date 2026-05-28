@@ -25,40 +25,6 @@ interface RoomData {
   createdBy?: string
   eloStake?: number
   requiresPassword?: boolean
-  vcState?: {
-    currentSpeakerUsername: string | null
-    turnNumber: number
-    inCooldown: boolean
-  } | null
-}
-
-const typeColor = (type: string) => {
-  if (type === 'competitive') return 'linear-gradient(90deg,#ffd60a,#ff6b6b)'
-  if (type === 'serious') return 'linear-gradient(90deg,#e63946,#ff6b6b)'
-  if (type === 'random') return 'linear-gradient(90deg,#9b59b6,#3b82f6)'
-  if (type === 'vc') return 'linear-gradient(90deg,#00b4d8,#0077b6)'
-  if (type === 'custom') return 'linear-gradient(90deg,#ff6b35,#e63946)'
-  return 'linear-gradient(90deg,#22c55e,#3b82f6)'
-}
-
-const typeBadge = (type: string) => {
-  if (type === 'competitive') return { bg: 'rgba(255,214,10,.15)', color: '#ffd60a', label: '★ Competitive' }
-  if (type === 'serious') return { bg: 'rgba(230,57,70,.15)', color: '#e63946', label: '⚖️ Serious' }
-  if (type === 'random') return { bg: 'rgba(155,89,182,.15)', color: '#c39bd3', label: '🎲 Random' }
-  if (type === 'vc') return { bg: 'rgba(0,180,216,.15)', color: '#00b4d8', label: '🎙️ Voice' }
-  if (type === 'custom') return { bg: 'rgba(255,107,53,.15)', color: '#ff6b35', label: '⚔️ Custom' }
-  return { bg: 'rgba(34,197,94,.15)', color: '#22c55e', label: '😄 Casual' }
-}
-
-const eloLabel = (type: string, stake?: number) => {
-  if (type === 'custom' && stake) return `🏆 ±${stake} ELO`
-  if (type === 'vc' && stake) return `🏆 ±${stake} ELO`
-  if (type === 'vc') return '🏆 +20–80 ELO'
-  if (type === 'casual') return '🏆 +5–20 ELO'
-  if (type === 'random') return '🏆 +8–25 ELO'
-  if (type === 'serious') return '🏆 +15–90 ELO'
-  if (type === 'competitive') return '🏆 +50–200 ELO'
-  return ''
 }
 
 function fmt(s: number) {
@@ -66,19 +32,80 @@ function fmt(s: number) {
   return `${m}:${sec < 10 ? '0' : ''}${sec}`
 }
 
-const filters = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
+const TYPE_CONFIG: Record<string, { gradient: string; glow: string; border: string; badge: string; badgeBg: string; label: string; scanline?: boolean }> = {
+  competitive: {
+    gradient: 'linear-gradient(135deg, #ffd60a 0%, #ff9500 50%, #ff3b30 100%)',
+    glow: '0 0 40px rgba(255,214,10,0.25), 0 0 80px rgba(255,149,0,0.1)',
+    border: 'rgba(255,214,10,0.5)',
+    badge: '#ffd60a',
+    badgeBg: 'rgba(255,214,10,0.12)',
+    label: '★ COMPETITIVE',
+  },
+  serious: {
+    gradient: 'linear-gradient(135deg, #e63946 0%, #c1121f 50%, #7d0a00 100%)',
+    glow: '0 0 40px rgba(230,57,70,0.35), 0 0 80px rgba(193,18,31,0.15)',
+    border: 'rgba(230,57,70,0.6)',
+    badge: '#ff4d58',
+    badgeBg: 'rgba(230,57,70,0.15)',
+    label: '⚖ SERIOUS',
+    scanline: true,
+  },
+  vc: {
+    gradient: 'linear-gradient(135deg, #00d4ff 0%, #0077b6 50%, #023e8a 100%)',
+    glow: '0 0 40px rgba(0,212,255,0.3), 0 0 80px rgba(0,119,182,0.15)',
+    border: 'rgba(0,212,255,0.5)',
+    badge: '#00d4ff',
+    badgeBg: 'rgba(0,212,255,0.12)',
+    label: '🎙 VOICE',
+  },
+  casual: {
+    gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #15803d 100%)',
+    glow: '0 0 30px rgba(34,197,94,0.2)',
+    border: 'rgba(34,197,94,0.35)',
+    badge: '#22c55e',
+    badgeBg: 'rgba(34,197,94,0.1)',
+    label: '😄 CASUAL',
+  },
+  random: {
+    gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #4c1d95 100%)',
+    glow: '0 0 30px rgba(168,85,247,0.2)',
+    border: 'rgba(168,85,247,0.35)',
+    badge: '#a855f7',
+    badgeBg: 'rgba(168,85,247,0.1)',
+    label: '🎲 RANDOM',
+  },
+  custom: {
+    gradient: 'linear-gradient(135deg, #ff6b35 0%, #e63946 50%, #9b2226 100%)',
+    glow: '0 0 30px rgba(255,107,53,0.25)',
+    border: 'rgba(255,107,53,0.45)',
+    badge: '#ff6b35',
+    badgeBg: 'rgba(255,107,53,0.12)',
+    label: '⚔ CUSTOM',
+  },
+}
+
+const ELO_LABELS: Record<string, string> = {
+  casual: '+5–20 ELO',
+  random: '+8–25 ELO',
+  serious: '+15–90 ELO',
+  competitive: '+50–200 ELO',
+  vc: '+20–80 ELO',
+}
+
+const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
 
 export default function RebutPage() {
   const router = useRouter()
   const { user, profile, loading } = useAuth()
   const [rooms, setRooms] = useState<RoomData[]>([])
-  const [activeFilter, setActiveFilter] = useState('All')
+  const [filter, setFilter] = useState('All')
   const [selectedRoom, setSelectedRoom] = useState<RoomData | null>(null)
   const [spectateRoom, setSpectateRoom] = useState<RoomData | null>(null)
-  const [passwordModal, setPasswordModal] = useState<{ room: RoomData } | null>(null)
+  const [passwordModal, setPasswordModal] = useState<RoomData | null>(null)
   const [passwordInput, setPasswordInput] = useState('')
-  const guestName = useRef('guest' + Math.floor(1000 + Math.random() * 9000)).current
   const [connected, setConnected] = useState(false)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const guestName = useRef('guest' + Math.floor(1000 + Math.random() * 9000)).current
 
   useEffect(() => {
     const s = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
@@ -88,256 +115,190 @@ export default function RebutPage() {
     return () => { s.disconnect() }
   }, [])
 
-  const ongoingRooms = rooms.filter(r => r.status === 'active' || r.status === 'starting')
-  const availableRooms = rooms.filter(r => r.status === 'waiting')
-
-  const matchesFilter = (r: RoomData) => {
-    if (activeFilter === 'All') return true
-    if (activeFilter === 'Voice') return r.type === 'vc'
-    if (activeFilter === 'Custom') return r.isCustom === true
-    return r.type.toLowerCase() === activeFilter.toLowerCase()
+  const matchFilter = (r: RoomData) => {
+    if (filter === 'All') return true
+    if (filter === 'Voice') return r.type === 'vc'
+    if (filter === 'Custom') return !!r.isCustom
+    return r.type.toLowerCase() === filter.toLowerCase()
   }
 
-  const filteredAvailable = availableRooms.filter(matchesFilter)
-  const filteredOngoing = ongoingRooms.filter(matchesFilter)
+  const available = rooms.filter(r => r.status === 'waiting' && matchFilter(r))
+  const live = rooms.filter(r => (r.status === 'active' || r.status === 'starting') && matchFilter(r))
 
-  const routeToRoom = (room: RoomData, password?: string) => {
-    const path = room.type === 'vc' ? `/vc-debate/${room.instanceId}` : `/debate/${room.instanceId}`
-    const query = password ? `?password=${encodeURIComponent(password)}` : ''
-    router.push(path + query)
+  const routeRoom = (room: RoomData, pw?: string) => {
+    const base = room.type === 'vc' ? `/vc-debate/${room.instanceId}` : `/debate/${room.instanceId}`
+    router.push(base + (pw ? `?password=${encodeURIComponent(pw)}` : ''))
   }
 
-  const handleJoinClick = (room: RoomData) => {
+  const handleJoin = (room: RoomData) => {
     if (loading) return
-    const myElo = profile?.elo ?? 0
-    if (myElo < room.eloRequired) {
-      alert(`You need ${room.eloRequired}+ ELO to join. You have ${myElo}.`)
-      return
-    }
-    if (user) {
-      if (room.requiresPassword) {
-        setPasswordModal({ room })
-        setPasswordInput('')
-      } else {
-        routeToRoom(room)
-      }
-    } else {
-      setSelectedRoom(room)
-    }
+    if ((profile?.elo ?? 0) < room.eloRequired) { alert(`Need ${room.eloRequired}+ ELO. You have ${profile?.elo ?? 0}.`); return }
+    if (user) { room.requiresPassword ? (setPasswordModal(room), setPasswordInput('')) : routeRoom(room) }
+    else setSelectedRoom(room)
   }
 
-  const handleSpectateClick = (room: RoomData) => {
-    if (loading || room.type === 'vc') return
-    if (user) {
-      router.push(`/debate/${room.instanceId}?spectate=true`)
-    } else {
-      setSpectateRoom(room)
-    }
+  const handleSpectate = (room: RoomData) => {
+    if (room.type === 'vc') return
+    if (user) router.push(`/debate/${room.instanceId}?spectate=true`)
+    else setSpectateRoom(room)
   }
 
-  const handleGuestJoin = () => {
-    if (!selectedRoom) return
-    if (selectedRoom.requiresPassword) {
-      setPasswordModal({ room: selectedRoom })
-      setPasswordInput('')
-      setSelectedRoom(null)
-    } else {
-      const path = selectedRoom.type === 'vc' ? `/vc-debate/${selectedRoom.instanceId}` : `/debate/${selectedRoom.instanceId}`
-      router.push(`${path}?guest=${guestName}`)
-      setSelectedRoom(null)
-    }
-  }
+  const cfg = (type: string) => TYPE_CONFIG[type] || TYPE_CONFIG.casual
 
-  const handlePasswordSubmit = () => {
-    if (!passwordModal || !passwordInput.trim()) return
-    routeToRoom(passwordModal.room, passwordInput.trim())
-    setPasswordModal(null)
-    setPasswordInput('')
-  }
-
-  const modalBase: React.CSSProperties = {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: 100, backdropFilter: 'blur(8px)', padding: '16px',
-  }
-  const modalCard: React.CSSProperties = {
-    background: 'var(--surface)', border: '1px solid var(--border2)',
-    borderRadius: '20px', padding: '28px 24px', maxWidth: '380px', width: '100%', textAlign: 'center',
-    boxShadow: '0 0 60px rgba(0,0,0,0.6)',
-  }
+  const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(12px)', padding: '20px' }
+  const MODAL: React.CSSProperties = { background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '32px 28px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 0 80px rgba(0,0,0,0.8)' }
 
   return (
     <>
       <Nav active="rebut" />
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+        @keyframes vcPulse { 0%,100%{box-shadow:0 0 12px rgba(0,212,255,0.4),0 0 24px rgba(0,212,255,0.2)} 50%{box-shadow:0 0 24px rgba(0,212,255,0.8),0 0 48px rgba(0,212,255,0.4),0 0 72px rgba(0,212,255,0.15)} }
+        @keyframes seriousPulse { 0%,100%{box-shadow:0 0 20px rgba(230,57,70,0.3),0 0 40px rgba(193,18,31,0.15)} 50%{box-shadow:0 0 40px rgba(230,57,70,0.6),0 0 80px rgba(193,18,31,0.3)} }
+        @keyframes scanlines { 0%{background-position:0 0} 100%{background-position:0 4px} }
+        @keyframes liveFlash { 0%,100%{opacity:1} 50%{opacity:.5} }
+        @keyframes countdownPop { 0%{transform:scale(1.3)} 100%{transform:scale(1)} }
+        .rebut-card-3d { transform-style: preserve-3d; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .rebut-card-3d:hover { transform: translateY(-4px) scale(1.01); }
+        .vc-card { animation: vcPulse 2.5s ease-in-out infinite; }
+        .serious-card { animation: seriousPulse 3s ease-in-out infinite; }
+        .scanline-overlay::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px); pointer-events:none; border-radius:inherit; }
+      `}</style>
 
       {/* Password modal */}
       {passwordModal && (
-        <div style={modalBase}>
-          <div style={modalCard}>
-            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔒</div>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', marginBottom: '8px' }}>PRIVATE ROOM</div>
-            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-              Created by <b style={{ color: 'var(--text)' }}>{passwordModal.room.createdBy}</b>. Enter the password to join.
-            </div>
-            <input
-              value={passwordInput}
-              onChange={e => setPasswordInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handlePasswordSubmit()}
-              placeholder="Enter password..."
-              autoFocus
-              type="password"
-              style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '12px 14px', color: 'var(--text)', fontSize: '15px', outline: 'none', marginBottom: '12px', fontFamily: 'DM Sans, sans-serif' }}
-            />
-            <button onClick={handlePasswordSubmit} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '8px', boxShadow: '0 0 20px rgba(230,57,70,0.3)' }}>
-              Join Room →
-            </button>
-            <button onClick={() => setPasswordModal(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+        <div style={OVERLAY}>
+          <div style={MODAL}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔒</div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '3px', marginBottom: '8px' }}>PRIVATE ROOM</div>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '20px' }}>Created by <b style={{ color: '#fff' }}>{passwordModal.createdBy}</b></div>
+            <input value={passwordInput} onChange={e => setPasswordInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (routeRoom(passwordModal, passwordInput), setPasswordModal(null))} placeholder="Enter password..." type="password" autoFocus style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '13px 16px', color: '#fff', fontSize: '15px', outline: 'none', marginBottom: '12px', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' }} />
+            <button onClick={() => { routeRoom(passwordModal, passwordInput); setPasswordModal(null) }} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#e63946,#c1121f)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', marginBottom: '8px', boxShadow: '0 0 20px rgba(230,57,70,0.4)' }}>Join Room →</button>
+            <button onClick={() => setPasswordModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
       )}
 
       {/* Join modal */}
       {!loading && selectedRoom && (
-        <div style={modalBase}>
-          <div style={modalCard}>
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>{selectedRoom.emoji}</div>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', marginBottom: '8px' }}>
-              {selectedRoom.type === 'vc' ? 'JOIN VOICE DEBATE' : 'JOIN THE DEBATE'}
+        <div style={OVERLAY}>
+          <div style={{ ...MODAL, borderColor: cfg(selectedRoom.type).border, boxShadow: cfg(selectedRoom.type).glow }}>
+            <div style={{ fontSize: '44px', marginBottom: '12px' }}>{selectedRoom.emoji}</div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '3px', marginBottom: '8px', color: cfg(selectedRoom.type).badge }}>{cfg(selectedRoom.type).label}</div>
+            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px', lineHeight: 1.6 }}>{selectedRoom.topic}</div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
+              ⚡ Sign up to <b style={{ color: '#fff' }}>earn ELO</b> and appear on the global leaderboard
             </div>
-            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', lineHeight: 1.6 }}>{selectedRoom.topic}</div>
-            {selectedRoom.type === 'vc' && (
-              <div style={{ background: 'rgba(0,180,216,0.06)', border: '1px solid rgba(0,180,216,0.2)', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: '#00b4d8', lineHeight: 1.7 }}>
-                🎙️ Voice debate — microphone required. Chrome/Edge only.
-              </div>
-            )}
-            <div style={{ background: 'rgba(230,57,70,0.06)', border: '1px solid rgba(230,57,70,0.15)', borderRadius: '10px', padding: '12px', marginBottom: '20px', fontSize: '12px', color: 'var(--text2)', lineHeight: 1.7 }}>
-              ⚡ Sign up to <b style={{ color: 'var(--text)' }}>earn ELO</b> and climb the leaderboard.
-            </div>
-            <button onClick={() => { setSelectedRoom(null); router.push('/signup') }} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px', boxShadow: '0 0 20px rgba(230,57,70,0.3)' }}>
+            <button onClick={() => { setSelectedRoom(null); router.push('/signup') }} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#e63946,#c1121f)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', marginBottom: '10px', boxShadow: '0 0 24px rgba(230,57,70,0.4)' }}>
               🏆 Sign Up & Earn ELO
             </button>
-            <button onClick={handleGuestJoin} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px' }}>
-              Skip — join as <b style={{ color: 'var(--text2)' }}>{guestName}</b>
+            <button onClick={() => { const p = selectedRoom.type === 'vc' ? `/vc-debate/${selectedRoom.instanceId}` : `/debate/${selectedRoom.instanceId}`; router.push(`${p}?guest=${guestName}`); setSelectedRoom(null) }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer', marginBottom: '10px' }}>
+              Skip — join as <b style={{ color: 'rgba(255,255,255,0.7)' }}>{guestName}</b>
             </button>
-            <button onClick={() => setSelectedRoom(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={() => setSelectedRoom(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
       )}
 
       {/* Spectate modal */}
       {!loading && spectateRoom && (
-        <div style={modalBase}>
-          <div style={modalCard}>
+        <div style={OVERLAY}>
+          <div style={MODAL}>
             <div style={{ fontSize: '40px', marginBottom: '12px' }}>{spectateRoom.emoji}</div>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', marginBottom: '8px' }}>WATCH THIS DEBATE</div>
-            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '20px', lineHeight: 1.6 }}>{spectateRoom.topic}</div>
-            <button onClick={() => { setSpectateRoom(null); router.push('/signup') }} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px' }}>
-              Sign Up to Track ELO
-            </button>
-            <button onClick={() => { router.push(`/debate/${spectateRoom.instanceId}?spectate=true&guest=${guestName}`); setSpectateRoom(null) }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '10px' }}>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '3px', marginBottom: '8px' }}>WATCH THIS DEBATE</div>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '20px' }}>{spectateRoom.topic}</div>
+            <button onClick={() => { setSpectateRoom(null); router.push('/signup') }} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#e63946,#c1121f)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', marginBottom: '10px', boxShadow: '0 0 20px rgba(230,57,70,0.3)' }}>Sign Up to Track ELO</button>
+            <button onClick={() => { router.push(`/debate/${spectateRoom.instanceId}?spectate=true&guest=${guestName}`); setSpectateRoom(null) }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer', marginBottom: '8px' }}>
               👁 Spectate as guest
             </button>
-            <button onClick={() => setSpectateRoom(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={() => setSpectateRoom(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
       )}
 
-      <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ padding: 'clamp(10px, 2vw, 16px) clamp(12px, 3vw, 24px) clamp(8px, 1.5vw, 12px)', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'linear-gradient(180deg, rgba(230,57,70,0.03) 0%, transparent 100%)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(18px, 3vw, 24px)', letterSpacing: '2px', textShadow: '0 0 30px rgba(230,57,70,0.3)' }}>CHOOSE YOUR BATTLE</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '4px 10px', flexShrink: 0 }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: connected ? 'var(--green)' : 'var(--red)', boxShadow: connected ? '0 0 6px var(--green)' : 'none', animation: connected ? 'pulse 2s infinite' : 'none', flexShrink: 0 }} />
-              <span style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{connected ? `${rooms.length} live` : 'Connecting...'}</span>
+        <div style={{ padding: '14px 20px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, background: 'linear-gradient(180deg, rgba(230,57,70,0.04) 0%, transparent 100%)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '28px', letterSpacing: '3px', lineHeight: 1, background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.7) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                CHOOSE YOUR BATTLE
+              </div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', letterSpacing: '1px', marginTop: '2px' }}>
+                SELECT A DEBATE ROOM · AI SCORES EVERY ARGUMENT
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', background: connected ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${connected ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '20px', padding: '5px 12px' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: connected ? '#22c55e' : '#666', boxShadow: connected ? '0 0 8px #22c55e' : 'none', animation: connected ? 'pulse 2s infinite' : 'none' }} />
+              <span style={{ fontSize: '11px', color: connected ? '#22c55e' : 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.5px' }}>
+                {connected ? `${rooms.length} LIVE` : 'CONNECTING...'}
+              </span>
             </div>
           </div>
 
-          {/* Filters */}
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none', paddingTop: '8px', paddingBottom: '2px' }}>
-            {filters.map(f => (
-              <button key={f} onClick={() => setActiveFilter(f)} style={{
-                background: activeFilter === f
-                  ? f === 'Voice' ? 'rgba(0,180,216,.15)' : f === 'Custom' ? 'rgba(255,107,53,.15)' : 'rgba(230,57,70,.12)'
-                  : 'var(--surface2)',
-                border: `1px solid ${activeFilter === f
-                  ? f === 'Voice' ? '#00b4d8' : f === 'Custom' ? '#ff6b35' : 'var(--accent)'
-                  : 'var(--border)'}`,
-                borderRadius: '20px', padding: '4px 12px', fontSize: '12px',
-                color: activeFilter === f
-                  ? f === 'Voice' ? '#00b4d8' : f === 'Custom' ? '#ff6b35' : 'var(--accent)'
-                  : 'var(--muted)',
-                whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', flexShrink: 0,
-                transition: 'all 0.15s',
-                boxShadow: activeFilter === f ? `0 0 10px ${f === 'Voice' ? 'rgba(0,180,216,0.2)' : f === 'Custom' ? 'rgba(255,107,53,0.2)' : 'rgba(230,57,70,0.2)'}` : 'none',
-              }}>
-                {f === 'Voice' ? '🎙️ Voice' : f}
-              </button>
-            ))}
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {FILTERS.map(f => {
+              const isActive = filter === f
+              const accentMap: Record<string, string> = { Voice: '#00d4ff', Custom: '#ff6b35', Serious: '#e63946', Competitive: '#ffd60a', Random: '#a855f7', Casual: '#22c55e' }
+              const accent = accentMap[f] || '#e63946'
+              return (
+                <button key={f} onClick={() => setFilter(f)} style={{ background: isActive ? `${accent}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${isActive ? accent : 'rgba(255,255,255,0.08)'}`, borderRadius: '20px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', color: isActive ? accent : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s', boxShadow: isActive ? `0 0 12px ${accent}40` : 'none' }}>
+                  {f === 'Voice' ? '🎙 VOICE' : f.toUpperCase()}
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Rooms */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+
           {!connected && (
-            <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)' }}>
-              <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔌</div>
-              <div style={{ fontSize: '14px' }}>Connecting to debate servers...</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid rgba(230,57,70,0.5)', borderTopColor: '#e63946', animation: 'spin 0.8s linear infinite', boxShadow: '0 0 16px rgba(230,57,70,0.3)' }} />
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px' }}>CONNECTING TO SERVERS...</div>
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
             </div>
           )}
 
           {/* LIVE NOW */}
-          {connected && filteredOngoing.length > 0 && (
-            <div>
-              <div className="rebut-section-header">
-                <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite', boxShadow: '0 0 8px var(--accent)', flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)' }}>
-                  Live ({filteredOngoing.length})
-                </span>
+          {connected && live.length > 0 && (
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e63946', animation: 'liveFlash 1s infinite', boxShadow: '0 0 8px #e63946' }} />
+                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '3px', color: '#e63946' }}>LIVE NOW — {live.length} DEBATE{live.length !== 1 ? 'S' : ''}</span>
+                <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(230,57,70,0.4) 0%, transparent 100%)' }} />
               </div>
-              <div className="rebut-grid">
-                {filteredOngoing.map(room => {
-                  const badge = typeBadge(room.type)
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                {live.map(room => {
+                  const c = cfg(room.type)
                   const isVC = room.type === 'vc'
-                  const isStarting = room.status === 'starting'
                   return (
-                    <div
-                      key={room.instanceId}
-                      className="rebut-card"
-                      onClick={() => !isVC && handleSpectateClick(room)}
-                      style={{
-                        background: isVC ? 'rgba(0,180,216,0.04)' : 'rgba(230,57,70,0.03)',
-                        border: `1px solid ${isVC ? 'rgba(0,180,216,0.25)' : 'rgba(230,57,70,0.2)'}`,
-                        cursor: isVC ? 'default' : 'pointer',
-                        boxShadow: isVC ? '0 0 20px rgba(0,180,216,0.05)' : '0 0 20px rgba(230,57,70,0.05)',
-                      }}
-                    >
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type), boxShadow: `0 0 8px ${isVC ? 'rgba(0,180,216,0.5)' : 'rgba(230,57,70,0.5)'}` }} />
-                      <div style={{ position: 'absolute', top: '8px', right: '8px', background: isVC ? 'rgba(0,180,216,.2)' : 'rgba(230,57,70,.2)', border: `1px solid ${isVC ? '#00b4d8' : 'var(--accent)'}`, borderRadius: '20px', padding: '2px 6px', fontSize: '9px', color: isVC ? '#00b4d8' : 'var(--accent)', fontWeight: 700 }}>
-                        {isStarting ? 'START' : 'LIVE'}
+                    <div key={room.instanceId} onClick={() => !isVC && handleSpectate(room)}
+                      className={`rebut-card-3d ${isVC ? 'vc-card' : ''} ${room.type === 'serious' ? 'serious-card scanline-overlay' : ''}`}
+                      style={{ position: 'relative', borderRadius: '16px', padding: '18px', border: `1px solid ${c.border}`, background: `linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(10,10,10,0.95) 100%)`, cursor: isVC ? 'default' : 'pointer', overflow: 'hidden', boxShadow: c.glow, minHeight: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: c.gradient }} />
+                      <div style={{ position: 'absolute', top: '10px', right: '10px', background: isVC ? 'rgba(0,212,255,0.15)' : 'rgba(230,57,70,0.15)', border: `1px solid ${c.border}`, borderRadius: '20px', padding: '3px 8px', fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', color: c.badge, animation: 'liveFlash 2s infinite' }}>
+                        {room.status === 'starting' ? 'STARTING' : 'LIVE'}
                       </div>
                       <div>
-                        <div style={{ fontSize: '20px', marginBottom: '4px' }}>{room.emoji}</div>
-                        <div style={{ fontSize: '11px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '6px' }}>{room.topic}</div>
-                        <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
+                        <div style={{ fontSize: '24px', marginBottom: '6px' }}>{room.emoji}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', lineHeight: 1.4, marginBottom: '8px', paddingRight: '60px' }}>{room.topic}</div>
+                        <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '4px', background: c.badgeBg, color: c.badge }}>{c.label}</span>
                       </div>
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{room.playerCount} debating</span>
-                          <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '12px', color: isVC ? '#00b4d8' : 'var(--accent)' }}>
-                            {room.timeLeft != null ? fmt(room.timeLeft) : '—'}
-                          </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{room.playerCount} debating{room.spectatorCount > 0 ? ` · ${room.spectatorCount} watching` : ''}</span>
+                        <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '14px', color: c.badge, letterSpacing: '1px' }}>
+                          {room.timeLeft != null ? fmt(room.timeLeft) : '—'}
+                        </span>
+                      </div>
+                      {!isVC && (
+                        <div style={{ marginTop: '8px', background: `${c.badgeBg}`, border: `1px solid ${c.border}`, borderRadius: '8px', padding: '6px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: c.badge, letterSpacing: '1px' }}>
+                          👁 SPECTATE
                         </div>
-                        {!isVC ? (
-                          <div style={{ background: 'rgba(230,57,70,0.12)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '6px', padding: '5px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: 'var(--accent)', boxShadow: '0 0 8px rgba(230,57,70,0.1)' }}>
-                            👁 Watch
-                          </div>
-                        ) : (
-                          <div style={{ background: 'rgba(0,180,216,0.08)', border: '1px solid rgba(0,180,216,0.15)', borderRadius: '6px', padding: '5px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
-                            🎙️ In progress
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
                   )
                 })}
@@ -345,121 +306,123 @@ export default function RebutPage() {
             </div>
           )}
 
-          {/* AVAILABLE */}
+          {/* JOIN */}
           {connected && (
             <div>
-              <div className="rebut-section-header">
-                <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                  Join ({filteredAvailable.length})
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)' }}>
+                  OPEN ROOMS — {available.length} AVAILABLE
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '4px' }}>
-                  {activeFilter === 'Voice' ? '— 1v1 voice battle' : '— needs 2+ players'}
-                </span>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.06)' }} />
               </div>
 
-              {filteredAvailable.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 24px', color: 'var(--muted)' }}>
-                  <div style={{ fontSize: '28px', marginBottom: '10px' }}>⏳</div>
-                  <div style={{ fontSize: '14px' }}>Rooms spawning soon...</div>
+              {available.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.2)' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>⏳</div>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '16px', letterSpacing: '2px' }}>ROOMS SPAWNING...</div>
                 </div>
               ) : (
-                <div className="rebut-grid">
-                  {filteredAvailable.map(room => {
-                    const pct = Math.round((room.playerCount / room.maxPlayers) * 100)
-                    const almostFull = room.playerCount >= room.maxPlayers - 2
-                    const urgent = room.countdown <= 30
-                    const badge = typeBadge(room.type)
-                    const isStarting = room.status === 'starting'
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                  {available.map(room => {
+                    const c = cfg(room.type)
                     const isVC = room.type === 'vc'
-                    const locked = !loading && !user && room.eloRequired > 0
-                    const vcColor = '#00b4d8'
+                    const isStarting = room.status === 'starting'
+                    const urgent = room.countdown <= 30
+                    const pct = Math.round((room.playerCount / room.maxPlayers) * 100)
+                    const isHovered = hoveredId === room.instanceId
 
                     return (
                       <div
                         key={room.instanceId}
-                        className="rebut-card"
-                        onClick={() => handleJoinClick(room)}
+                        onClick={() => handleJoin(room)}
+                        onMouseEnter={() => setHoveredId(room.instanceId)}
+                        onMouseLeave={() => setHoveredId(null)}
+                        className={`rebut-card-3d ${isVC ? 'vc-card' : ''} ${room.type === 'serious' ? 'serious-card scanline-overlay' : ''}`}
                         style={{
-                          border: `1px solid ${
-                            isVC
-                              ? (isStarting ? vcColor : urgent ? `rgba(0,180,216,.5)` : `rgba(0,180,216,.2)`)
-                              : room.isCustom
-                              ? 'rgba(239,68,68,0.5)'
-                              : (isStarting ? 'var(--accent)' : urgent ? 'rgba(244,162,97,.5)' : locked ? 'rgba(255,214,10,.2)' : 'var(--border)')
-                          }`,
-                          boxShadow: room.isCustom
-                            ? '0 0 18px rgba(239,68,68,0.18), inset 0 0 30px rgba(239,68,68,0.04)'
-                            : isStarting
-                            ? `0 0 20px ${isVC ? 'rgba(0,180,216,0.15)' : 'rgba(230,57,70,0.15)'}`
-                            : 'none',
-                          background: room.isCustom ? 'rgba(239,68,68,0.05)' : isVC
-                            ? (isStarting ? 'rgba(0,180,216,0.08)' : 'var(--surface)')
-                            : (isStarting ? 'rgba(230,57,70,0.06)' : 'var(--surface)'),
+                          position: 'relative', borderRadius: '16px', padding: '18px', cursor: 'pointer',
+                          border: `1px solid ${isStarting ? c.badge : isHovered ? c.border : 'rgba(255,255,255,0.08)'}`,
+                          background: isHovered
+                            ? `linear-gradient(135deg, ${room.type === 'serious' ? 'rgba(230,57,70,0.08)' : room.type === 'vc' ? 'rgba(0,212,255,0.06)' : 'rgba(255,255,255,0.04)'} 0%, rgba(0,0,0,0.9) 100%)`
+                            : 'linear-gradient(135deg, rgba(8,8,8,0.95) 0%, rgba(5,5,5,0.98) 100%)',
+                          boxShadow: isHovered ? c.glow : isStarting ? c.glow : 'none',
+                          overflow: 'hidden', minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                          transition: 'border-color 0.2s, box-shadow 0.2s, background 0.2s',
                         }}
                       >
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: typeColor(room.type) }} />
+                        {/* Top gradient bar */}
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: c.gradient, opacity: isHovered || isStarting ? 1 : 0.5, transition: 'opacity 0.2s' }} />
 
+                        {/* Starting overlay */}
                         {isStarting && (
-                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.82)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px', backdropFilter: 'blur(2px)' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: isVC ? vcColor : 'var(--accent)', marginBottom: '2px', letterSpacing: '2px' }}>Starting</div>
-                            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: '#fff', lineHeight: 1, textShadow: `0 0 20px ${isVC ? vcColor : 'var(--accent)'}` }}>{room.startCountdown}</div>
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '16px', backdropFilter: 'blur(4px)' }}>
+                            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '3px', color: c.badge, marginBottom: '4px' }}>STARTING IN</div>
+                            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '72px', color: '#fff', lineHeight: 1, textShadow: `0 0 30px ${c.badge}`, animation: 'countdownPop 0.5s ease' }}>{room.startCountdown}</div>
                           </div>
                         )}
 
-                        {locked && !isVC && (
-                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '14px', backdropFilter: 'blur(2px)' }}>
-                            <div style={{ fontSize: '22px', marginBottom: '4px' }}>🔒</div>
-                            <div style={{ fontSize: '10px', color: 'var(--gold)', fontWeight: 700 }}>{room.eloRequired}+ ELO</div>
+                        {/* ELO lock */}
+                        {!loading && !user && room.eloRequired > 0 && (
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '16px', backdropFilter: 'blur(4px)' }}>
+                            <div style={{ fontSize: '28px', marginBottom: '6px' }}>🔒</div>
+                            <div style={{ fontSize: '12px', color: '#ffd60a', fontWeight: 700, letterSpacing: '1px' }}>{room.eloRequired}+ ELO REQUIRED</div>
                           </div>
                         )}
 
                         <div>
-                          <div style={{ fontSize: '20px', marginBottom: '4px' }}>{room.emoji}</div>
-                          <div style={{ fontSize: '11px', fontWeight: 600, lineHeight: 1.4, color: 'var(--text)', marginBottom: '5px', filter: room.isPrivate ? 'blur(4px)' : 'none', userSelect: room.isPrivate ? 'none' : 'auto' }}>{room.topic}</div>
-                          <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: badge.bg, color: badge.color }}>{badge.label}</span>
-                          <div style={{ fontSize: '9px', color: 'var(--gold)', fontWeight: 600, marginTop: '4px', filter: room.isPrivate ? 'blur(3px)' : 'none' }}>
-                            {eloLabel(room.type, room.eloStake)}
-                          </div>
-                          {room.isCustom && !room.isPrivate && room.createdBy && (
-                            <div style={{ fontSize: '9px', color: '#ff6b35', marginTop: '4px', fontWeight: 600 }}>
-                              ⚔️ Custom · by <span style={{ color: 'var(--text2)' }}>{room.createdBy}</span>
-                              {room.duration && <span style={{ color: 'var(--muted)', marginLeft: '4px' }}>· {Math.floor(room.duration / 60)}min</span>}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <div style={{ fontSize: '26px' }}>{room.emoji}</div>
+                            <div style={{ display: 'flex', gap: '4px', flexDirection: 'column', alignItems: 'flex-end' }}>
+                              <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '4px', background: c.badgeBg, color: c.badge }}>{c.label}</span>
+                              {room.isPrivate && <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(0,212,255,0.1)', color: '#00d4ff' }}>PRIVATE</span>}
                             </div>
-                          )}
-                          {room.isPrivate && (
-                            <div style={{ fontSize: '9px', color: '#00b4d8', marginTop: '4px', fontWeight: 600 }}>
-                              🔒 Private · by <span style={{ color: 'var(--text2)' }}>{room.createdBy}</span>
-                              {room.duration && <span style={{ color: 'var(--muted)', marginLeft: '4px' }}>· {Math.floor(room.duration / 60)}min</span>}
+                          </div>
+
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', lineHeight: 1.45, marginBottom: '8px', filter: room.isPrivate ? 'blur(4px)' : 'none' }}>{room.topic}</div>
+
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: c.badge }}>{room.eloStake ? `±${room.eloStake} ELO` : ELO_LABELS[room.type] || ''}</span>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)' }}>·</span>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{Math.floor(room.duration / 60)}min</span>
+                          </div>
+
+                          {room.createdBy && (
+                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginTop: '4px' }}>
+                              by <span style={{ color: 'rgba(255,255,255,0.55)' }}>{room.createdBy}</span>
                             </div>
                           )}
                         </div>
 
-                        <div>
+                        <div style={{ marginTop: '14px' }}>
                           {isVC ? (
                             <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: room.playerCount >= 1 ? vcColor : 'var(--muted)', marginBottom: '4px' }}>
-                                <span>{room.playerCount}/2{room.playerCount === 1 ? ' 🔥' : ''}</span>
-                                <span style={{ fontFamily: 'var(--font-bebas)', color: 'var(--muted)' }}>{fmt(room.countdown)}</span>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '10px', color: room.playerCount >= 1 ? '#00d4ff' : 'rgba(255,255,255,0.3)' }}>
+                                  {room.playerCount}/2 {room.playerCount === 1 ? '🔥 opponent ready!' : ''}
+                                </span>
+                                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '12px', color: urgent ? '#e63946' : 'rgba(255,255,255,0.3)', letterSpacing: '1px' }}>{fmt(room.countdown)}</span>
                               </div>
-                              <div style={{ height: '3px', background: 'var(--surface2)', borderRadius: '2px', overflow: 'hidden', marginBottom: '6px' }}>
-                                <div style={{ height: '100%', width: `${room.playerCount * 50}%`, background: `linear-gradient(90deg,${vcColor},#0077b6)`, borderRadius: '2px', boxShadow: room.playerCount > 0 ? `0 0 8px ${vcColor}` : 'none' }} />
+                              <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', marginBottom: '8px' }}>
+                                <div style={{ height: '100%', width: `${room.playerCount * 50}%`, background: 'linear-gradient(90deg,#00d4ff,#0077b6)', boxShadow: room.playerCount > 0 ? '0 0 8px #00d4ff' : 'none', transition: 'width 0.5s' }} />
                               </div>
-                              <div style={{ background: `rgba(0,180,216,0.12)`, border: `1px solid rgba(0,180,216,0.35)`, borderRadius: '6px', padding: '5px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: vcColor, boxShadow: '0 0 8px rgba(0,180,216,0.1)' }}>
-                                🎙️ {room.playerCount === 0 ? 'Join' : 'Challenge'}
+                              <div style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: '8px', padding: '8px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#00d4ff', letterSpacing: '1.5px' }}>
+                                🎙 {room.playerCount === 0 ? 'JOIN VOICE BATTLE' : 'CHALLENGE ACCEPTED'}
                               </div>
                             </div>
                           ) : (
                             <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '3px' }}>
-                                <span style={{ color: almostFull ? 'var(--accent)' : 'var(--muted)' }}>
-                                  {room.playerCount}/{room.maxPlayers}{almostFull && !isStarting ? ' 🔥' : ''}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>
+                                  {room.playerCount}/{room.maxPlayers} debaters
                                 </span>
-                                <span style={{ fontFamily: 'var(--font-bebas)', color: urgent ? 'var(--accent)' : room.countdown <= 60 ? 'var(--accent2)' : 'var(--green)' }}>
+                                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '1px', color: urgent ? '#e63946' : room.countdown <= 60 ? '#ff9500' : 'rgba(255,255,255,0.35)' }}>
                                   {fmt(room.countdown)}
                                 </span>
                               </div>
-                              <div style={{ height: '3px', background: 'var(--surface2)', borderRadius: '2px', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${pct}%`, background: almostFull ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : 'linear-gradient(90deg,var(--green),var(--blue))', borderRadius: '2px', boxShadow: almostFull ? '0 0 6px rgba(230,57,70,0.5)' : 'none', transition: 'width 0.5s' }} />
+                              <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', marginBottom: '10px' }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: c.gradient, boxShadow: pct > 60 ? `0 0 8px ${c.badge}` : 'none', transition: 'width 0.5s' }} />
+                              </div>
+                              <div style={{ background: isHovered ? `${c.badge}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${isHovered ? c.border : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '8px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: isHovered ? c.badge : 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', transition: 'all 0.15s' }}>
+                                ENTER THE DEBATE →
                               </div>
                             </div>
                           )}
