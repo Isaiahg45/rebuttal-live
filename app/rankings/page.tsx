@@ -81,7 +81,6 @@ export default function RankingsPage() {
           <div style={{ maxWidth: '1000px', margin: '0 auto', position: 'relative' }}>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(32px,6vw,52px)', letterSpacing: '4px', lineHeight: 1, marginBottom: '6px', background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GLOBAL RANKINGS</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>{players.length} ranked debaters worldwide</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite', boxShadow: '0 0 8px #22c55e' }} />
                 <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 700, letterSpacing: '1px' }}>LIVE</span>

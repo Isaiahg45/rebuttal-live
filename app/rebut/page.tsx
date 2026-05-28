@@ -377,7 +377,7 @@ const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
                       </div>
 
                       {/* VS Header */}
-                      <div style={{ padding: '14px 14px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+<div style={{ padding: '14px 14px 4px', paddingRight: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {showVs ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800 }}>
                             <span style={{ color: '#ff8c00', textShadow: '0 0 8px rgba(255,140,0,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px', whiteSpace: 'nowrap' }}>{p1}</span>
