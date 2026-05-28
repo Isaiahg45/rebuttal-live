@@ -58,22 +58,33 @@ export default function ProfilePage() {
     setEditing(false); setSaving(false); window.location.reload()
   }
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !user) return
-    if (file.size > 5 * 1024 * 1024) { alert('Max file size is 5MB'); return }
-    setUploading(true)
+const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0]
+  if (!file || !user) return
+  if (file.size > 5 * 1024 * 1024) { alert('Max file size is 5MB'); return }
+  if (!file.type.startsWith('image/')) { alert('Please upload an image file'); return }
+  setUploading(true)
+  try {
     const ext = file.name.split('.').pop()
     const path = `${user.id}/avatar.${ext}`
-    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-    if (upErr) { console.error(upErr); setUploading(false); alert('Upload failed. Make sure the avatars bucket exists in Supabase Storage.'); return }
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) throw upErr
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
     const url = `${publicUrl}?t=${Date.now()}`
-    await supabase.from('profiles').update({ avatar_url: url }).eq('id', user.id)
+    const { error: dbErr } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', user.id)
+    if (dbErr) throw dbErr
     setAvatarUrl(url)
+    // Force a full refresh so Nav, rankings, everywhere picks up the new avatar
+    setTimeout(() => window.location.reload(), 400)
+  } catch (err: any) {
+    console.error(err)
+    alert(`Upload failed: ${err?.message ?? 'Unknown error'}`)
+  } finally {
     setUploading(false)
   }
-
+}
   const deleteAccount = async () => {
     if (deleteText !== 'DELETE') return
     await supabase.from('profiles').delete().eq('id', user.id)
@@ -153,10 +164,6 @@ export default function ProfilePage() {
                   <div style={{ fontSize: '9px', color: '#fff', fontWeight: 700, marginTop: '2px', letterSpacing: '1px' }}>{uploading ? 'UPLOADING' : 'CHANGE'}</div>
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />
-                {/* Tier badge */}
-                <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: tier.bg, border: `1px solid ${tier.color}50`, borderRadius: '20px', padding: '2px 10px', fontSize: '9px', fontWeight: 700, color: tier.color, letterSpacing: '1.5px', whiteSpace: 'nowrap', animation: 'tierGlow 3s ease infinite' }}>
-                  {tier.special ? '💎 ' : ''}{tier.label.toUpperCase()}
-                </div>
               </div>
 
               <div style={{ flex: 1, minWidth: '150px', paddingTop: '8px' }}>
