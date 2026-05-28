@@ -165,9 +165,11 @@ export default function RebutPage() {
     return r.type.toLowerCase() === filter.toLowerCase()
   }
 
-  const available = rooms.filter(r => r.status === 'waiting' && matchFilter(r))
-  const live = rooms.filter(r => (r.status === 'active' || r.status === 'starting') && matchFilter(r))
+  const hasRealUser = (r: RoomData) => r.players.some(p => !p.startsWith('guest'))
+const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => Number(hasRealUser(b)) - Number(hasRealUser(a)))
 
+const available = sortRooms(rooms.filter(r => r.status === 'waiting' && matchFilter(r)))
+const live = sortRooms(rooms.filter(r => (r.status === 'active' || r.status === 'starting') && matchFilter(r)))
   const routeRoom = (room: RoomData, pw?: string) => {
     const base = room.type === 'vc' ? `/vc-debate/${room.instanceId}` : `/debate/${room.instanceId}`
     router.push(base + (pw ? `?password=${encodeURIComponent(pw)}` : ''))

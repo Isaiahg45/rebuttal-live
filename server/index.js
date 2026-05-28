@@ -1118,6 +1118,7 @@ io.on('connection', (socket) => {
     }
 
     io.to(instanceId).emit('new_message', msg)
+io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
     if (instanceId === 'topic_of_the_day') {
       const leaderboard = Object.entries(totdScores)
         .map(([username, score]) => ({ username, score, elo: 0 }))
@@ -1492,7 +1493,7 @@ io.on('connection', (socket) => {
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 3 }, () =>
+const BOT_NAMES = Array.from({ length: 12 }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
 )
 
@@ -1643,8 +1644,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 90000
-      const maxWait = 120000
+      const minWait = 100000
+      const maxWait = 170000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
@@ -1672,8 +1673,9 @@ async function runBot(botName, personality) {
       const player = currentRoom.players[`bot_${botName}`]
       if (player) player.score += score
 
-      io.to(currentRoom.instanceId).emit('new_message', msg)
-      io.to(currentRoom.instanceId).emit('players_update', Object.values(currentRoom.players))
+     io.to(currentRoom.instanceId).emit('new_message', msg)
+io.to(currentRoom.instanceId).emit('players_update', Object.values(currentRoom.players))
+io.emit('room_message', { instanceId: currentRoom.instanceId, username: botName, text: botText })
 
       setTimeout(sendBotMessage, randomWait)
     }
