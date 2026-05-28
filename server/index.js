@@ -1493,7 +1493,8 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 12 }, () =>
+const BOT_NAMES = Array.from({ length: 30
+ }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
 )
 
@@ -1587,7 +1588,7 @@ async function runBot(botName, personality) {
     }
     state.roomId = null
     state.active = false
-    const offlineDuration = (20 + Math.random() * 40) * 60 * 1000
+    const offlineDuration = (2 + Math.random() * 9) * 60 * 1000
     console.log(`🤖 Bot ${botName} offline for ${Math.round(offlineDuration / 60000)} mins`)
     setTimeout(() => goOnline(), offlineDuration)
   }

@@ -166,11 +166,15 @@ export default function RebutPage() {
   }
 
   const hasRealUser = (r: RoomData) => r.players.some(p => !p.startsWith('guest'))
-  const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
-    const aScore = hasRealUser(a) ? (a.type === 'vc' ? 1 : 2) : (a.type === 'vc' ? -1 : 0)
-    const bScore = hasRealUser(b) ? (b.type === 'vc' ? 1 : 2) : (b.type === 'vc' ? -1 : 0)
-    return bScore - aScore
-  })
+const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
+  const score = (r: RoomData) => {
+    if (r.type !== 'vc' && hasRealUser(r)) return 3  // real user in text room — top
+    if (r.type === 'vc' && hasRealUser(r)) return 2  // real user in VC — second
+    if (r.type === 'vc') return 1                     // empty VC — third
+    return 0                                          // empty text room — last
+  }
+  return score(b) - score(a)
+})
 
   const available = sortRooms(rooms.filter(r => r.status === 'waiting' && matchFilter(r)))
   const live = sortRooms(rooms.filter(r => (r.status === 'active' || r.status === 'starting') && matchFilter(r)))
