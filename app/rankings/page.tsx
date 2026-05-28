@@ -214,7 +214,7 @@ export default function RankingsPage() {
             {/* close rankings column */}
 
             {/* Tier sidebar */}
-            <div style={{ width: '200px', flexShrink: 0, position: 'sticky', top: '72px' }} className="tier-sidebar">
+            <div style={{ width: '260px', flexShrink: 0, position: 'sticky', top: '72px' }} className="tier-sidebar">
               <div style={{ background: 'rgba(10,10,10,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', overflow: 'hidden', backdropFilter: 'blur(12px)' }}>
                 <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '10px', fontWeight: 700, letterSpacing: '3px', color: 'rgba(255,255,255,0.25)' }}>ELO TIERS</div>
                 {[...TIERS].reverse().map((tier, i) => {
