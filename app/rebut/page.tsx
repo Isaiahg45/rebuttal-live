@@ -271,7 +271,7 @@ export default function RebutPage() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
 
           {!connected && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '500px', gap: '12px' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid rgba(230,57,70,0.5)', borderTopColor: '#e63946', animation: 'spin 0.8s linear infinite', boxShadow: '0 0 16px rgba(230,57,70,0.3)' }} />
               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px' }}>CONNECTING TO SERVERS...</div>
               <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -349,7 +349,7 @@ export default function RebutPage() {
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '16px', letterSpacing: '2px' }}>ROOMS SPAWNING...</div>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(275px, 1fr))', gap: '12px' }}>
                   {available.map(room => {
                     const c = cfg(room.type)
                     const isVC = room.type === 'vc'
@@ -432,7 +432,7 @@ export default function RebutPage() {
                                 <div style={{ height: '100%', width: `${room.playerCount * 50}%`, background: 'linear-gradient(90deg,#00d4ff,#0077b6)', boxShadow: room.playerCount > 0 ? '0 0 8px #00d4ff' : 'none', transition: 'width 0.5s' }} />
                               </div>
                               <div style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: '8px', padding: '8px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#00d4ff', letterSpacing: '1.5px' }}>
-                                🎙 {room.playerCount === 0 ? 'JOIN VOICE BATTLE' : 'CHALLENGE ACCEPTED'}
+                                🎙 {room.playerCount === 0 ? 'JOIN VOICE REBUTTAL' : 'CHALLENGE ACCEPTED'}
                               </div>
                             </div>
                           ) : (
@@ -449,7 +449,7 @@ export default function RebutPage() {
                                 <div style={{ height: '100%', width: `${pct}%`, background: c.gradient, boxShadow: pct > 60 ? `0 0 8px ${c.badge}` : 'none', transition: 'width 0.5s' }} />
                               </div>
                               <div style={{ background: isHovered ? `${c.badge}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${isHovered ? c.border : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '8px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: isHovered ? c.badge : 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', transition: 'all 0.15s' }}>
-                                ENTER THE DEBATE →
+                                ENTER CHAT REBUTTAL →
                               </div>
                             </div>
                           )}
