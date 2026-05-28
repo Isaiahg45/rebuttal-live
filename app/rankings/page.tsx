@@ -210,44 +210,39 @@ export default function RankingsPage() {
                   })}
                 </div>
               )}
-
-              {!user && (
-                <div style={{ background: 'linear-gradient(135deg, rgba(230,57,70,0.08) 0%, transparent 100%)', border: '1px solid rgba(230,57,70,0.2)', borderRadius: '16px', padding: '32px', textAlign: 'center', marginTop: '20px' }}>
-                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(20px,4vw,28px)', letterSpacing: '3px', marginBottom: '8px' }}>CLAIM YOUR RANK</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', marginBottom: '20px', lineHeight: 1.7 }}>Create a free account to earn ELO and appear on this leaderboard.</div>
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <Link href="/signup" style={{ background: 'linear-gradient(135deg,#e63946,#c1121f)', borderRadius: '10px', padding: '12px 28px', color: '#fff', fontSize: '14px', fontWeight: 700, display: 'inline-block' }}>Sign up free →</Link>
-                    <Link href="/login" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 24px', color: 'rgba(255,255,255,0.5)', fontSize: '14px', display: 'inline-block' }}>Log in</Link>
-                  </div>
-                </div>
-              )}
             </div>
+            {/* close rankings column */}
 
             {/* Tier sidebar */}
-            <div style={{ width: '180px', flexShrink: 0, position: 'sticky', top: '72px', display: 'none', ...(typeof window !== 'undefined' && window.innerWidth > 768 ? { display: 'block' } : {}) }} className="tier-sidebar">
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '10px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)' }}>ELO TIERS</div>
-                {[...TIERS].reverse().map((tier) => (
-                  <div key={tier.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPlayer && getTier(myPlayer.elo).label === tier.label ? `${tier.bg}` : 'transparent' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: tier.color, flexShrink: 0, boxShadow: `0 0 6px ${tier.glow}` }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: tier.color, letterSpacing: '0.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {tier.special ? '💎 ' : ''}{tier.label}
+            <div style={{ width: '200px', flexShrink: 0, position: 'sticky', top: '72px' }} className="tier-sidebar">
+              <div style={{ background: 'rgba(10,10,10,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', overflow: 'hidden', backdropFilter: 'blur(12px)' }}>
+                <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '10px', fontWeight: 700, letterSpacing: '3px', color: 'rgba(255,255,255,0.25)' }}>ELO TIERS</div>
+                {[...TIERS].reverse().map((tier, i) => {
+                  const isMe = myPlayer && getTier(myPlayer.elo).label === tier.label
+                  return (
+                    <div key={tier.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 16px', borderBottom: i < TIERS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: isMe ? tier.bg : 'transparent', position: 'relative', transition: 'background 0.2s' }}>
+                      {isMe && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: tier.color, boxShadow: `0 0 8px ${tier.glow}` }} />}
+                      <div style={{ fontSize: '20px', flexShrink: 0, filter: `drop-shadow(0 0 6px ${tier.glow})` }}>{(tier as any).emoji}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: tier.color, textShadow: isMe ? `0 0 12px ${tier.glow}, 0 0 24px ${tier.glow}` : `0 0 8px ${tier.glow}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {tier.label}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
+                          {tier.min === 0 ? '0–99' : tier.min === 100 ? '100–199' : tier.min === 200 ? '200–299' : tier.min === 300 ? '300–399' : tier.min === 400 ? '400–499' : tier.min === 500 ? '500–699' : tier.min === 700 ? '700–999' : '1000+'} ELO
+                        </div>
                       </div>
-                      <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)', marginTop: '1px' }}>
-                        {tier.min === 0 ? '0–99' : tier.min === 100 ? '100–199' : tier.min === 200 ? '200–299' : tier.min === 300 ? '300–399' : tier.min === 400 ? '400–499' : tier.min === 500 ? '500–699' : tier.min === 700 ? '700–999' : '1000+'} ELO
-                      </div>
+                      {isMe && (
+                        <div style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: tier.bg, border: `1px solid ${tier.color}60`, borderRadius: '6px', padding: '2px 6px', flexShrink: 0, textShadow: `0 0 8px ${tier.glow}`, boxShadow: `0 0 8px ${tier.glow}`, letterSpacing: '1px' }}>YOU</div>
+                      )}
                     </div>
-                    {myPlayer && getTier(myPlayer.elo).label === tier.label && (
-                      <div style={{ fontSize: '9px', color: tier.color, fontWeight: 700, flexShrink: 0 }}>YOU</div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+
+          </div> {/* close flex row */}
+        </div> {/* close maxWidth wrapper */}
+      </div> {/* close page */}
       <style>{`.tier-sidebar{display:none} @media(min-width:768px){.tier-sidebar{display:block!important}}`}</style>
     </>
   )
