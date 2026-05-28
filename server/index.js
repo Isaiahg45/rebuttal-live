@@ -1493,7 +1493,7 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 30
+const BOT_NAMES = Array.from({ length: 18
  }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
 )
