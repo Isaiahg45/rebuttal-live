@@ -80,11 +80,13 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
 }
 
 // ── Speech Recognition Hook ───────────────────────────────────
+// ── Speech Recognition Hook ───────────────────────────────────
 function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
   const recognitionRef = useRef<any>(null)
   const [supported, setSupported] = useState(false)
   const [listening, setListening] = useState(false)
   const transcriptRef = useRef('')
+  const shouldListenRef = useRef(false)
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -104,8 +106,26 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
         if (final) transcriptRef.current += ' ' + final
         onTranscriptUpdate((transcriptRef.current + interim).trim())
       }
-      rec.onerror = (e: any) => { console.warn('Speech recognition error:', e.error); setListening(false) }
-      rec.onend = () => setListening(false)
+      rec.onerror = (e: any) => {
+        console.warn('Speech recognition error:', e.error)
+        if (e.error === 'no-speech' && shouldListenRef.current) {
+          setTimeout(() => {
+            if (shouldListenRef.current) {
+              try { rec.start() } catch (err) {}
+            }
+          }, 100)
+        }
+      }
+      rec.onend = () => {
+        setListening(false)
+        if (shouldListenRef.current) {
+          setTimeout(() => {
+            if (shouldListenRef.current) {
+              try { rec.start(); setListening(true) } catch (err) {}
+            }
+          }, 100)
+        }
+      }
       recognitionRef.current = rec
     }
   }, [])
@@ -114,12 +134,19 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
     if (!recognitionRef.current) return
     transcriptRef.current = ''
     onTranscriptUpdate('')
-    try { recognitionRef.current.start() } catch (e) {}
+    shouldListenRef.current = true
+    try {
+      recognitionRef.current.start()
+      console.log('🎙️ Speech recognition started')
+    } catch (e) {
+      console.warn('🎙️ Speech recognition start error:', e)
+    }
     setListening(true)
   }, [])
 
   const stopListening = useCallback(() => {
     if (!recognitionRef.current) return
+    shouldListenRef.current = false
     try { recognitionRef.current.stop() } catch (e) {}
     setListening(false)
   }, [])
@@ -442,9 +469,13 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       }, 1000)
 
       // Keep both mics on — only mute the non-speaker
-      setMicActive(isMine)
-      if (isMine && speechSupported) {
-        setTimeout(() => startListening(), 300)
+      if (isMine) {
+        setMicActive(true)
+        setTimeout(() => {
+          if (speechSupported) startListening()
+        }, 500)
+      } else {
+        setMicActive(false)
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
@@ -462,11 +493,14 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setLiveTranscript('')
 
       // Switch mic: enable for speaker, disable for listener
-     setMicActive(isMine)
-      if (isMine && speechSupported) {
-        setTimeout(() => startListening(), 300)
+     if (isMine) {
+        setMicActive(true)
+        setTimeout(() => {
+          if (speechSupported) startListening()
+        }, 500)
       } else {
         stopListening()
+        setMicActive(false)
       }
 
       startTurnTimer(turnDuration, isMine, socket)
