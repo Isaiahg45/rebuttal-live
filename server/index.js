@@ -1704,10 +1704,15 @@ io.to(currentRoomId).emit('debate_ended', {
         // 3+ player rooms: debate continues, leaver just loses ELO (handled client-side via standings)
       }
     } else if ((room.status === 'waiting' || room.status === 'starting') && remainingCount === 0) {
-      // Room empty during countdown — expire it
       room.status = 'ended'
       io.to(currentRoomId).emit('room_expired', { message: 'Game expired: less than 2 debaters in server.' })
       console.log(`💨 Room expired (all left during countdown): "${room.topic}"`)
+    } else if (room.status === 'starting' && remainingCount < 2) {
+      room.status = 'ended'
+      room.startCountdown = 0
+      io.to(currentRoomId).emit('room_expired', { message: 'Your opponent left before the debate started.' })
+      console.log(`💨 Opponent left during countdown: "${room.topic}"`)
+      if (!room.isCustom) scheduleRoom(room.type)
     }
 
     // Deduct ELO server-side for real players who forfeited

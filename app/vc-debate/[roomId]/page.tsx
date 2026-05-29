@@ -368,12 +368,12 @@ export default function VCDebatePage() {
   const speakingIntervalRef = useRef<any>(null)
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
-  const tickingAudioRef = useRef<HTMLAudioElement | null>(null)
   const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   const timerRef = useRef<any>(null)
   const turnTimerRef = useRef<any>(null)
   const cooldownTimerRef = useRef<any>(null)
   const myUsernameRef = useRef(myUsername)
+  const [voiceReady, setVoiceReady] = useState(false)
   const mySocketIdRef = useRef(mySocketId)
   const profileRef = useRef(profile)
   const userRef = useRef(user)
@@ -411,9 +411,6 @@ useEffect(() => {
     if (!myUsername) return
     countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
     countdownAudioRef.current.preload = 'auto'
-    tickingAudioRef.current = new Audio('/sounds/ticking.mp3')
-    tickingAudioRef.current.preload = 'auto'
-    tickingAudioRef.current.volume = 0.4
 
     lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
     lobbyAudioRef.current.preload = 'auto'
@@ -421,7 +418,7 @@ useEffect(() => {
     lobbyAudioRef.current.volume = 0.35
 
     const unlockAudio = () => {
-      ;[countdownAudioRef, tickingAudioRef].forEach(ref => {
+      ;[countdownAudioRef].forEach(ref => {
         if (!ref.current) return
         ref.current.play().then(() => {
           ref.current!.pause()
@@ -488,10 +485,6 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) { clearInterval(timerRef.current); return 0 }
-          if (prev === 30) {
-            try { if (tickingAudioRef.current) { tickingAudioRef.current.currentTime = 0; tickingAudioRef.current.play() } } catch (e) {}
-          }
-          if (prev === 4) { try { tickingAudioRef.current?.pause() } catch (e) {} }
           return prev - 1
         })
       }, 1000)
@@ -558,7 +551,6 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
 
     socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake }: any) => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
-      try { tickingAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
       cleanup()
@@ -790,6 +782,25 @@ const handleToggleMute = () => {
     <span>{micGranted ? '✅' : '⚠️'}</span>
     {micGranted ? 'Microphone ready' : 'Microphone access required — please allow when prompted'}
   </div>
+  {micGranted && !voiceReady && (
+    <button
+      onClick={() => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        if (SpeechRecognition) {
+          const test = new SpeechRecognition()
+          test.start()
+          setTimeout(() => { try { test.stop() } catch (e) {} }, 300)
+        }
+        setVoiceReady(true)
+      }}
+      style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '10px', padding: '10px 20px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', animation: 'pulse 1s infinite' }}
+    >
+      🎙️ Tap to Enable Voice Transcription
+    </button>
+  )}
+  {micGranted && voiceReady && (
+    <div style={{ fontSize: '12px', color: 'var(--green)' }}>✅ Voice transcription ready</div>
+  )}
   {micGranted && (
     <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
       <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>

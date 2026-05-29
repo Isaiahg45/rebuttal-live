@@ -343,6 +343,7 @@ export default function DebatePage() {
     socket.on('room_expired', ({ message }: { message: string }) => {
       stopLobbyMusic()
       try { tickingAudioRef.current?.pause() } catch (e) {}
+      clearInterval(timerRef.current)
       setStatus('expired')
       setExpiredMsg(message)
     })
