@@ -378,7 +378,25 @@ export default function DebatePage() {
       clearInterval(cooldownRef.current)
     }
   }, [myUsername, instanceId])
-
+useEffect(() => {
+    const unlock = () => {
+      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
+        if (!ref.current) return
+        ref.current.play().then(() => {
+          ref.current!.pause()
+          ref.current!.currentTime = 0
+        }).catch(() => {})
+      })
+      document.removeEventListener('click', unlock)
+      document.removeEventListener('touchstart', unlock)
+    }
+    document.addEventListener('click', unlock, { once: true })
+    document.addEventListener('touchstart', unlock, { once: true })
+    return () => {
+      document.removeEventListener('click', unlock)
+      document.removeEventListener('touchstart', unlock)
+    }
+  }, [])
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [messages])
