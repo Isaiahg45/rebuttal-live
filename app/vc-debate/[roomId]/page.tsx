@@ -358,6 +358,8 @@ useEffect(() => {
     countdownAudioRef.current.preload = 'auto'
     tickingAudioRef.current = new Audio('/sounds/ticking.mp3')
     tickingAudioRef.current.preload = 'auto'
+    tickingAudioRef.current.volume = 0.4
+
     lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
     lobbyAudioRef.current.preload = 'auto'
     lobbyAudioRef.current.loop = true
@@ -441,7 +443,9 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
 
       // Keep both mics on — only mute the non-speaker
       setMicActive(isMine)
-      if (isMine && speechSupported) startListening()
+      if (isMine && speechSupported) {
+        setTimeout(() => startListening(), 300)
+      }
       startTurnTimer(turnDuration, isMine, socket)
     })
 
@@ -458,9 +462,12 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setLiveTranscript('')
 
       // Switch mic: enable for speaker, disable for listener
-      setMicActive(isMine)
-      if (isMine && speechSupported) startListening()
-      else stopListening()
+     setMicActive(isMine)
+      if (isMine && speechSupported) {
+        setTimeout(() => startListening(), 300)
+      } else {
+        stopListening()
+      }
 
       startTurnTimer(turnDuration, isMine, socket)
     })
