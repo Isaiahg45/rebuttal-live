@@ -709,7 +709,9 @@ function checkForAutoWin(roomId) {
   const room = rooms[roomId]
   if (!room || room.status !== 'active' || room.instanceId === 'topic_of_the_day') return false
   if (room.type === 'vc') return false
-  const realEntries = Object.entries(room.players).filter(([key]) => !key.startsWith('bot_'))
+  const allEntries = Object.entries(room.players)
+  const realEntries = allEntries.filter(([key]) => !key.startsWith('bot_'))
+  // Auto-win if only 1 real player remains (bots don't count as opponents)
   if (realEntries.length !== 1) return false
   const winner = realEntries[0][1]
   room.status = 'ended'
@@ -930,8 +932,8 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
 
       if (playerCount >= room.maxPlayers) {
         room.status = 'starting'
-        room.startCountdown = 5
-        io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
+        room.startCountdown = 3
+        io.to(room.instanceId).emit('room_starting', { startCountdown: 3 })
         if (!room.isCustom) scheduleRoom(room.type)
         return
       }
@@ -952,8 +954,8 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
           if (!room.isCustom) scheduleRoom(room.type)
         } else {
           room.status = 'starting'
-          room.startCountdown = 5
-          io.to(room.instanceId).emit('room_starting', { startCountdown: 5 })
+          room.startCountdown = 3
+          io.to(room.instanceId).emit('room_starting', { startCountdown: 3 })
           if (!room.isCustom) scheduleRoom(room.type)
         }
       }
@@ -969,7 +971,6 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         console.log(`⚡ Started: "${room.topic}" (${playerCount} players)`)
       }
     }
-
     if (room.status === 'active') {
       // End immediately if room is completely empty
       // But skip custom waiting rooms — they stay open until someone joins
@@ -1833,10 +1834,20 @@ async function runBot(botName, personality) {
     if (state.roomId && rooms[state.roomId]) {
       const room = rooms[state.roomId]
       const wasActive = room.status === 'active'
+
+      // Apply ELO forfeit loss for bot leaving active non-custom room
+      // (bots have no DB record but we still need to trigger auto-win for real players)
+
       delete room.players[`bot_${botName}`]
       io.to(state.roomId).emit('players_update', Object.values(room.players))
       io.to(state.roomId).emit('system_message', { text: `${botName} left` })
-      if (wasActive) checkForAutoWin(state.roomId)
+
+      if (wasActive) {
+        const realPlayers = Object.values(room.players).filter((p) => !p.username.startsWith('guest') || true)
+        // Always check auto-win — if 1 real player left, they win
+        checkForAutoWin(state.roomId)
+      }
+
       io.emit('rooms_update', getRoomList())
     }
     state.roomId = null

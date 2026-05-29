@@ -195,6 +195,19 @@ export default function DebatePage() {
     lobbyAudioRef.current.loop = true
     lobbyAudioRef.current.volume = 0.35
 
+    // Unlock audio on first interaction
+    const unlockAudio = () => {
+      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
+        if (!ref.current) return
+        ref.current.play().then(() => {
+          ref.current!.pause()
+          ref.current!.currentTime = 0
+        }).catch(() => {})
+      })
+    }
+    document.addEventListener('click', unlockAudio, { once: true })
+    document.addEventListener('touchstart', unlockAudio, { once: true })
+
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
@@ -247,7 +260,7 @@ export default function DebatePage() {
 
     socket.on('start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
-      if (count <= 5) setGameStarted(true)
+      if (count <= 3) setGameStarted(true)
       if (count === 3) {
         // Cut lobby music, fire 3-2-1-Go
         stopLobbyMusic()
@@ -376,27 +389,10 @@ export default function DebatePage() {
       socketRef.current = null
       clearInterval(timerRef.current)
       clearInterval(cooldownRef.current)
+      document.removeEventListener('click', unlockAudio)
+      document.removeEventListener('touchstart', unlockAudio)
     }
   }, [myUsername, instanceId])
-useEffect(() => {
-    const unlock = () => {
-      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
-        if (!ref.current) return
-        ref.current.play().then(() => {
-          ref.current!.pause()
-          ref.current!.currentTime = 0
-        }).catch(() => {})
-      })
-      document.removeEventListener('click', unlock)
-      document.removeEventListener('touchstart', unlock)
-    }
-    document.addEventListener('click', unlock, { once: true })
-    document.addEventListener('touchstart', unlock, { once: true })
-    return () => {
-      document.removeEventListener('click', unlock)
-      document.removeEventListener('touchstart', unlock)
-    }
-  }, [])
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [messages])
@@ -516,10 +512,10 @@ useEffect(() => {
 
           {status === 'starting' ? (
             <>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '96px', color: 'var(--accent)', lineHeight: 1, marginBottom: '16px', animation: 'pulse 0.6s infinite' }}>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '96px', color: '#8b0000', lineHeight: 1, marginBottom: '16px', animation: 'pulse 0.6s infinite', textShadow: '0 0 30px rgba(200,0,0,0.9), 0 0 60px rgba(180,0,0,0.6), 0 0 90px rgba(150,0,0,0.4)' }}>
                 {startCountdown}
               </div>
-              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px 16px', marginBottom: '20px', fontSize: '12px', color: 'var(--red)', lineHeight: 1.6 }}>
+              <div style={{ background: 'rgba(120,0,0,0.3)', border: '1px solid rgba(200,0,0,0.6)', borderRadius: '10px', padding: '10px 16px', marginBottom: '20px', fontSize: '12px', color: '#ff4444', lineHeight: 1.6, boxShadow: '0 0 18px rgba(200,0,0,0.4), inset 0 0 12px rgba(180,0,0,0.2)' }}>
                 ⚠️ Leaving from this point will result in an ELO loss
               </div>
             </>

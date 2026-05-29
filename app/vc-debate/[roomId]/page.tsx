@@ -372,6 +372,19 @@ export default function VCDebatePage() {
     lobbyAudioRef.current.preload = 'auto'
     lobbyAudioRef.current.loop = true
     lobbyAudioRef.current.volume = 0.35
+
+    const unlockAudio = () => {
+      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
+        if (!ref.current) return
+        ref.current.play().then(() => {
+          ref.current!.pause()
+          ref.current!.currentTime = 0
+        }).catch(() => {})
+      })
+    }
+    document.addEventListener('click', unlockAudio, { once: true })
+    document.addEventListener('touchstart', unlockAudio, { once: true })
+
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
@@ -544,6 +557,8 @@ socket.on('vc_expired', () => { try { lobbyAudioRef.current?.pause() } catch (e)
     return () => {
       socket.disconnect(); cleanup()
       clearInterval(timerRef.current); clearInterval(turnTimerRef.current); clearInterval(cooldownTimerRef.current)
+      document.removeEventListener('click', unlockAudio)
+      document.removeEventListener('touchstart', unlockAudio)
     }
   }, [myUsername])
 
