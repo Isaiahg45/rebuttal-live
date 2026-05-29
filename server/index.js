@@ -954,8 +954,8 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
           if (!room.isCustom) scheduleRoom(room.type)
         } else {
           room.status = 'starting'
-          room.startCountdown = 3
-          io.to(room.instanceId).emit('room_starting', { startCountdown: 3 })
+          room.startCountdown = 4
+          io.to(room.instanceId).emit('room_starting', { startCountdown: 4 })
           if (!room.isCustom) scheduleRoom(room.type)
         }
       }

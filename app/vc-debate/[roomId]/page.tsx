@@ -324,25 +324,7 @@ export default function VCDebatePage() {
   const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { myUsernameRef.current = myUsername }, [myUsername])
-  useEffect(() => {
-    const unlock = () => {
-      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
-        if (!ref.current) return
-        ref.current.play().then(() => {
-          ref.current!.pause()
-          ref.current!.currentTime = 0
-        }).catch(() => {})
-      })
-      document.removeEventListener('click', unlock)
-      document.removeEventListener('touchstart', unlock)
-    }
-    document.addEventListener('click', unlock, { once: true })
-    document.addEventListener('touchstart', unlock, { once: true })
-    return () => {
-      document.removeEventListener('click', unlock)
-      document.removeEventListener('touchstart', unlock)
-    }
-  }, [myUsername])
+
   useEffect(() => { mySocketIdRef.current = mySocketId }, [mySocketId])
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { userRef.current = user }, [user])

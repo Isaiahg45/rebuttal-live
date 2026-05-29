@@ -197,7 +197,7 @@ export default function DebatePage() {
 
     // Unlock audio on first interaction
     const unlockAudio = () => {
-      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
+      ;[countdownAudioRef, tickingAudioRef].forEach(ref => {
         if (!ref.current) return
         ref.current.play().then(() => {
           ref.current!.pause()
@@ -260,9 +260,8 @@ export default function DebatePage() {
 
     socket.on('start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
-      if (count <= 3) setGameStarted(true)
-      if (count === 3) {
-        // Cut lobby music, fire 3-2-1-Go
+  if (count <= 4) setGameStarted(true)
+      if (count === 4) {
         stopLobbyMusic()
         try {
           if (countdownAudioRef.current) {
