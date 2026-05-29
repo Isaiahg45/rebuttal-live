@@ -205,8 +205,10 @@ export default function DebatePage() {
         }).catch(() => {})
       })
     }
-    document.addEventListener('click', unlockAudio, { once: true })
-    document.addEventListener('touchstart', unlockAudio, { once: true })
+    setTimeout(() => {
+      document.addEventListener('click', unlockAudio, { once: true })
+      document.addEventListener('touchstart', unlockAudio, { once: true })
+    }, 500)
 
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
@@ -263,6 +265,8 @@ export default function DebatePage() {
   if (count <= 4) setGameStarted(true)
       if (count === 4) {
         stopLobbyMusic()
+      }
+      if (count === 3) {
         try {
           if (countdownAudioRef.current) {
             countdownAudioRef.current.currentTime = 0
@@ -281,19 +285,6 @@ export default function DebatePage() {
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) { clearInterval(timerRef.current); return 0 }
-          // Start ticking at 30s left
-          if (prev === 30) {
-            try {
-              if (tickingAudioRef.current) {
-                tickingAudioRef.current.currentTime = 0
-                tickingAudioRef.current.play()
-              }
-            } catch (e) {}
-          }
-          // Stop ticking at 4s (3-2-1-Go fires at 3)
-          if (prev === 4) {
-            try { tickingAudioRef.current?.pause() } catch (e) {}
-          }
           return prev - 1
         })
       }, 1000)
@@ -359,7 +350,18 @@ export default function DebatePage() {
     socket.on('rooms_update', (rooms: any[]) => {
       const myRoom = rooms.find(r => r.instanceId === instanceId)
       if (myRoom) {
-        setLobbyCountdown(myRoom.countdown)
+        const prevCountdown = myRoom.countdown
+        setLobbyCountdown(prev => {
+          if (prev === 30 && myRoom.countdown <= 30) {
+            try {
+              if (tickingAudioRef.current) {
+                tickingAudioRef.current.currentTime = 0
+                tickingAudioRef.current.play()
+              }
+            } catch (e) {}
+          }
+          return myRoom.countdown
+        })
         if (myRoom.startCountdown !== null) setStartCountdown(myRoom.startCountdown)
         if (myRoom.status === 'starting') setStatus('starting')
         if (myRoom.timeLeft != null) setTimeLeft(myRoom.timeLeft)

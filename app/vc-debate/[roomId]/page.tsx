@@ -395,8 +395,10 @@ export default function VCDebatePage() {
 
 socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
-      if (count === 3) {
+      if (count === 4) {
         try { lobbyAudioRef.current?.pause() } catch (e) {}
+      }
+      if (count === 3) {
         try {
           if (countdownAudioRef.current) {
             countdownAudioRef.current.currentTime = 0
