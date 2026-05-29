@@ -487,11 +487,9 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       // Keep both mics on — only mute the non-speaker
       if (isMine) {
         setMicActive(true)
-        setTimeout(() => {
-          const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-          if (SR) startListening()
-        }, 500)
-      } else {
+        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        if (SR) startListening()
+      }else {
         setMicActive(false)
       }
       startTurnTimer(turnDuration, isMine, socket)
@@ -512,10 +510,8 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       // Switch mic: enable for speaker, disable for listener
      if (isMine) {
         setMicActive(true)
-        setTimeout(() => {
-          const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-          if (SR) startListening()
-        }, 500)
+        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        if (SR) startListening()
       }else {
         stopListening()
         setMicActive(false)
