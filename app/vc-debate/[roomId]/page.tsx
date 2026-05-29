@@ -270,8 +270,7 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
     })
   }, [])
 
-  return { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef }
-}
+return { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef }}
 
 // ── Main Component ────────────────────────────────────────────
 export default function VCDebatePage() {
@@ -285,6 +284,7 @@ export default function VCDebatePage() {
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
   const [mySocketId, setMySocketId] = useState('')
+  const [isMuted, setIsMuted] = useState(false)
   const [roomInfo, setRoomInfo] = useState<VCRoomInfo | null>(null)
   const [status, setStatus] = useState<'waiting' | 'starting' | 'active' | 'ended' | 'expired'>('waiting')
   const [players, setPlayers] = useState<Player[]>([])
@@ -330,8 +330,8 @@ export default function VCDebatePage() {
   const { supported: speechSupported, listening, startListening, stopListening, getTranscript } =
     useSpeechRecognition(setLiveTranscript)
 
-  const { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef } =
-    useWebRTC(socketRef, instanceId)
+  const { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef } =
+  useWebRTC(socketRef, instanceId)
 
   useEffect(() => {
     if (loading) return
@@ -533,7 +533,13 @@ export default function VCDebatePage() {
     clearInterval(turnTimerRef.current)
     endMyTurn(socketRef.current)
   }
-
+const handleToggleMute = () => {
+  const newMuted = !isMuted
+  setIsMuted(newMuted)
+  localStreamRef.current?.getAudioTracks().forEach(track => {
+    track.enabled = !newMuted
+  })
+}
   const handleForfeit = () => {
     setShowForfeitModal(false)
     router.push('/rebut')
@@ -618,10 +624,18 @@ export default function VCDebatePage() {
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: 'var(--text)', marginBottom: '16px' }}>{fmt(lobbyCountdown)}</div>
           )}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '13px', color: micGranted ? 'var(--green)' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-              <span>{micGranted ? '✅' : '⚠️'}</span>
-              {micGranted ? 'Microphone ready' : 'Microphone access required — please allow when prompted'}
-            </div>
+           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+  <div style={{ fontSize: '13px', color: micGranted ? 'var(--green)' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <span>{micGranted ? '✅' : '⚠️'}</span>
+    {micGranted ? 'Microphone ready' : 'Microphone access required — please allow when prompted'}
+  </div>
+  {micGranted && (
+    <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+      <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
+      {isMuted ? 'Unmute Mic' : 'Mute Mic'}
+    </button>
+  )}
+</div>
             {!speechSupported && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>⚠️ Speech recognition not supported. Try Chrome or Edge.</div>}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
@@ -759,6 +773,10 @@ export default function VCDebatePage() {
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
+              <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+  <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
+  {isMuted ? 'Unmute' : 'Mute'}
+</button>
               <button onClick={() => setShowForfeitModal(true)} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 14px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 🏳️ Forfeit & Leave
               </button>
