@@ -1950,7 +1950,7 @@ app.get('/health', (req, res) => res.json({
 }))
 
 app.get('/stats', (req, res) => res.json({
-  debatersOnline: io.engine.clientsCount,
+  debatersOnline: io.engine.clientsCount + activeBotCount,
   liveDebates: Object.values(rooms).filter(r => r.status === 'active' && r.instanceId !== 'topic_of_the_day').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
