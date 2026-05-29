@@ -607,6 +607,10 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
     socket.on('error', ({ message }: { message: string }) => { alert(message); router.push('/rebut') })
 socket.on('vc_expired', () => { try { lobbyAudioRef.current?.pause() } catch (e) {}; setStatus('expired'); router.push('/rebut') })
     return () => {
+      try { lobbyAudioRef.current?.pause() } catch (e) {}
+      try { countdownAudioRef.current?.pause() } catch (e) {}
+      if (lobbyAudioRef.current) { lobbyAudioRef.current.src = '' }
+      if (countdownAudioRef.current) { countdownAudioRef.current.src = '' }
       socket.disconnect(); cleanup()
       clearInterval(timerRef.current); clearInterval(turnTimerRef.current); clearInterval(cooldownTimerRef.current)
       document.removeEventListener('click', unlockAudio)

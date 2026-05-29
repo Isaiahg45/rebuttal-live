@@ -387,6 +387,10 @@ export default function DebatePage() {
     return () => {
       stopLobbyMusic()
       try { tickingAudioRef.current?.pause() } catch (e) {}
+      try { countdownAudioRef.current?.pause() } catch (e) {}
+      if (lobbyAudioRef.current) { lobbyAudioRef.current.pause(); lobbyAudioRef.current.src = '' }
+      if (tickingAudioRef.current) { tickingAudioRef.current.src = '' }
+      if (countdownAudioRef.current) { countdownAudioRef.current.src = '' }
       socket.disconnect()
       socketRef.current = null
       clearInterval(timerRef.current)
