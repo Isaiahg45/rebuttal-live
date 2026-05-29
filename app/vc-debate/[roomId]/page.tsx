@@ -385,10 +385,6 @@ useEffect(() => {
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
     })
 
-    socket.on('vc_start_lobby_audio', () => {
-      createPeer(false)
-    })
-
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('vc_room_info', (info: any) => {
