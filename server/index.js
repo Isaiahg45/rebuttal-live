@@ -345,7 +345,7 @@ let totalArgumentsMade = 0
 let totalDebatesCompleted = 0
 const roomLastBotMessage = {}
 let lastTotdWinner = null
-
+let activeBotCount = 0
 // ─── Topic of the Day ──────────────────────────────────────────
 const TOTD_TOPICS = [
   { topic: 'Is Donald Trump making America great again or tearing it apart?', emoji: '🇺🇸' },
@@ -1571,12 +1571,13 @@ async function runBot(botName, personality) {
   const state = { roomId: null, active: true }
 
   async function goOnline() {
-    const onlineDuration = (10 + Math.random() * 10) * 60 * 1000
-    console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
-    state.active = true
-    setTimeout(() => goOffline(), onlineDuration)
-    joinRoom()
-  }
+  const onlineDuration = (10 + Math.random() * 10) * 60 * 1000
+  console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
+  state.active = true
+  activeBotCount++
+  setTimeout(() => goOffline(), onlineDuration)
+  joinRoom()
+}
 
   async function goOffline() {
     if (state.roomId && rooms[state.roomId]) {
@@ -1587,6 +1588,7 @@ async function runBot(botName, personality) {
       io.emit('rooms_update', getRoomList())
     }
     state.roomId = null
+    activeBotCount--
     state.active = false
     const offlineDuration = (2 + Math.random() * 9) * 60 * 1000
     console.log(`🤖 Bot ${botName} offline for ${Math.round(offlineDuration / 60000)} mins`)
@@ -1738,7 +1740,7 @@ app.get('/health', (req, res) => res.json({
 }))
 
 app.get('/stats', (req, res) => res.json({
-  debatersOnline: io.engine.clientsCount,
+  debatersOnline: io.engine.clientsCount + activeBotCount,
   liveDebates: Object.values(rooms).filter(r => r.status === 'active' && r.instanceId !== 'topic_of_the_day').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,

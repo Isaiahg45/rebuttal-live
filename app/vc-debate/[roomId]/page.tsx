@@ -104,13 +104,17 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
       localStreamRef.current.getTracks().forEach(track => peer.addTrack(track, localStreamRef.current!))
     }
     peer.ontrack = (e) => {
-      if (!remoteAudioRef.current) {
-        remoteAudioRef.current = new Audio()
-        remoteAudioRef.current.autoplay = true
-      }
-      remoteAudioRef.current.srcObject = e.streams[0]
-      setRemoteAudioActive(true)
-    }
+  if (!remoteAudioRef.current) {
+    const audio = new Audio()
+    audio.autoplay = true
+    audio.style.display = 'none'
+    document.body.appendChild(audio)
+    remoteAudioRef.current = audio
+  }
+  remoteAudioRef.current.srcObject = e.streams[0]
+  remoteAudioRef.current.play().catch(err => console.warn('Audio play blocked:', err))
+  setRemoteAudioActive(true)
+}
     peer.onicecandidate = (e) => {
       if (e.candidate && socketRef.current) {
         socketRef.current.emit('vc_ice_candidate', { instanceId: roomId, candidate: e.candidate })
@@ -127,11 +131,16 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
   }, [roomId])
 
   const cleanup = useCallback(() => {
-    peerRef.current?.close()
-    localStreamRef.current?.getTracks().forEach(t => t.stop())
-    peerRef.current = null
-    localStreamRef.current = null
-  }, [])
+  peerRef.current?.close()
+  localStreamRef.current?.getTracks().forEach(t => t.stop())
+  if (remoteAudioRef.current) {
+    remoteAudioRef.current.srcObject = null
+    remoteAudioRef.current.remove()
+    remoteAudioRef.current = null
+  }
+  peerRef.current = null
+  localStreamRef.current = null
+}, [])
 
   const setMicActive = useCallback((active: boolean) => {
     localStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = active })
@@ -306,7 +315,11 @@ export default function VCDebatePage() {
     })
     socket.on('vc_ice_candidate', async ({ candidate }: any) => {
       try { await peerRef.current?.addIceCandidate(new RTCIceCandidate(candidate)) } catch (e) {}
+    socket.on('vc_initiate_webrtc', ({ instanceId: id }: any) => {
+  createPeer(true)
+})
     })
+
     socket.on('error', ({ message }: { message: string }) => { alert(message); router.push('/rebut') })
 
     return () => {
