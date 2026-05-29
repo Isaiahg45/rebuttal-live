@@ -307,7 +307,9 @@ export default function VCDebatePage() {
   const [standings, setStandings] = useState<Player[]>([])
   const [eloChange, setEloChange] = useState<number | null>(null)
   const [showForfeitModal, setShowForfeitModal] = useState(false)
-
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [opponentSpeaking, setOpponentSpeaking] = useState(false)
+  const speakingIntervalRef = useRef<any>(null)
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
   const tickingAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -373,9 +375,12 @@ export default function VCDebatePage() {
     socket.on('connect', async () => {
       setConnected(true)
       setMySocketId(socket.id ?? '')
-      // Init mic FIRST, then join room
       await initMic()
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
+    })
+
+    socket.on('vc_start_lobby_audio', () => {
+      createPeer(false)
     })
 
     socket.on('disconnect', () => setConnected(false))
@@ -545,7 +550,29 @@ socket.on('vc_expired', () => { try { lobbyAudioRef.current?.pause() } catch (e)
       document.removeEventListener('touchstart', unlockAudio)
     }
   }, [myUsername])
+useEffect(() => {
+    if (!localAnalyserRef.current) return
+    speakingIntervalRef.current = setInterval(() => {
+      if (!localAnalyserRef.current) return
+      const data = new Uint8Array(localAnalyserRef.current.frequencyBinCount)
+      localAnalyserRef.current.getByteFrequencyData(data)
+      const avg = data.reduce((a, b) => a + b, 0) / data.length
+      setIsSpeaking(avg > 10)
+    }, 100)
+    return () => clearInterval(speakingIntervalRef.current)
+  }, [micGranted])
 
+  useEffect(() => {
+    if (!remoteAnalyserRef.current) return
+    speakingIntervalRef.current = setInterval(() => {
+      if (!remoteAnalyserRef.current) return
+      const data = new Uint8Array(remoteAnalyserRef.current.frequencyBinCount)
+      remoteAnalyserRef.current.getByteFrequencyData(data)
+      const avg = data.reduce((a, b) => a + b, 0) / data.length
+      setOpponentSpeaking(avg > 10)
+    }, 100)
+    return () => clearInterval(speakingIntervalRef.current)
+  }, [remoteAudioActive])
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [transcripts, liveTranscript])
@@ -692,16 +719,21 @@ const handleToggleMute = () => {
             {!speechSupported && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>⚠️ Speech recognition not supported. Try Chrome or Edge.</div>}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
-            {players.map((p) => (
+            {players.map((p) => {
+              const isMe = p.username === myUsername
+              const speaking = isMe ? isSpeaking : opponentSpeaking
+              return (
               <div key={p.username} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: p.username === myUsername ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', border: `2px solid ${p.username === myUsername ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff', boxShadow: speaking ? '0 0 12px rgba(34,197,94,0.6)' : 'none', transition: 'border-color 0.1s, box-shadow 0.1s' }}>
                   {p.username.slice(0, 2).toUpperCase()}
                 </div>
-                <span style={{ fontSize: '13px', color: p.username === myUsername ? 'var(--text)' : 'var(--text2)' }}>
-                  {p.username}{p.username === myUsername && <span style={{ color: 'var(--accent)', fontSize: '10px', marginLeft: '4px' }}>(you)</span>}
+                <span style={{ fontSize: '13px', color: isMe ? 'var(--text)' : 'var(--text2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {p.username}{isMe && <span style={{ color: 'var(--accent)', fontSize: '10px', marginLeft: '4px' }}>(you)</span>}
+                  {speaking && <span style={{ fontSize: '9px', color: '#22c55e' }}>🎙️</span>}
                 </span>
               </div>
-            ))}
+              )
+            })}
             {players.length === 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--surface2)', border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>?</div>

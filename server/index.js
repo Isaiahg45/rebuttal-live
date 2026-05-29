@@ -1426,6 +1426,7 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
       const firstPlayerId = allIds.find(sid => sid !== socket.id)
       if (firstPlayerId) {
         io.to(firstPlayerId).emit('vc_initiate_webrtc', { instanceId })
+        io.to(socket.id).emit('vc_start_lobby_audio', { instanceId })
       }
     }
 
