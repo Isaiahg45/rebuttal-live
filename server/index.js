@@ -705,7 +705,23 @@ function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, l
     loserBase: cappedLoser,
   }
 }
-
+function checkForAutoWin(roomId) {
+  const room = rooms[roomId]
+  if (!room || room.status !== 'active' || room.instanceId === 'topic_of_the_day') return false
+  if (room.type === 'vc') return false
+  const realEntries = Object.entries(room.players).filter(([key]) => !key.startsWith('bot_'))
+  if (realEntries.length !== 1) return false
+  const winner = realEntries[0][1]
+  room.status = 'ended'
+  totalDebatesCompleted++
+  const allSorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+  const standings = [winner, ...allSorted.filter(p => p.username !== winner.username)]
+  const eloChanges = calculateEloChanges(room.type, 2, room.duration, winner.elo ?? 0, 0)
+  io.to(roomId).emit('debate_ended', { standings, eloChanges, type: room.type, autoWin: true })
+  console.log(`🏆 Auto-win: ${winner.username} — last real player in "${room.topic}"`)
+  if (!room.isCustom) scheduleRoom(room.type)
+  return true
+}
 // ─── VC room creator ───────────────────────────────────────────
 function createVCRoom() {
   const topic = getTopicForType('vc')
@@ -1530,6 +1546,7 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
   socket.on('disconnect', () => {
     if (!currentRoomId || !rooms[currentRoomId]) return
     const room = rooms[currentRoomId]
+    const wasActive = room.status === 'active'
 
     if (isSpectator) {
       delete room.spectators[socket.id]
@@ -1692,7 +1709,21 @@ io.to(currentRoomId).emit('debate_ended', {
       console.log(`💨 Room expired (all left during countdown): "${room.topic}"`)
     }
 
+    // Deduct ELO server-side for real players who forfeited
+    if (wasActive && !room.isCustom && currentUsername && !currentUsername.startsWith('guest')) {
+      const loss = calculateEloChanges(room.type, 2, room.duration).loserBase
+      supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'GET').then(data => {
+        if (!data?.[0]) return
+        supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'PATCH', {
+          elo: Math.max(0, (data[0].elo ?? 0) - loss),
+          debates: (data[0].debates ?? 0) + 1,
+        }).catch(() => {})
+      }).catch(() => {})
+    }
+
     delete room.players[socket.id]
+
+    if (room.status === 'active') checkForAutoWin(currentRoomId)
 
     if (currentUsername && currentRoomId !== 'topic_of_the_day') {
       io.to(currentRoomId).emit('system_message', { text: `${currentUsername} left` })
@@ -1801,9 +1832,11 @@ async function runBot(botName, personality) {
   async function goOffline() {
     if (state.roomId && rooms[state.roomId]) {
       const room = rooms[state.roomId]
+      const wasActive = room.status === 'active'
       delete room.players[`bot_${botName}`]
       io.to(state.roomId).emit('players_update', Object.values(room.players))
       io.to(state.roomId).emit('system_message', { text: `${botName} left` })
+      if (wasActive) checkForAutoWin(state.roomId)
       io.emit('rooms_update', getRoomList())
     }
     state.roomId = null

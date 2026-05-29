@@ -309,6 +309,9 @@ export default function VCDebatePage() {
   const [showForfeitModal, setShowForfeitModal] = useState(false)
 
   const socketRef = useRef<Socket | null>(null)
+  const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
+  const tickingAudioRef = useRef<HTMLAudioElement | null>(null)
+  const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   const timerRef = useRef<any>(null)
   const turnTimerRef = useRef<any>(null)
   const cooldownTimerRef = useRef<any>(null)
@@ -342,6 +345,14 @@ export default function VCDebatePage() {
 
   useEffect(() => {
     if (!myUsername) return
+    countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
+    countdownAudioRef.current.preload = 'auto'
+    tickingAudioRef.current = new Audio('/sounds/ticking.mp3')
+    tickingAudioRef.current.preload = 'auto'
+    lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
+    lobbyAudioRef.current.preload = 'auto'
+    lobbyAudioRef.current.loop = true
+    lobbyAudioRef.current.volume = 0.35
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
@@ -357,6 +368,9 @@ export default function VCDebatePage() {
 
     socket.on('vc_room_info', (info: any) => {
       setRoomInfo(info); setStatus(info.status); setPlayers(info.players || []); setLobbyCountdown(info.countdown || 1200)
+      if (info.status === 'waiting' || info.status === 'starting') {
+        try { lobbyAudioRef.current?.play() } catch (e) {}
+      }
     })
 
     socket.on('vc_players_update', (p: Player[]) => setPlayers(p))
@@ -365,10 +379,23 @@ export default function VCDebatePage() {
       setStatus('starting'); setStartCountdown(sc); setPlayers(p)
     })
 
-    socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => setStartCountdown(count))
-
+socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
+      setStartCountdown(count)
+      if (count === 3) {
+        try { lobbyAudioRef.current?.pause() } catch (e) {}
+        try {
+          if (countdownAudioRef.current) {
+            countdownAudioRef.current.currentTime = 0
+            countdownAudioRef.current.play()
+          }
+        } catch (e) {}
+      }
+    })
     socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, duration, turnDuration }: any) => {
+      try { lobbyAudioRef.current?.pause() } catch (e) {}
       setStatus('active')
+      setTimeLeft(duration)
+      setCurrentSpeakerUsername(firstSpeakerUsername)
       setTimeLeft(duration)
       setCurrentSpeakerUsername(firstSpeakerUsername)
       const isMine = firstSpeakerSocketId === socket.id
@@ -379,7 +406,14 @@ export default function VCDebatePage() {
 
       clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {
-        setTimeLeft(prev => { if (prev <= 1) { clearInterval(timerRef.current); return 0 } return prev - 1 })
+        setTimeLeft(prev => {
+          if (prev <= 1) { clearInterval(timerRef.current); return 0 }
+          if (prev === 30) {
+            try { if (tickingAudioRef.current) { tickingAudioRef.current.currentTime = 0; tickingAudioRef.current.play() } } catch (e) {}
+          }
+          if (prev === 4) { try { tickingAudioRef.current?.pause() } catch (e) {} }
+          return prev - 1
+        })
       }, 1000)
 
       // Keep both mics on — only mute the non-speaker
@@ -431,6 +465,8 @@ export default function VCDebatePage() {
     })
 
     socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake }: any) => {
+      try { lobbyAudioRef.current?.pause() } catch (e) {}
+      try { tickingAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
       cleanup()
@@ -485,8 +521,7 @@ export default function VCDebatePage() {
     })
 
     socket.on('error', ({ message }: { message: string }) => { alert(message); router.push('/rebut') })
-    socket.on('vc_expired', () => { setStatus('expired'); router.push('/rebut') })
-
+socket.on('vc_expired', () => { try { lobbyAudioRef.current?.pause() } catch (e) {}; setStatus('expired'); router.push('/rebut') })
     return () => {
       socket.disconnect(); cleanup()
       clearInterval(timerRef.current); clearInterval(turnTimerRef.current); clearInterval(cooldownTimerRef.current)
