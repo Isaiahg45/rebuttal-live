@@ -402,19 +402,23 @@ function getRoomList() {
   const customRooms = allRooms.filter(r => r.isCustom)
   const textRooms = allRooms.filter(r => r.type !== 'vc' && !r.isCustom)
 
-  const sortFn = (a, b) => {
-    const order = { starting: 0, active: 1, waiting: 2 }
-    return (order[a.status] || 2) - (order[b.status] || 2)
-  }
+  const roomScore = (r) => {
+  const playerCount = Object.keys(r.players).length
+  if (r.status === 'active')   return 1000
+  if (r.status === 'starting') return 900
+  if (playerCount > 0) return 800
+  // Empty waiting rooms — sorted by type priority
+  const typePriority = { vc: 70, competitive: 60, serious: 50, casual: 40, random: 30, custom: 35 }
+  return typePriority[r.type] || 20
+}
 
-  const activeText = textRooms.filter(r => r.status !== 'waiting').sort(sortFn)
-  const waitingText = textRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, 4)
-  const activeVC = vcRooms.filter(r => r.status !== 'waiting').sort(sortFn)
-  const waitingVC = vcRooms.filter(r => r.status === 'waiting').sort(sortFn).slice(0, TARGET_VC_AVAILABLE)
-  const activeCustom = customRooms.filter(r => r.status !== 'waiting').sort(sortFn)
-  const waitingCustom = customRooms.filter(r => r.status === 'waiting').sort(sortFn)
+const allWaiting = [...textRooms, ...vcRooms, ...customRooms].filter(r => r.status === 'waiting')
+const allActive  = [...textRooms, ...vcRooms, ...customRooms].filter(r => r.status !== 'waiting')
 
-  const combined = [...activeText, ...activeVC, ...activeCustom, ...waitingText, ...waitingVC, ...waitingCustom]
+const combined = [
+  ...allActive.sort((a, b) => roomScore(b) - roomScore(a)),
+  ...allWaiting.sort((a, b) => roomScore(b) - roomScore(a)),
+]
 
   return combined.map(r => ({
     instanceId: r.instanceId,
@@ -473,26 +477,37 @@ function calculateEloChanges(type, playerCount, duration) {
 }
 
 // ─── Text room creator ─────────────────────────────────────────
-function createRoom(type) {
-  const topic = getTopicForType(type)
-  const id = `room_${++roomCounter}_${Date.now()}`
-  const maxPlayers = {
-    casual: Math.floor(Math.random() * 6) + 5,
-    random: Math.floor(Math.random() * 6) + 5,
-    serious: Math.floor(Math.random() * 6) + 10,
-    competitive: Math.floor(Math.random() * 6) + 15,
-  }[type] ?? 10
-
-  rooms[id] = {
-    instanceId: id, type,
-    emoji: topic.emoji, topic: topic.topic,
-    duration: topic.duration, eloRequired: topic.eloRequired || 0,
-    maxPlayers, players: {}, spectators: {}, messages: [],
-    status: 'waiting', countdown: 1200, startCountdown: null,
-    createdAt: Date.now(),
+function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, loserEloVal = null) {
+  const ranges = {
+    casual:      { min: 20, max: 40  },
+    random:      { min: 20, max: 40  },
+    serious:     { min: 40, max: 80  },
+    competitive: { min: 50, max: 200 },
+    vc:          { min: 30, max: 70  },
+    custom:      { min: 10, max: 30  },
   }
-  console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
-  return id
+  const { min, max } = ranges[type] ?? { min: 20, max: 40 }
+
+  // Chess-style expected score — how likely was the winner to win?
+  let expectedWinner = 0.5
+  if (winnerEloVal !== null && loserEloVal !== null) {
+    expectedWinner = 1 / (1 + Math.pow(10, (loserEloVal - winnerEloVal) / 400))
+  }
+
+  // Underdog winners get more Elo, favorite winners get less
+  const winnerAmount = Math.round(min + (max - min) * (1 - expectedWinner))
+  // Favorites lose more when they lose, underdogs lose less
+  const loserAmount  = Math.round(min + (max - min) * expectedWinner)
+
+  const cappedWinner = Math.min(max, Math.max(min, winnerAmount))
+  const cappedLoser  = Math.min(max, Math.max(min, loserAmount))
+
+  return {
+    winnerElo: cappedWinner,
+    secondElo: Math.round(cappedWinner * 0.4),
+    thirdElo:  Math.round(cappedWinner * 0.2),
+    loserBase: cappedLoser,
+  }
 }
 
 // ─── VC room creator ───────────────────────────────────────────
@@ -677,7 +692,9 @@ setInterval(() => {
           totalDebatesCompleted++
           supabaseRest('rpc/increment_debates', 'POST').catch(() => {})
           const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
-          const eloChanges = calculateEloChanges('vc', sorted.length, room.duration)
+          const winnerEloVal = sorted[0]?.elo ?? 0
+const loserEloVal = sorted.length > 1 ? Math.round(sorted.slice(1).reduce((s, p) => s + (p.elo ?? 0), 0) / (sorted.length - 1)) : 0
+const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winnerEloVal, loserEloVal)
           io.to(room.instanceId).emit('vc_debate_ended', {
             standings: sorted,
             transcripts: room.vcState.transcripts,
@@ -796,8 +813,10 @@ setInterval(() => {
           })
           console.log(`🏁 Custom ended: "${room.topic}" — winner +${stake}, loser -${stake} ELO`)
         } else {
-          const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration)
-          io.to(room.instanceId).emit('debate_ended', {
+          const winnerEloVal = sorted[0]?.elo ?? 0
+const loserEloVal = sorted.length > 1 ? Math.round(sorted.slice(1).reduce((s, p) => s + (p.elo ?? 0), 0) / (sorted.length - 1)) : 0
+const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration, winnerEloVal, loserEloVal)
+io.to(room.instanceId).emit('debate_ended', {
             standings: sorted,
             eloChanges,
             type: room.type,
@@ -1327,8 +1346,8 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
         const winner = room.players[otherSocketId]
         const loser = room.players[socket.id]
         room.status = 'ended'
-        const eloChanges = calculateEloChanges('vc', 2, room.duration)
-        io.to(currentRoomId).emit('vc_debate_ended', {
+        const eloChanges = calculateEloChanges('vc', 2, room.duration, room.players[otherSocketId]?.elo ?? 0, room.players[socket.id]?.elo ?? 0)
+io.to(currentRoomId).emit('vc_debate_ended', {
           standings: [winner, loser].filter(Boolean),
           transcripts: room.vcState.transcripts,
           eloChanges,
@@ -1453,12 +1472,12 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
               serverHandledElo: true,
             })
           } else {
-            const eloChanges = calculateEloChanges(room.type, 2, room.duration)
-            io.to(currentRoomId).emit('debate_ended', {
-              standings: allPlayers,
-              eloChanges,
-              type: room.type,
-              forfeit: true,
+            const eloChanges = calculateEloChanges(room.type, 2, room.duration, allPlayers[0]?.elo ?? 0, allPlayers[1]?.elo ?? 0)
+io.to(currentRoomId).emit('debate_ended', {
+  standings: allPlayers,
+  eloChanges,
+  type: room.type,
+  forfeit: true,
               forfeitUsername: currentUsername,
             })
           }
@@ -1740,7 +1759,7 @@ app.get('/health', (req, res) => res.json({
 }))
 
 app.get('/stats', (req, res) => res.json({
-  debatersOnline: io.engine.clientsCount + activeBotCount,
+  debatersOnline: io.engine.clientsCount,
   liveDebates: Object.values(rooms).filter(r => r.status === 'active' && r.instanceId !== 'topic_of_the_day').length,
   argumentsMade: totalArgumentsMade,
   debatesCompleted: totalDebatesCompleted,
