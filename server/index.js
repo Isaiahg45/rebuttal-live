@@ -597,14 +597,14 @@ function getRoomList() {
 
   const roomScore = (r) => {
   const playerCount = Object.keys(r.players).length
+  // Waiting TEXT rooms with players → pin above everything else
+  if (r.status === 'waiting' && playerCount > 0 && r.type !== 'vc') return 1100
   if (r.status === 'active')   return 1000
   if (r.status === 'starting') return 900
-  if (playerCount > 0) return 800
   // Empty waiting rooms — sorted by type priority
-  const typePriority = { vc: 70, competitive: 60, serious: 50, casual: 40, random: 30, custom: 35 }
+  const typePriority = { competitive: 60, serious: 50, casual: 40, random: 30, custom: 35, vc: 20 }
   return typePriority[r.type] || 20
 }
-
 const allWaiting = [...textRooms, ...vcRooms, ...customRooms].filter(r => r.status === 'waiting')
 const allActive  = [...textRooms, ...vcRooms, ...customRooms].filter(r => r.status !== 'waiting')
 
@@ -648,6 +648,12 @@ function randInt(min, max) {
 
 // ─── Text room creator ─────────────────────────────────────────
 function createRoom(type) {
+  // Hard cap: never more than 2 waiting vc rooms
+  if (type === 'vc') {
+    const waitingVc = Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting').length
+    if (waitingVc >= 2) return null
+  }
+
   const topic = getTopicForType(type)
   const id = `room_${++roomCounter}_${Date.now()}`
   const maxPlayers = {
@@ -742,11 +748,15 @@ function scheduleRoom(type, immediate = false) {
   pendingRoomCreations++
   setTimeout(() => {
     pendingRoomCreations--
+    // Re-check vc cap at creation time
+    if (type === 'vc') {
+      const waitingVc = Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting').length
+      if (waitingVc >= 2) { io.emit('rooms_update', getRoomList()); return }
+    }
     createRoom(type)
     io.emit('rooms_update', getRoomList())
   }, delay)
 }
-
 function scheduleVCRoom(immediate = false) {
   const delay = immediate ? 0 : 10000
   setTimeout(() => {
