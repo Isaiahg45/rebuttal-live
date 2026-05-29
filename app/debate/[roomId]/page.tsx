@@ -98,6 +98,9 @@ export default function DebatePage() {
   const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
 
   const socketRef = useRef<Socket | null>(null)
+  const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
+  const tickingAudioRef = useRef<HTMLAudioElement | null>(null)
+  const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const cooldownRef = useRef<any>(null)
   const timerRef = useRef<any>(null)
@@ -121,36 +124,37 @@ export default function DebatePage() {
       .map(p => p.username)
       .filter(u => !u.startsWith('guest') && !(u in playerAvatars))
     if (toFetch.length === 0) return
-    supabase
-      .from('profiles')
-      .select('username, avatar_url')
-      .in('username', toFetch)
-      .then(({ data }) => {
-        if (data) {
-          const map: Record<string, string> = {}
-          data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
-          setPlayerAvatars(prev => ({ ...prev, ...map }))
-        }
-      })
+    supabase.from('profiles').select('username, avatar_url').in('username', toFetch).then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
+        setPlayerAvatars(prev => ({ ...prev, ...map }))
+      }
+    })
   }, [players])
 
-  // Also fetch avatars for message authors
+  // Fetch avatars for message authors
   useEffect(() => {
     const authors = [...new Set(messages.map(m => m.username))]
       .filter(u => u !== '— system —' && !u.startsWith('guest') && !(u in playerAvatars))
     if (authors.length === 0) return
-    supabase
-      .from('profiles')
-      .select('username, avatar_url')
-      .in('username', authors)
-      .then(({ data }) => {
-        if (data) {
-          const map: Record<string, string> = {}
-          data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
-          setPlayerAvatars(prev => ({ ...prev, ...map }))
-        }
-      })
+    supabase.from('profiles').select('username, avatar_url').in('username', authors).then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
+        setPlayerAvatars(prev => ({ ...prev, ...map }))
+      }
+    })
   }, [messages])
+
+  const stopLobbyMusic = () => {
+    try {
+      if (lobbyAudioRef.current) {
+        lobbyAudioRef.current.pause()
+        lobbyAudioRef.current.currentTime = 0
+      }
+    } catch (e) {}
+  }
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const myScore = players.find(p => p.username === myUsername)?.score ?? 0
@@ -178,6 +182,19 @@ export default function DebatePage() {
 
   useEffect(() => {
     if (!myUsername) return
+
+    // Preload all audio
+    countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
+    countdownAudioRef.current.preload = 'auto'
+
+    tickingAudioRef.current = new Audio('/sounds/ticking.mp3')
+    tickingAudioRef.current.preload = 'auto'
+
+    lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
+    lobbyAudioRef.current.preload = 'auto'
+    lobbyAudioRef.current.loop = true
+    lobbyAudioRef.current.volume = 0.35
+
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
@@ -213,7 +230,14 @@ export default function DebatePage() {
       setLobbyCountdown(info.countdown)
       if (info.timeLeft) setTimeLeft(info.timeLeft)
       if (info.isSpectator) setIsSpectator(true)
-      if (info.status === 'active') setGameStarted(true)
+      if (info.status === 'active') {
+        setGameStarted(true)
+        stopLobbyMusic()
+      }
+      // Start lobby jazz when joining a waiting room
+      if ((info.status === 'waiting' || info.status === 'starting') && !info.isSpectator) {
+        try { lobbyAudioRef.current?.play() } catch (e) {}
+      }
     })
 
     socket.on('room_starting', ({ startCountdown: sc }: { startCountdown: number }) => {
@@ -224,9 +248,20 @@ export default function DebatePage() {
     socket.on('start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
       if (count <= 5) setGameStarted(true)
+      if (count === 3) {
+        // Cut lobby music, fire 3-2-1-Go
+        stopLobbyMusic()
+        try {
+          if (countdownAudioRef.current) {
+            countdownAudioRef.current.currentTime = 0
+            countdownAudioRef.current.play()
+          }
+        } catch (e) {}
+      }
     })
 
     socket.on('debate_started', ({ duration }: { duration: number }) => {
+      stopLobbyMusic() // safety stop in case countdown was skipped
       setStatus('active')
       setGameStarted(true)
       setTimeLeft(duration)
@@ -234,6 +269,19 @@ export default function DebatePage() {
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) { clearInterval(timerRef.current); return 0 }
+          // Start ticking at 30s left
+          if (prev === 30) {
+            try {
+              if (tickingAudioRef.current) {
+                tickingAudioRef.current.currentTime = 0
+                tickingAudioRef.current.play()
+              }
+            } catch (e) {}
+          }
+          // Stop ticking at 4s (3-2-1-Go fires at 3)
+          if (prev === 4) {
+            try { tickingAudioRef.current?.pause() } catch (e) {}
+          }
           return prev - 1
         })
       }, 1000)
@@ -250,6 +298,8 @@ export default function DebatePage() {
       customStake?: number
       serverHandledElo?: boolean
     }) => {
+      stopLobbyMusic()
+      try { tickingAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
@@ -288,6 +338,8 @@ export default function DebatePage() {
     })
 
     socket.on('room_expired', ({ message }: { message: string }) => {
+      stopLobbyMusic()
+      try { tickingAudioRef.current?.pause() } catch (e) {}
       setStatus('expired')
       setExpiredMsg(message)
     })
@@ -303,6 +355,7 @@ export default function DebatePage() {
     })
 
     socket.on('error', ({ message }: { message: string }) => {
+      stopLobbyMusic()
       alert(message)
       router.push('/rebut')
     })
@@ -317,6 +370,8 @@ export default function DebatePage() {
     })
 
     return () => {
+      stopLobbyMusic()
+      try { tickingAudioRef.current?.pause() } catch (e) {}
       socket.disconnect()
       socketRef.current = null
       clearInterval(timerRef.current)
@@ -347,7 +402,7 @@ export default function DebatePage() {
 
   const handleLeaveClick = () => {
     if (gameStarted && status === 'active' && !isSpectator) setShowLeaveWarning(true)
-    else router.push('/rebut')
+    else { stopLobbyMusic(); router.push('/rebut') }
   }
 
   // ── EXPIRED ──
@@ -408,12 +463,7 @@ export default function DebatePage() {
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', width: '28px', color: i === 0 ? 'var(--gold)' : i === 1 ? 'var(--silver)' : i === 2 ? 'var(--bronze)' : 'var(--muted)' }}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                   </div>
-                  <Avatar
-                    username={p.username}
-                    size={32}
-                    fallbackGrad={`hsl(${i * 60 + 10}, 65%, 55%)`}
-                    avatarUrl={playerAvatars[p.username]}
-                  />
+                  <Avatar username={p.username} size={32} fallbackGrad={`hsl(${i * 60 + 10}, 65%, 55%)`} avatarUrl={playerAvatars[p.username]} />
                   <div style={{ flex: 1, fontSize: '14px', fontWeight: p.username === myUsername ? 600 : 400 }}>
                     {p.username}
                     {p.username === myUsername && !isSpectator && <span style={{ fontSize: '11px', color: 'var(--accent)', marginLeft: '6px' }}>(you)</span>}
@@ -473,12 +523,7 @@ export default function DebatePage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
               {players.map((p, i) => (
                 <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '10px', padding: '7px 12px', boxShadow: p.username === myUsername ? '0 0 10px rgba(230,57,70,0.15)' : 'none' }}>
-                  <Avatar
-                    username={p.username}
-                    size={26}
-                    fallbackGrad={`hsl(${i * 60}, 65%, 55%)`}
-                    avatarUrl={playerAvatars[p.username]}
-                  />
+                  <Avatar username={p.username} size={26} fallbackGrad={`hsl(${i * 60}, 65%, 55%)`} avatarUrl={playerAvatars[p.username]} />
                   <span style={{ fontSize: '13px', color: p.username === myUsername ? 'var(--text)' : 'var(--text2)' }}>
                     {p.username}
                     {p.username === myUsername && <span style={{ fontSize: '10px', color: 'var(--accent)', marginLeft: '4px' }}>(you)</span>}
@@ -513,7 +558,7 @@ export default function DebatePage() {
               <button onClick={() => setShowLeaveWarning(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Stay & Fight
               </button>
-              <button onClick={() => { setShowLeaveWarning(false); router.push('/rebut') }} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: 'var(--red)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+              <button onClick={() => { setShowLeaveWarning(false); stopLobbyMusic(); router.push('/rebut') }} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: 'var(--red)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Leave & Forfeit
               </button>
             </div>
@@ -558,12 +603,7 @@ export default function DebatePage() {
         <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
           {sortedPlayers.map((p, i) => (
             <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername && !isSpectator ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '5px 10px', flexShrink: 0 }}>
-              <Avatar
-                username={p.username}
-                size={20}
-                fallbackGrad={`hsl(${i * 60 + 10}, 65%, 55%)`}
-                avatarUrl={playerAvatars[p.username]}
-              />
+              <Avatar username={p.username} size={20} fallbackGrad={`hsl(${i * 60 + 10}, 65%, 55%)`} avatarUrl={playerAvatars[p.username]} />
               <span style={{ fontSize: '11px', color: p.username === myUsername && !isSpectator ? 'var(--text)' : 'var(--muted)' }}>
                 {p.username === myUsername && !isSpectator ? 'You' : p.username}
               </span>
@@ -596,12 +636,7 @@ export default function DebatePage() {
 
             return (
               <div key={msg.id} style={{ display: 'flex', gap: '10px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', opacity: isPending ? 0.75 : 1 }}>
-                <Avatar
-                  username={msg.username}
-                  size={32}
-                  fallbackGrad={isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)'}
-                  avatarUrl={playerAvatars[msg.username]}
-                />
+                <Avatar username={msg.username} size={32} fallbackGrad={isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)'} avatarUrl={playerAvatars[msg.username]} />
                 <div style={{ maxWidth: '72%' }}>
                   <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '3px', textAlign: isMe ? 'right' : 'left' }}>
                     {msg.username}
