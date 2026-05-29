@@ -81,73 +81,101 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
 
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
+// ── Speech Recognition Hook ───────────────────────────────────
 function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
-  const recognitionRef = useRef<any>(null)
   const [supported, setSupported] = useState(false)
   const [listening, setListening] = useState(false)
   const transcriptRef = useRef('')
   const shouldListenRef = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const onTranscriptUpdateRef = useRef(onTranscriptUpdate)
+  useEffect(() => { onTranscriptUpdateRef.current = onTranscriptUpdate }, [onTranscriptUpdate])
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (SpeechRecognition) {
       setSupported(true)
-      const rec = new SpeechRecognition()
-      rec.continuous = true
-      rec.interimResults = true
-      rec.lang = 'en-US'
-      rec.onresult = (e: any) => {
-        let final = ''
-        let interim = ''
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) final += e.results[i][0].transcript
-          else interim += e.results[i][0].transcript
-        }
-        if (final) transcriptRef.current += ' ' + final
-        onTranscriptUpdate((transcriptRef.current + interim).trim())
-      }
-      rec.onerror = (e: any) => {
-        console.warn('Speech recognition error:', e.error)
-        if (e.error === 'no-speech' && shouldListenRef.current) {
-          setTimeout(() => {
-            if (shouldListenRef.current) {
-              try { rec.start() } catch (err) {}
-            }
-          }, 100)
-        }
-      }
-      rec.onend = () => {
-        setListening(false)
-        if (shouldListenRef.current) {
-          setTimeout(() => {
-            if (shouldListenRef.current) {
-              try { rec.start(); setListening(true) } catch (err) {}
-            }
-          }, 100)
-        }
-      }
-      recognitionRef.current = rec
     }
+  }, [])
+
+  const createRecognition = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return null
+    const rec = new SpeechRecognition()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = 'en-US'
+    rec.onresult = (e: any) => {
+      let final = ''
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim += e.results[i][0].transcript
+      }
+      if (final) transcriptRef.current += ' ' + final
+      onTranscriptUpdateRef.current((transcriptRef.current + interim).trim())
+    }
+    rec.onerror = (e: any) => {
+      console.warn('Speech recognition error:', e.error)
+      if (shouldListenRef.current && e.error !== 'aborted') {
+        setTimeout(() => {
+          if (shouldListenRef.current) {
+            const newRec = createRecognition()
+            if (newRec) {
+              recognitionRef.current = newRec
+              try { newRec.start(); setListening(true) } catch (err) {}
+            }
+          }
+        }, 200)
+      }
+    }
+    rec.onend = () => {
+      setListening(false)
+      if (shouldListenRef.current) {
+        setTimeout(() => {
+          if (shouldListenRef.current) {
+            const newRec = createRecognition()
+            if (newRec) {
+              recognitionRef.current = newRec
+              try { newRec.start(); setListening(true) } catch (err) {}
+            }
+          }
+        }, 200)
+      }
+    }
+    return rec
   }, [])
 
   const startListening = useCallback(() => {
-    if (!recognitionRef.current) return
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return
     transcriptRef.current = ''
-    onTranscriptUpdate('')
+    onTranscriptUpdateRef.current('')
     shouldListenRef.current = true
-    try {
-      recognitionRef.current.start()
-      console.log('🎙️ Speech recognition started')
-    } catch (e) {
-      console.warn('🎙️ Speech recognition start error:', e)
+    // stop any existing instance first
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (e) {}
     }
-    setListening(true)
-  }, [])
+    setTimeout(() => {
+      const rec = createRecognition()
+      if (!rec) return
+      recognitionRef.current = rec
+      try {
+        rec.start()
+        setListening(true)
+        console.log('🎙️ Speech recognition started fresh')
+      } catch (e) {
+        console.warn('🎙️ Failed to start:', e)
+      }
+    }, 200)
+  }, [createRecognition])
 
   const stopListening = useCallback(() => {
-    if (!recognitionRef.current) return
     shouldListenRef.current = false
-    try { recognitionRef.current.stop() } catch (e) {}
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (e) {}
+      recognitionRef.current = null
+    }
     setListening(false)
   }, [])
 
