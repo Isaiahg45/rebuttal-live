@@ -307,6 +307,7 @@ export default function VCDebatePage() {
   const [standings, setStandings] = useState<Player[]>([])
   const [eloChange, setEloChange] = useState<number | null>(null)
   const [showForfeitModal, setShowForfeitModal] = useState(false)
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [opponentSpeaking, setOpponentSpeaking] = useState(false)
   const speakingIntervalRef = useRef<any>(null)
@@ -332,7 +333,12 @@ export default function VCDebatePage() {
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { turnEndedRef.current = turnEnded }, [turnEnded])
   useEffect(() => { isMyTurnRef.current = isMyTurn }, [isMyTurn])
-
+useEffect(() => {
+    if (!myUsername || myUsername.startsWith('guest')) return
+    supabase.from('profiles').select('avatar_url').eq('username', myUsername).single().then(({ data }) => {
+      if (data?.avatar_url) setMyAvatarUrl(data.avatar_url)
+    })
+  }, [myUsername])
   const { supported: speechSupported, listening, startListening, stopListening, getTranscript } =
     useSpeechRecognition(setLiveTranscript)
 
@@ -358,7 +364,7 @@ export default function VCDebatePage() {
     lobbyAudioRef.current.volume = 0.35
 
     const unlockAudio = () => {
-      ;[countdownAudioRef, tickingAudioRef, lobbyAudioRef].forEach(ref => {
+      ;[countdownAudioRef, tickingAudioRef].forEach(ref => {
         if (!ref.current) return
         ref.current.play().then(() => {
           ref.current!.pause()
@@ -551,27 +557,37 @@ socket.on('vc_expired', () => { try { lobbyAudioRef.current?.pause() } catch (e)
     }
   }, [myUsername])
 useEffect(() => {
-    if (!localAnalyserRef.current) return
+    if (!micGranted) return
+    let speaking = false
     speakingIntervalRef.current = setInterval(() => {
       if (!localAnalyserRef.current) return
       const data = new Uint8Array(localAnalyserRef.current.frequencyBinCount)
       localAnalyserRef.current.getByteFrequencyData(data)
       const avg = data.reduce((a, b) => a + b, 0) / data.length
-      setIsSpeaking(avg > 10)
-    }, 100)
+      const nowSpeaking = avg > 10
+      if (nowSpeaking !== speaking) {
+        speaking = nowSpeaking
+        setIsSpeaking(nowSpeaking)
+      }
+    }, 80)
     return () => clearInterval(speakingIntervalRef.current)
   }, [micGranted])
 
   useEffect(() => {
-    if (!remoteAnalyserRef.current) return
-    speakingIntervalRef.current = setInterval(() => {
+    if (!remoteAudioActive) return
+    let speaking = false
+    const interval = setInterval(() => {
       if (!remoteAnalyserRef.current) return
       const data = new Uint8Array(remoteAnalyserRef.current.frequencyBinCount)
       remoteAnalyserRef.current.getByteFrequencyData(data)
       const avg = data.reduce((a, b) => a + b, 0) / data.length
-      setOpponentSpeaking(avg > 10)
-    }, 100)
-    return () => clearInterval(speakingIntervalRef.current)
+      const nowSpeaking = avg > 10
+      if (nowSpeaking !== speaking) {
+        speaking = nowSpeaking
+        setOpponentSpeaking(nowSpeaking)
+      }
+    }, 80)
+    return () => clearInterval(interval)
   }, [remoteAudioActive])
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
@@ -723,15 +739,20 @@ const handleToggleMute = () => {
               const isMe = p.username === myUsername
               const speaking = isMe ? isSpeaking : opponentSpeaking
               return (
-              <div key={p.username} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff', boxShadow: speaking ? '0 0 12px rgba(34,197,94,0.6)' : 'none', transition: 'border-color 0.1s, box-shadow 0.1s' }}>
-                  {p.username.slice(0, 2).toUpperCase()}
+                <div key={p.username} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, boxShadow: speaking ? '0 0 16px rgba(34,197,94,0.8), 0 0 6px rgba(34,197,94,0.5)' : 'none', transition: 'border-color 0.1s, box-shadow 0.1s', flexShrink: 0, animation: speaking ? 'speakPulse 0.6s ease-in-out infinite' : 'none' }}>
+                    {isMe && myAvatarUrl
+                      ? <img src={myAvatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <div style={{ width: '100%', height: '100%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff' }}>
+                          {p.username.slice(0, 2).toUpperCase()}
+                        </div>
+                    }
+                  </div>
+                  <span style={{ fontSize: '13px', color: isMe ? 'var(--text)' : 'var(--text2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {p.username}{isMe && <span style={{ color: 'var(--accent)', fontSize: '10px', marginLeft: '4px' }}>(you)</span>}
+                    {speaking && <span style={{ fontSize: '9px', color: '#22c55e' }}>🎙️</span>}
+                  </span>
                 </div>
-                <span style={{ fontSize: '13px', color: isMe ? 'var(--text)' : 'var(--text2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {p.username}{isMe && <span style={{ color: 'var(--accent)', fontSize: '10px', marginLeft: '4px' }}>(you)</span>}
-                  {speaking && <span style={{ fontSize: '9px', color: '#22c55e' }}>🎙️</span>}
-                </span>
-              </div>
               )
             })}
             {players.length === 1 && (
