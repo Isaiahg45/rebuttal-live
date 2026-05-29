@@ -669,14 +669,13 @@ function createRoom(type) {
   return id
 }
 function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, loserEloVal = null) {
-  const ranges = {
-    casual:      { min: 20, max: 40  },
-    random:      { min: 20, max: 40  },
-    serious:     { min: 40, max: 80  },
-    competitive: { min: 50, max: 200 },
-    vc:          { min: 30, max: 70  },
-    custom:      { min: 10, max: 30  },
-  }
+ const ranges = {
+  casual:      { min: 15, max: 25 },
+  random:      { min: 10, max: 20 },
+  serious:     { min: 20, max: 30 },
+  competitive: { min: 25, max: 35 },
+  vc:          { min: 10, max: 35 },
+}
   const { min, max } = ranges[type] ?? { min: 20, max: 40 }
 
   // Chess-style expected score — how likely was the winner to win?
