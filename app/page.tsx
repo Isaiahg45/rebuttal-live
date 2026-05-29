@@ -5,7 +5,7 @@ import Link from 'next/link'
 import AuthRedirect from './components/AuthRedirect'
 
 export default function Home() {
-  const [stats, setStats] = useState({ liveDebates: 0, argumentsMade: 0 })
+  const [stats, setStats] = useState({ liveDebates: 0, argumentsMade: 0, debatersOnline: 0 })
   const [totdWinner, setTotdWinner] = useState<string | null>(null)
   const [topArgs, setTopArgs] = useState<any[]>([])
 
@@ -58,7 +58,7 @@ export default function Home() {
             {/* Live badge */}
             <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '28px', boxShadow: '0 0 20px rgba(230,57,70,0.1)' }}>
               <div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 6px var(--accent)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>Live debate battles</span>
+              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>{stats?.debatersOnline ?? 0} debaters online</span>
             </div>
 
             {/* Title */}
