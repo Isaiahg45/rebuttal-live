@@ -488,7 +488,8 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       if (isMine) {
         setMicActive(true)
         setTimeout(() => {
-          if (speechSupported) startListening()
+          const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+          if (SR) startListening()
         }, 500)
       } else {
         setMicActive(false)
@@ -512,9 +513,10 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
      if (isMine) {
         setMicActive(true)
         setTimeout(() => {
-          if (speechSupported) startListening()
+          const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+          if (SR) startListening()
         }, 500)
-      } else {
+      }else {
         stopListening()
         setMicActive(false)
       }
