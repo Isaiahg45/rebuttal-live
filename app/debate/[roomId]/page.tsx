@@ -48,6 +48,25 @@ function fmt(s: number) {
   return `${m}:${sec < 10 ? '0' : ''}${sec}`
 }
 
+function Avatar({ username, size = 30, fallbackGrad, avatarUrl }: {
+  username: string
+  size?: number
+  fallbackGrad?: string
+  avatarUrl?: string
+}) {
+  const grad = fallbackGrad || 'linear-gradient(135deg,#e63946,#ff8c69)'
+  return (
+    <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }}>
+      {avatarUrl
+        ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <div style={{ width: '100%', height: '100%', background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${Math.floor(size * 0.37)}px`, fontWeight: 700, color: '#fff' }}>
+            {username.slice(0, 2).toUpperCase()}
+          </div>
+      }
+    </div>
+  )
+}
+
 export default function DebatePage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -73,6 +92,7 @@ export default function DebatePage() {
   const [standings, setStandings] = useState<Player[]>([])
   const [expiredMsg, setExpiredMsg] = useState('')
   const [eloChange, setEloChange] = useState<number | null>(null)
+  const [playerAvatars, setPlayerAvatars] = useState<Record<string, string>>({})
   const [gameStarted, setGameStarted] = useState(false)
   const [showLeaveWarning, setShowLeaveWarning] = useState(false)
   const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
@@ -95,6 +115,43 @@ export default function DebatePage() {
   useEffect(() => { statusRef.current = status }, [status])
   useEffect(() => { gameStartedRef.current = gameStarted }, [gameStarted])
 
+  // Fetch avatars for players
+  useEffect(() => {
+    const toFetch = players
+      .map(p => p.username)
+      .filter(u => !u.startsWith('guest') && !(u in playerAvatars))
+    if (toFetch.length === 0) return
+    supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .in('username', toFetch)
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, string> = {}
+          data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
+          setPlayerAvatars(prev => ({ ...prev, ...map }))
+        }
+      })
+  }, [players])
+
+  // Also fetch avatars for message authors
+  useEffect(() => {
+    const authors = [...new Set(messages.map(m => m.username))]
+      .filter(u => u !== '— system —' && !u.startsWith('guest') && !(u in playerAvatars))
+    if (authors.length === 0) return
+    supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .in('username', authors)
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, string> = {}
+          data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
+          setPlayerAvatars(prev => ({ ...prev, ...map }))
+        }
+      })
+  }, [messages])
+
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const myScore = players.find(p => p.username === myUsername)?.score ?? 0
   const cooldownTime = players.length <= 6 ? 15 : 30
@@ -107,12 +164,11 @@ export default function DebatePage() {
     if (!user) { setMyUsername('guest' + Math.floor(1000 + Math.random() * 9000)) }
   }, [loading, profile, user, guestParam])
 
-  // Tab close warning
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (gameStartedRef.current && statusRef.current === 'active' && !isSpectatorRef.current) {
         e.preventDefault()
-        e.returnValue = 'Leaving will count as a forfeit and you will lose ELO. Are you sure?'
+        e.returnValue = 'Leaving will count as a forfeit. Are you sure?'
         return e.returnValue
       }
     }
@@ -122,7 +178,6 @@ export default function DebatePage() {
 
   useEffect(() => {
     if (!myUsername) return
-
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
@@ -184,14 +239,8 @@ export default function DebatePage() {
       }, 1000)
     })
 
-    
- socket.on('debate_ended', async ({
-      standings: s,
-      eloChanges,
-      forfeit,
-      forfeitUsername,
-      customStake,
-      serverHandledElo,
+    socket.on('debate_ended', async ({
+      standings: s, eloChanges, forfeit, forfeitUsername, customStake, serverHandledElo,
     }: {
       standings: Player[]
       eloChanges: EloChanges
@@ -204,52 +253,37 @@ export default function DebatePage() {
       setStatus('ended')
       setStandings(s)
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
-
       if (isSpectatorRef.current) return
       const currentProfile = profileRef.current
       const currentUser = userRef.current
       if (!currentProfile?.username || !currentUser) return
-
       const myPlace = s.findIndex(p => p.username === myUsernameRef.current)
       if (myPlace === -1) return
-
       const totalPlayers = s.length
       const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
       let change = 0
-
       if (serverHandledElo && customStake) {
         change = myPlace === 0 ? customStake : -customStake
         setEloChange(change)
         const newWins = myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0)
-        const newDebates = (currentProfile.debates ?? 0) + 1
-        await supabase.from('profiles').update({ wins: newWins, debates: newDebates }).eq('id', currentUser.id)
+        await supabase.from('profiles').update({ wins: newWins, debates: (currentProfile.debates ?? 0) + 1 }).eq('id', currentUser.id)
         return
       } else if (totalPlayers <= 6) {
-  if (myPlace === 0) {
-    change = winnerElo
-  } else {
-    const lossFraction = myPlace / (totalPlayers - 1)
-    change = -Math.round(loserBase * (0.4 + lossFraction * 0.6))
-  }
-} else {
+        if (myPlace === 0) change = winnerElo
+        else { const f = myPlace / (totalPlayers - 1); change = -Math.round(loserBase * (0.4 + f * 0.6)) }
+      } else {
         if (myPlace === 0) change = winnerElo
         else if (myPlace === 1) change = secondElo
         else if (myPlace === 2) change = thirdElo
-        else {
-          const lossFraction = (myPlace - 2) / (totalPlayers - 3)
-          change = -Math.round(loserBase * (0.3 + lossFraction * 0.7))
-        }
+        else { const f = (myPlace - 2) / (totalPlayers - 3); change = -Math.round(loserBase * (0.3 + f * 0.7)) }
       }
-
       setEloChange(change)
       const newElo = Math.max(0, (currentProfile.elo ?? 0) + change)
-      const newWins = myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0)
-      const newDebates = (currentProfile.debates ?? 0) + 1
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ elo: newElo, wins: newWins, debates: newDebates })
-        .eq('id', currentUser.id)
+      const { error } = await supabase.from('profiles').update({
+        elo: newElo,
+        wins: myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0),
+        debates: (currentProfile.debates ?? 0) + 1,
+      }).eq('id', currentUser.id)
       if (error) console.error('ELO save error:', error)
     })
 
@@ -307,24 +341,13 @@ export default function DebatePage() {
     setCooldown(cooldownTime)
     clearInterval(cooldownRef.current)
     cooldownRef.current = setInterval(() => {
-      setCooldown(prev => {
-        if (prev <= 1) { clearInterval(cooldownRef.current); return 0 }
-        return prev - 1
-      })
+      setCooldown(prev => { if (prev <= 1) { clearInterval(cooldownRef.current); return 0 } return prev - 1 })
     }, 1000)
   }
 
   const handleLeaveClick = () => {
-    if (gameStarted && status === 'active' && !isSpectator) {
-      setShowLeaveWarning(true)
-    } else {
-      router.push('/rebut')
-    }
-  }
-
-  const confirmLeave = () => {
-    setShowLeaveWarning(false)
-    router.push('/rebut')
+    if (gameStarted && status === 'active' && !isSpectator) setShowLeaveWarning(true)
+    else router.push('/rebut')
   }
 
   // ── EXPIRED ──
@@ -357,7 +380,7 @@ export default function DebatePage() {
               <div style={{ fontSize: '48px', marginBottom: '8px' }}>🏁</div>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '40px', letterSpacing: '3px', marginBottom: '4px' }}>DEBATE OVER</div>
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{roomInfo?.topic}</div>
-              {isSpectator && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>You watched this debate as a spectator</div>}
+              {isSpectator && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>You watched as a spectator</div>}
               {forfeitInfo && (
                 <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '8px 14px' }}>
                   🏳️ {forfeitInfo.username} forfeited the debate
@@ -368,7 +391,7 @@ export default function DebatePage() {
             {eloChange !== null && !isSpectator && (
               <div style={{ background: eloChange >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${eloChange >= 0 ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '13px', color: 'var(--text2)' }}>
-                  Your placement: <b style={{ color: 'var(--text)' }}>#{myPlace + 1} of {final.length}</b>
+                  Placement: <b style={{ color: 'var(--text)' }}>#{myPlace + 1} of {final.length}</b>
                 </div>
                 <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '1px', color: eloChange >= 0 ? 'var(--green)' : 'var(--red)' }}>
                   {eloChange >= 0 ? '+' : ''}{eloChange} ELO
@@ -385,9 +408,12 @@ export default function DebatePage() {
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', width: '28px', color: i === 0 ? 'var(--gold)' : i === 1 ? 'var(--silver)' : i === 2 ? 'var(--bronze)' : 'var(--muted)' }}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                   </div>
-                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: `hsl(${i * 60 + 10}, 65%, 55%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>
-                    {p.username.slice(0, 2).toUpperCase()}
-                  </div>
+                  <Avatar
+                    username={p.username}
+                    size={32}
+                    fallbackGrad={`hsl(${i * 60 + 10}, 65%, 55%)`}
+                    avatarUrl={playerAvatars[p.username]}
+                  />
                   <div style={{ flex: 1, fontSize: '14px', fontWeight: p.username === myUsername ? 600 : 400 }}>
                     {p.username}
                     {p.username === myUsername && !isSpectator && <span style={{ fontSize: '11px', color: 'var(--accent)', marginLeft: '6px' }}>(you)</span>}
@@ -435,9 +461,7 @@ export default function DebatePage() {
                 {fmt(lobbyCountdown)}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '24px' }}>
-                {players.length < 2
-                  ? `Need ${2 - players.length} more player to start`
-                  : '✓ Ready to start when timer ends'}
+                {players.length < 2 ? `Need ${2 - players.length} more player to start` : '✓ Ready to start when timer ends'}
               </div>
             </>
           )}
@@ -448,12 +472,16 @@ export default function DebatePage() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
               {players.map((p, i) => (
-                <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '6px 12px' }}>
-                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: `hsl(${i * 60}, 65%, 55%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, color: '#fff' }}>
-                    {p.username.slice(0, 2).toUpperCase()}
-                  </div>
+                <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '10px', padding: '7px 12px', boxShadow: p.username === myUsername ? '0 0 10px rgba(230,57,70,0.15)' : 'none' }}>
+                  <Avatar
+                    username={p.username}
+                    size={26}
+                    fallbackGrad={`hsl(${i * 60}, 65%, 55%)`}
+                    avatarUrl={playerAvatars[p.username]}
+                  />
                   <span style={{ fontSize: '13px', color: p.username === myUsername ? 'var(--text)' : 'var(--text2)' }}>
-                    {p.username}{p.username === myUsername && <span style={{ fontSize: '10px', color: 'var(--accent)', marginLeft: '4px' }}>(you)</span>}
+                    {p.username}
+                    {p.username === myUsername && <span style={{ fontSize: '10px', color: 'var(--accent)', marginLeft: '4px' }}>(you)</span>}
                   </span>
                 </div>
               ))}
@@ -485,16 +513,18 @@ export default function DebatePage() {
               <button onClick={() => setShowLeaveWarning(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Stay & Fight
               </button>
-              <button onClick={confirmLeave} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: 'var(--red)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+              <button onClick={() => { setShowLeaveWarning(false); router.push('/rebut') }} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: 'var(--red)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Leave & Forfeit
               </button>
             </div>
           </div>
         </div>
       )}
+
       <Nav active="rebut" />
       <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
+        {/* Top bar */}
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '18px' }}>{roomInfo?.emoji}</span>
@@ -518,18 +548,22 @@ export default function DebatePage() {
             </span>
             {!isSpectator && (
               <button onClick={handleLeaveClick} style={{ marginLeft: 'auto', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '4px 12px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-  🏳️ Forfeit
-</button>
+                🏳️ Forfeit
+              </button>
             )}
           </div>
         </div>
 
+        {/* Score bar */}
         <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
           {sortedPlayers.map((p, i) => (
             <div key={p.username} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface2)', border: `1px solid ${p.username === myUsername && !isSpectator ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '5px 10px', flexShrink: 0 }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: `hsl(${i * 60 + 10}, 65%, 55%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', fontWeight: 700, color: '#fff' }}>
-                {p.username.slice(0, 2).toUpperCase()}
-              </div>
+              <Avatar
+                username={p.username}
+                size={20}
+                fallbackGrad={`hsl(${i * 60 + 10}, 65%, 55%)`}
+                avatarUrl={playerAvatars[p.username]}
+              />
               <span style={{ fontSize: '11px', color: p.username === myUsername && !isSpectator ? 'var(--text)' : 'var(--muted)' }}>
                 {p.username === myUsername && !isSpectator ? 'You' : p.username}
               </span>
@@ -540,6 +574,7 @@ export default function DebatePage() {
           ))}
         </div>
 
+        {/* Chat */}
         <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', marginTop: '40px' }}>
@@ -561,11 +596,16 @@ export default function DebatePage() {
 
             return (
               <div key={msg.id} style={{ display: 'flex', gap: '10px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', opacity: isPending ? 0.75 : 1 }}>
-                <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, color: isMe ? '#fff' : 'var(--text2)', flexShrink: 0 }}>
-                  {msg.username.slice(0, 2).toUpperCase()}
-                </div>
+                <Avatar
+                  username={msg.username}
+                  size={32}
+                  fallbackGrad={isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)'}
+                  avatarUrl={playerAvatars[msg.username]}
+                />
                 <div style={{ maxWidth: '72%' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '3px', textAlign: isMe ? 'right' : 'left' }}>{msg.username}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '3px', textAlign: isMe ? 'right' : 'left' }}>
+                    {msg.username}
+                  </div>
                   <div style={{ background: isMe ? 'rgba(230,57,70,0.1)' : 'var(--surface)', border: `1px solid ${isMe ? 'rgba(230,57,70,0.25)' : 'var(--border)'}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text)' }}>
                     {msg.text}
                   </div>
@@ -594,6 +634,7 @@ export default function DebatePage() {
           })}
         </div>
 
+        {/* Input */}
         {isSpectator ? (
           <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '16px 20px', textAlign: 'center', flexShrink: 0 }}>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>👁 You are spectating — arguments are scored in real time</div>
@@ -621,14 +662,7 @@ export default function DebatePage() {
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
                 onPaste={e => {
                   e.preventDefault()
-                  setMessages(prev => [...prev, {
-                    id: `paste-warn-${Date.now()}`,
-                    username: '— system —',
-                    text: '🚫 NO COPY AND PASTING!',
-                    score: 0,
-                    aiFeedback: '',
-                    timestamp: Date.now(),
-                  }])
+                  setMessages(prev => [...prev, { id: `paste-${Date.now()}`, username: '— system —', text: '🚫 NO COPY AND PASTING!', score: 0, aiFeedback: '', timestamp: Date.now() }])
                 }}
                 disabled={!connected}
                 placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? 'Type your next argument — sends when cooldown ends...' : 'Make your argument. Be precise, use evidence, stay civil.'}
