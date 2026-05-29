@@ -645,31 +645,29 @@ function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-function calculateEloChanges(type, playerCount, duration) {
-  const baseRanges = {
-    casual:      { min: 5,   max: 10  },
-    random:      { min: 8,   max: 18  },
-    serious:     { min: 15,  max: 40  },
-    competitive: { min: 50,  max: 120 },
-    vc:          { min: 20,  max: 60  },
-    custom:      { min: 10,  max: 30  },
-  }
-  const base = baseRanges[type] ?? { min: 8, max: 18 }
-  const maxDuration = 480
-  const durationMult = 0.7 + (Math.min(duration, maxDuration) / maxDuration) * 0.6
-  const playerMult = 0.4 + (Math.min(playerCount, 15) / 15) * 1.1
-  const scaledMin = Math.round(base.min * durationMult * playerMult)
-  const scaledMax = Math.round(base.max * durationMult * playerMult)
-  const winnerElo = randInt(scaledMin, scaledMax)
-  const caps = { casual: 20, random: 25, serious: 90, competitive: 200, vc: 80, custom: 50 }
-  const cappedWinner = Math.min(winnerElo, caps[type] ?? 35)
-  const secondElo = Math.round(cappedWinner * randInt(35, 50) / 100)
-  const thirdElo  = Math.round(cappedWinner * randInt(15, 25) / 100)
-  const loserBase = Math.round(cappedWinner * 0.4)
-  return { winnerElo: cappedWinner, secondElo, thirdElo, loserBase }
-}
 
 // ─── Text room creator ─────────────────────────────────────────
+function createRoom(type) {
+  const topic = getTopicForType(type)
+  const id = `room_${++roomCounter}_${Date.now()}`
+  const maxPlayers = {
+    casual: Math.floor(Math.random() * 6) + 5,
+    random: Math.floor(Math.random() * 6) + 5,
+    serious: Math.floor(Math.random() * 6) + 10,
+    competitive: Math.floor(Math.random() * 6) + 15,
+  }[type] ?? 10
+
+  rooms[id] = {
+    instanceId: id, type,
+    emoji: topic.emoji, topic: topic.topic,
+    duration: topic.duration, eloRequired: topic.eloRequired || 0,
+    maxPlayers, players: {}, spectators: {}, messages: [],
+    status: 'waiting', countdown: 1200, startCountdown: null,
+    createdAt: Date.now(),
+  }
+  console.log(`🏠 Created ${type} room (max ${maxPlayers}): "${topic.topic}"`)
+  return id
+}
 function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, loserEloVal = null) {
   const ranges = {
     casual:      { min: 20, max: 40  },
