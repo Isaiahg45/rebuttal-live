@@ -83,10 +83,11 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
-function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
+ffunction useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
   const [supported] = useState(true)
   const [listening, setListening] = useState(false)
   const finalTranscriptRef = useRef('')
+  const recognitionRef = useRef<any>(null)
   const onTranscriptUpdateRef = useRef(onTranscriptUpdate)
   useEffect(() => { onTranscriptUpdateRef.current = onTranscriptUpdate }, [onTranscriptUpdate])
 
@@ -94,26 +95,39 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
     finalTranscriptRef.current = ''
     onTranscriptUpdateRef.current('')
     setListening(true)
-    // Try Web Speech for live preview only — not used for scoring
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) return
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (e) {}
+      recognitionRef.current = null
+    }
     try {
       const rec = new SR()
       rec.continuous = true
       rec.interimResults = true
       rec.lang = 'en-US'
       rec.onresult = (e: any) => {
-        let text = ''
-        for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript
-        onTranscriptUpdateRef.current(text)
+        let final = ''
+        let interim = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript
+          else interim += e.results[i][0].transcript
+        }
+        if (final) finalTranscriptRef.current += ' ' + final
+        onTranscriptUpdateRef.current((finalTranscriptRef.current + interim).trim())
       }
       rec.onerror = () => {}
-      rec.onend = () => {}
+      rec.onend = () => { setListening(false) }
       rec.start()
+      recognitionRef.current = rec
     } catch (e) {}
   }, [])
 
   const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (e) {}
+      recognitionRef.current = null
+    }
     setListening(false)
   }, [])
 
@@ -265,9 +279,7 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
 
   // Enable or disable mic track (doesn't stop it, just mutes)
   const setMicActive = useCallback((active: boolean) => {
-    localStreamRef.current?.getAudioTracks().forEach(track => {
-      track.enabled = active
-    })
+    // Keep track always enabled for MediaRecorder — muting handled by WebRTC
   }, [])
 
 return { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef }}
@@ -489,6 +501,13 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
     })
     socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, duration, turnDuration }: any) => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
+      // Fetch opponent avatar at debate start when both players confirmed
+      const currentPlayers = players
+      const opp = currentPlayers.find(p => p.username !== myUsername)
+      if (opp?.username && !opp.username.startsWith('guest')) {
+        supabase.from('profiles').select('avatar_url').eq('username', opp.username).single()
+          .then(({ data }) => { if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url) })
+      }
       setStatus('active')
       setTimeLeft(duration)
       setCurrentSpeakerUsername(firstSpeakerUsername)
