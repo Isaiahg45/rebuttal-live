@@ -176,8 +176,13 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
   }, [])
 
   const createPeer = useCallback((isInitiator: boolean) => {
-    // Close any existing peer
+    // Don't recreate if already connected
     if (peerRef.current) {
+      const state = peerRef.current.connectionState
+      if (state === 'connected' || state === 'connecting') {
+        console.log('🔗 Peer already', state, '— skipping createPeer')
+        return peerRef.current
+      }
       peerRef.current.close()
       peerRef.current = null
     }
@@ -270,11 +275,14 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
       remoteAudioRef.current.remove()
       remoteAudioRef.current = null
     }
-    audioCtxRef.current?.close()
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      audioCtxRef.current.close()
+    }
     peerRef.current = null
     localStreamRef.current = null
     localAnalyserRef.current = null
     remoteAnalyserRef.current = null
+    audioCtxRef.current = null
   }, [])
 
   // Enable or disable mic track (doesn't stop it, just mutes)
