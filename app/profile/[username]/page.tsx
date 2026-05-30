@@ -152,26 +152,59 @@ export default function PublicProfilePage() {
             </div>
           </div>
 
-        {/* Buddy status + action */}
+       {/* Buddy status + action */}
           {myProfile?.username && (
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ fontSize: '13px', color: isBuddy ? 'var(--green)' : 'var(--muted)' }}>
-                {isBuddy ? `🤝 ${viewedUsername} is your buddy` : `🤝 ${player.buddy_count ?? 0} ${(player.buddy_count ?? 0) === 1 ? 'buddy' : 'buddies'}`}
+            <div style={{ background: isBuddy ? 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(16,185,129,0.08))' : sentPending ? 'rgba(255,255,255,0.02)' : 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.08))', border: `1px solid ${isBuddy ? 'rgba(34,197,94,0.35)' : sentPending ? 'rgba(255,255,255,0.08)' : 'rgba(168,85,247,0.35)'}`, borderRadius: '16px', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', boxShadow: isBuddy ? '0 0 20px rgba(34,197,94,0.1)' : sentPending ? 'none' : '0 0 20px rgba(168,85,247,0.08)' }}>
+              <div>
+                {isBuddy ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '22px' }}>🤝</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#22c55e' }}>{viewedUsername} is your buddy!</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(34,197,94,0.6)', marginTop: '2px' }}>You two are connected on Rebuttal</div>
+                    </div>
+                  </div>
+                ) : sentPending ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '20px' }}>⏳</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text2)' }}>Buddy request sent</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>Waiting for {viewedUsername} to accept</div>
+                    </div>
+                  </div>
+                ) : receivedPending ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '20px' }}>🤝</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#a855f7' }}>{viewedUsername} wants to be your buddy!</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(168,85,247,0.7)', marginTop: '2px' }}>Accept to connect and challenge each other</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '20px' }}>🤝</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#a855f7' }}>Add {viewedUsername} as a buddy</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(168,85,247,0.6)', marginTop: '2px' }}>{player.buddy_count ?? 0} {(player.buddy_count ?? 0) === 1 ? 'buddy' : 'buddies'} · Challenge them to private debates</div>
+                    </div>
+                  </div>
+                )}
               </div>
+
               {isBuddy ? (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => router.push(`/create-challenge?challenge=${viewedUsername}`)} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '8px 14px', color: 'var(--accent)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>⚔️ Challenge</button>
-                  <button onClick={() => removeBuddy(viewedUsername)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 14px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Remove Buddy</button>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button onClick={() => router.push(`/create-challenge?challenge=${viewedUsername}`)} style={{ background: 'linear-gradient(135deg, #e63946, #c1121f)', border: 'none', borderRadius: '10px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 16px rgba(230,57,70,0.35)', display: 'flex', alignItems: 'center', gap: '6px' }}>⚔️ Challenge</button>
+                  <button onClick={() => removeBuddy(viewedUsername)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 16px', color: 'rgba(255,255,255,0.35)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Remove</button>
                 </div>
               ) : receivedPending ? (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => acceptRequest(viewedUsername)} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '8px', padding: '8px 14px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✅ Accept Request</button>
-                  <button onClick={() => declineRequest(viewedUsername)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '8px 14px', color: 'var(--red)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✕</button>
+                  <button onClick={() => acceptRequest(viewedUsername)} style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', borderRadius: '10px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 16px rgba(34,197,94,0.3)' }}>✅ Accept</button>
+                  <button onClick={() => declineRequest(viewedUsername)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 14px', color: 'var(--red)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✕ Decline</button>
                 </div>
               ) : sentPending ? (
-                <button disabled style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 14px', color: 'var(--muted)', fontSize: '13px', fontFamily: 'DM Sans, sans-serif' }}>⏳ Request Sent</button>
+                <button disabled style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px', color: 'var(--muted)', fontSize: '13px', fontFamily: 'DM Sans, sans-serif', cursor: 'not-allowed' }}>⏳ Pending</button>
               ) : (
-                <button onClick={() => sendRequest(viewedUsername)} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '8px 14px', color: 'var(--accent)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>🤝 Add Buddy</button>
+                <button onClick={() => sendRequest(viewedUsername)} style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', border: 'none', borderRadius: '10px', padding: '10px 20px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 20px rgba(168,85,247,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>🤝 Add Buddy</button>
               )}
             </div>
           )}
