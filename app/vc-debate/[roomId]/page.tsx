@@ -704,7 +704,7 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
                   {isMuted ? 'Unmute Mic' : 'Mute Mic'}
                 </button>
                 <div style={{ fontSize: '14px', fontWeight: 700, textAlign: 'center', lineHeight: 1.6, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
-                  ⚠️ Speak clearly and at a normal volume so the AI can transcribe you accurately <span style={{ color: 'var(--red)' }}>!</span>
+                  ⚠️ Speak clearly and at a normal volume so the AI can transcribe you accurately — no mumbling <span style={{ color: 'var(--red)' }}>!</span>
                 </div>
                 </>
               )}
