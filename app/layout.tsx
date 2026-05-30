@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Bebas_Neue, DM_Sans, DM_Mono } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from './context/AuthContext'
+import { Analytics } from '@vercel/analytics/react'
 
 const bebasNeue = Bebas_Neue({
   weight: '400',
@@ -36,9 +37,10 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={`${bebasNeue.variable} ${dmSans.variable} ${dmMono.variable}`}>
-        <AuthProvider>
+       <AuthProvider>
           {children}
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   )
