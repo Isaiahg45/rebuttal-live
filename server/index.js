@@ -1323,7 +1323,9 @@ io.on('connection', (socket) => {
     isSpectator = true
     socket.join(instanceId)
     room.spectators[socket.id] = username
-
+socket.on('vc_live_transcript', ({ instanceId, text }) => {
+  socket.to(instanceId).emit('vc_live_transcript', { text })
+})
     socket.emit('message_history', room.messages)
     socket.emit('room_info', {
       instanceId: room.instanceId, topic: room.topic, emoji: room.emoji,
@@ -1418,7 +1420,7 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
   })
 
   // ── Join VC room ──────────────────────────────────────────────
-  socket.on('join_vc_room', ({ instanceId, username, elo = 0 }) => {
+  socket.on('join_vc_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
     const alreadyInRoom = Object.values(rooms).some(r =>
       r.instanceId !== 'topic_of_the_day' &&
       r.status !== 'ended' &&
@@ -1469,7 +1471,6 @@ if (Object.keys(room.players).length >= 2) {
     }
     // Password check for private VC rooms
     if (room.isPrivate && room.password) {
-      const joinPassword = arguments[0]?.password
       if (!joinPassword || joinPassword !== room.password) {
         socket.emit('error', { message: 'Wrong password.' })
         return
@@ -1482,7 +1483,9 @@ if (Object.keys(room.players).length >= 2) {
     socket.join(instanceId)
     room.players[socket.id] = { username, score: 0, elo }
     room.vcState.scores[socket.id] = 0
-
+socket.on('vc_live_transcript', ({ instanceId, text }) => {
+  socket.to(instanceId).emit('vc_live_transcript', { text })
+})
     socket.emit('message_history', room.messages)
     socket.emit('vc_room_info', {
       instanceId: room.instanceId,

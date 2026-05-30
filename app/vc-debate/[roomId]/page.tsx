@@ -138,6 +138,7 @@ export default function VCDebatePage() {
   const [cooldownLeft, setCooldownLeft] = useState(0)
   const [turnNumber, setTurnNumber] = useState(0)
   const [liveTranscript, setLiveTranscript] = useState('')
+  const [opponentLiveTranscript, setOpponentLiveTranscript] = useState('')
   const [turnEnded, setTurnEnded] = useState(false)
   const [paidToGoFirst, setPaidToGoFirst] = useState<string | null>(null)
   const [canOverride, setCanOverride] = useState(false)
@@ -201,8 +202,10 @@ export default function VCDebatePage() {
   }, [players, myUsername])
 
   // Speech recognition
-  const { listening, startListening, stopListening, finalTranscriptRef } = useSpeechRecognition(setLiveTranscript)
-
+const { listening, startListening, stopListening, finalTranscriptRef } = useSpeechRecognition((t) => {
+  setLiveTranscript(t)
+  socketRef.current?.emit('vc_live_transcript', { instanceId, text: t })
+})
   // Init Agora
   const initAgora = useCallback(async (channelName: string, uid: string) => {
     try {
@@ -435,6 +438,7 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       setTurnEnded(false)
       turnEndedRef.current = false
       setLiveTranscript('')
+      setOpponentLiveTranscript('')
 
       if (isMine) {
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -455,7 +459,9 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         setCooldownLeft(prev => { if (prev <= 1) { clearInterval(cooldownTimerRef.current); return 0 } return prev - 1 })
       }, 1000)
     })
-
+socket.on('vc_live_transcript', ({ text }: { text: string }) => {
+  setOpponentLiveTranscript(text)
+})
     socket.on('vc_turn_scored', ({ entry, scores: s }: any) => {
       setTranscripts(prev => [...prev, entry]); setScores(s)
     })
@@ -873,12 +879,14 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         </div>
 
         {/* Live transcript */}
-        {isMyTurn && liveTranscript && !inCooldown && (
-          <div style={{ background: 'rgba(230,57,70,0.04)', borderBottom: '1px solid rgba(230,57,70,0.2)', padding: '10px 20px', flexShrink: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--accent)', marginBottom: '4px', fontWeight: 600 }}>🎙️ LIVE TRANSCRIPT</div>
-            <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6, fontStyle: 'italic' }}>"{liveTranscript}"</div>
-          </div>
-        )}
+        {(isMyTurn ? liveTranscript : opponentLiveTranscript) && !inCooldown && (
+  <div style={{ background: isMyTurn ? 'rgba(230,57,70,0.04)' : 'rgba(34,197,94,0.04)', borderBottom: `1px solid ${isMyTurn ? 'rgba(230,57,70,0.2)' : 'rgba(34,197,94,0.2)'}`, padding: '10px 20px', flexShrink: 0 }}>
+    <div style={{ fontSize: '11px', color: isMyTurn ? 'var(--accent)' : 'var(--green)', marginBottom: '4px', fontWeight: 600 }}>
+      🎙️ {isMyTurn ? 'YOU' : (opponent?.username?.toUpperCase() ?? 'OPPONENT')} — LIVE
+    </div>
+    <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6, fontStyle: 'italic' }}>"{isMyTurn ? liveTranscript : opponentLiveTranscript}"</div>
+  </div>
+)}
 
         {/* Transcripts feed */}
         <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -938,3 +946,4 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
     </>
   )
 }
+//blah
