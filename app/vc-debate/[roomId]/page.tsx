@@ -361,13 +361,14 @@ export default function VCDebatePage() {
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
   const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
-  const [srFailed, setSrFailed] = useState(false)
   const [opponentSpeaking, setOpponentSpeaking] = useState(false)
   const speakingIntervalRef = useRef<any>(null)
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
   const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   const timerRef = useRef<any>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
   const turnTimerRef = useRef<any>(null)
   const cooldownTimerRef = useRef<any>(null)
   const myUsernameRef = useRef(myUsername)
@@ -405,7 +406,38 @@ useEffect(() => {
 
   const { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef } =
   useWebRTC(socketRef, instanceId)
+const startMediaRecorder = useCallback((stream: MediaStream) => {
+    audioChunksRef.current = []
+    const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' })
+    mr.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunksRef.current.push(e.data)
+    }
+    mr.start(1000) // collect chunks every second
+    mediaRecorderRef.current = mr
+  }, [])
 
+  const stopMediaRecorderAndTranscribe = useCallback(async (): Promise<string> => {
+    return new Promise((resolve) => {
+      const mr = mediaRecorderRef.current
+      if (!mr || mr.state === 'inactive') { resolve(''); return }
+      mr.onstop = async () => {
+        const mimeType = mr.mimeType || 'audio/webm'
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+        const blob = new Blob(audioChunksRef.current, { type: mimeType })
+        if (blob.size < 1000) { resolve(''); return }
+        const fd = new FormData()
+        fd.append('audio', blob, `audio.${ext}`)
+        try {
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+          const data = await res.json()
+          resolve(data.transcript || '')
+        } catch (e) {
+          resolve('')
+        }
+      }
+      mr.stop()
+    })
+  }, [])
   useEffect(() => {
     if (loading) return
     if (guestParam) { setMyUsername(guestParam); return }
@@ -500,7 +532,8 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-      }else {
+        if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+      } else {
         setMicActive(false)
       }
       startTurnTimer(turnDuration, isMine, socket)
@@ -523,9 +556,11 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-      }else {
+        if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+      } else {
         stopListening()
         setMicActive(false)
+        if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
       }
 
       startTurnTimer(turnDuration, isMine, socket)
@@ -688,14 +723,18 @@ useEffect(() => {
     setTurnEnded(true)
     turnEndedRef.current = true
     stopListening()
-    // Wait 600ms for Web Speech API to finalize
-    setTimeout(() => {
-      const transcript = getTranscript()
+    setTimeout(async () => {
+      let transcript = getTranscript()
+      // If Web Speech API got nothing, fall back to Whisper
+      if (!transcript && mediaRecorderRef.current) {
+        transcript = await stopMediaRecorderAndTranscribe()
+      } else {
+        if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
+      }
       socket.emit('vc_turn_complete', { instanceId, transcript })
       setLiveTranscript('')
-      // Mute mic AFTER submitting transcript
       setMicActive(false)
-    }, 600)
+    }, 800)
   }
 
   const handleEndTurnEarly = () => {
