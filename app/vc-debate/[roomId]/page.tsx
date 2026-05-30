@@ -158,7 +158,7 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
     finalTranscriptRef.current = ''
     onTranscriptUpdateRef.current('')
     shouldListenRef.current = true
-    setTimeout(createAndStart, 300)
+    createAndStart()
   }, [createAndStart])
 
   const stopListening = useCallback(() => {
@@ -542,7 +542,7 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setTranscripts(prev => [...prev, { id: `sys-${Date.now()}`, username: '— system —', text, score: 0, aiFeedback: '', timestamp: Date.now(), turnNumber: 0 }])
     })
 
-    socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake }: any) => {
+    socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo }: any) => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
@@ -553,6 +553,15 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       const myPlace = s.findIndex((p: Player) => p.username === myUsernameRef.current)
       if (myPlace === -1) return
       let change: number
+      if (serverHandledElo && customStake) {
+        change = myPlace === 0 ? customStake : -customStake
+        setEloChange(change)
+        await supabase.from('profiles').update({
+          wins: myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0),
+          debates: (currentProfile.debates ?? 0) + 1,
+        }).eq('id', currentUser.id)
+        return
+      }
       if (customStake) {
         change = myPlace === 0 ? customStake : -customStake
       } else {
@@ -951,6 +960,15 @@ const handleToggleMute = () => {
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
+              {!listening && isMyTurn && (
+                <button onClick={() => {
+                  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+                  if (SR) startListening()
+                }} style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                  🎙️ Tap to Manually Record Speech
+                </button>
+              )}
+              {listening && <div style={{ fontSize: '11px', color: 'var(--green)' }}>🔴 Recording...</div>}
               <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
   <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
   {isMuted ? 'Unmute' : 'Mute'}
