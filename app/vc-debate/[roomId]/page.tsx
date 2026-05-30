@@ -94,6 +94,23 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
     finalTranscriptRef.current = ''
     onTranscriptUpdateRef.current('')
     setListening(true)
+    // Try Web Speech for live preview only — not used for scoring
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+    try {
+      const rec = new SR()
+      rec.continuous = true
+      rec.interimResults = true
+      rec.lang = 'en-US'
+      rec.onresult = (e: any) => {
+        let text = ''
+        for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript
+        onTranscriptUpdateRef.current(text)
+      }
+      rec.onerror = () => {}
+      rec.onend = () => {}
+      rec.start()
+    } catch (e) {}
   }, [])
 
   const stopListening = useCallback(() => {
@@ -117,7 +134,14 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
 
   const initMic = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          sampleRate: 16000,
+        },
+        video: false
+      })
       localStreamRef.current = stream
       setMicGranted(true)
 
@@ -319,12 +343,19 @@ useEffect(() => {
     })
   }, [myUsername])
 
-  useEffect(() => {
+ useEffect(() => {
+    if (!myUsername) return
     const opp = players.find(p => p.username !== myUsername)
-    if (!opp || !opp.username || opp.username.startsWith('guest') || opp.username.startsWith('bot_')) return
-    supabase.from('profiles').select('avatar_url').eq('username', opp.username).single().then(({ data }) => {
-      if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
-    })
+    if (!opp?.username) return
+    supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('username', opp.username)
+      .single()
+      .then(({ data, error }) => {
+        console.log('Opponent avatar fetch:', opp.username, data, error)
+        if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
+      })
   }, [players, myUsername])
  const { supported: speechSupported, listening, startListening, stopListening, getTranscript, finalTranscriptRef } =
     useSpeechRecognition(setLiveTranscript)
@@ -342,9 +373,8 @@ const startMediaRecorder = useCallback((stream: MediaStream) => {
     mr.ondataavailable = (e) => {
       if (e.data.size > 0) audioChunksRef.current.push(e.data)
     }
-    mr.start(1000) // collect chunks every second
-    mediaRecorderRef.current = mr
-  }, [])
+mr.start(250)
+    mediaRecorderRef.current = mr  }, [])
 
   const stopMediaRecorderAndTranscribe = useCallback(async (): Promise<string> => {
     return new Promise((resolve) => {
@@ -357,9 +387,10 @@ const startMediaRecorder = useCallback((stream: MediaStream) => {
         else if (mimeType.includes('ogg')) ext = 'ogg'
         const blob = new Blob(audioChunksRef.current, { type: mimeType })
         console.log('🎤 Audio blob size:', blob.size, 'type:', mimeType)
-        if (blob.size < 500) { console.warn('🎤 Blob too small, skipping'); resolve(''); return }
-        const fd = new FormData()
-        fd.append('audio', blob, `recording.${ext}`)
+if (blob.size < 100) { console.warn('🎤 Blob too small:', blob.size); resolve(''); return }        const fd = new FormData()
+        // Save blob info for debugging
+        console.log('🎤 Chunks count:', audioChunksRef.current.length, 'blob size:', blob.size, 'mimeType:', mimeType)
+  fd.append('audio', blob, `recording.${ext}`)
         try {
           console.log('🎤 Sending to Whisper...')
           const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
