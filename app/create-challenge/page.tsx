@@ -1,11 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Nav from '../components/Nav'
 import { io } from 'socket.io-client'
 
-export default function CreateChallengePage() {
+function CreateChallengeContent() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
 
@@ -347,5 +347,13 @@ export default function CreateChallengePage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function CreateChallengePage() {
+  return (
+    <Suspense fallback={<div />}>
+      <CreateChallengeContent />
+    </Suspense>
   )
 }
