@@ -186,11 +186,23 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
       ]
     })
-
     // Add local tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
