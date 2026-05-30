@@ -75,7 +75,7 @@ export default function CreateChallengePage() {
     socket.on('custom_room_created', ({ instanceId, type }: { instanceId: string; type: string }) => {
       socket.disconnect()
       if (type === 'vc') {
-        router.push(`/vc-debate/${instanceId}`)
+        router.push(`/vc-debate/${instanceId}${isPrivate && password ? `?password=${encodeURIComponent(password)}` : ''}`)
       } else {
         router.push(`/debate/${instanceId}`)
       }

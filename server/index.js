@@ -1503,13 +1503,13 @@ socket.on('vc_live_transcript', ({ instanceId, text }) => {
     io.emit('rooms_update', getRoomList())
 
     if (Object.keys(room.players).length === 2) {
-      room.status = 'starting'
-      room.startCountdown = 10
-      io.to(instanceId).emit('vc_starting', {
-        startCountdown: 10,
-        players: Object.values(room.players),
-      })
-      scheduleVCRoom()
+  room.status = 'starting'
+  room.startCountdown = 10
+  io.to(instanceId).emit('vc_starting', {
+    startCountdown: 10,
+    players: Object.values(room.players),
+  })
+  if (!room.isCustom) scheduleVCRoom()
 
       const allIds = Object.keys(room.players)
       const firstPlayerId = allIds.find(sid => sid !== socket.id)

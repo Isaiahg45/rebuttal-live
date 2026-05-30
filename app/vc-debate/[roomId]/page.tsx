@@ -118,7 +118,7 @@ export default function VCDebatePage() {
   const { user, profile, loading } = useAuth()
   const instanceId = params.roomId as string
   const guestParam = searchParams.get('guest')
-
+const passwordParam = searchParams.get('password')
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
@@ -347,13 +347,16 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       setConnected(true)
       // Init Agora with instanceId as channel name
       await initAgora(instanceId, socket.id ?? '')
-      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
+      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
     })
 
     socket.on('reconnect', () => {
       setConnected(true)
-      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
+      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
     })
+
+    socket.on('disconnect', () => setConnected(false))
+      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
 
     socket.on('disconnect', () => setConnected(false))
 
@@ -689,19 +692,7 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
                 <span>{micGranted ? '✅' : '⏳'}</span>
                 {micGranted ? 'Microphone ready' : 'Connecting microphone...'}
               </div>
-              {micGranted && !voiceReady && (
-                <button
-                  onClick={() => {
-                    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-                    if (SR) { const t = new SR(); t.start(); setTimeout(() => { try { t.stop() } catch (e) {} }, 300) }
-                    setVoiceReady(true)
-                  }}
-                  style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '10px', padding: '10px 20px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', animation: 'pulse 1s infinite' }}
-                >
-                  🎙️ Tap to Enable Voice Transcription
-                </button>
-              )}
-              {micGranted && voiceReady && <div style={{ fontSize: '12px', color: 'var(--green)' }}>✅ Voice transcription ready</div>}
+               
               {micGranted && (
                 <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                   <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
