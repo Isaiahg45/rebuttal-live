@@ -6,7 +6,7 @@ import Nav from '../../components/Nav'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { getTier, TIERS } from '../../../lib/tiers'
-
+import { useBuddies } from '../../hooks/useBuddies'
 export default function PublicProfilePage() {
   const { username } = useParams() as { username: string }
   const { profile: myProfile } = useAuth()
@@ -14,6 +14,12 @@ export default function PublicProfilePage() {
   const [player, setPlayer] = useState<any>(null)
   const [rank, setRank] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, declineRequest, removeBuddy } = useBuddies(myProfile?.username ?? '')
+
+  const isBuddy = buddies.includes(decodeURIComponent(username))
+  const sentPending = pendingSent.includes(decodeURIComponent(username))
+  const receivedPending = pendingReceived.includes(decodeURIComponent(username))
+  const viewedUsername = decodeURIComponent(username)
 
   useEffect(() => {
     if (!username) return
@@ -144,6 +150,30 @@ export default function PublicProfilePage() {
               </div>
             </div>
           </div>
+
+        {/* Buddy status + action */}
+          {myProfile?.username && (
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ fontSize: '13px', color: isBuddy ? 'var(--green)' : 'var(--muted)' }}>
+                {isBuddy ? `🤝 ${viewedUsername} is your buddy` : `🤝 ${player.buddy_count ?? 0} ${(player.buddy_count ?? 0) === 1 ? 'buddy' : 'buddies'}`}
+              </div>
+              {isBuddy ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => router.push(`/create-challenge?challenge=${viewedUsername}`)} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '8px 14px', color: 'var(--accent)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>⚔️ Challenge</button>
+                  <button onClick={() => removeBuddy(viewedUsername)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 14px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Remove Buddy</button>
+                </div>
+              ) : receivedPending ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => acceptRequest(viewedUsername)} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '8px', padding: '8px 14px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✅ Accept Request</button>
+                  <button onClick={() => declineRequest(viewedUsername)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '8px 14px', color: 'var(--red)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✕</button>
+                </div>
+              ) : sentPending ? (
+                <button disabled style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 14px', color: 'var(--muted)', fontSize: '13px', fontFamily: 'DM Sans, sans-serif' }}>⏳ Request Sent</button>
+              ) : (
+                <button onClick={() => sendRequest(viewedUsername)} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '8px 14px', color: 'var(--accent)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>🤝 Add Buddy</button>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '10px' }}>
             <Link href="/rankings" style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '13px', color: 'rgba(255,255,255,0.5)', fontSize: '14px', fontWeight: 600, textAlign: 'center', display: 'block' }}>← Rankings</Link>

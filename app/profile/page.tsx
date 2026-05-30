@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Nav from '../components/Nav'
 import Link from 'next/link'
 import { TIERS, getTier, getNextTier } from '../../lib/tiers'
-
+import { useBuddies } from '../hooks/useBuddies'
 export default function ProfilePage() {
   const router = useRouter()
   const { user, profile, loading } = useAuth()
@@ -19,9 +19,10 @@ export default function ProfilePage() {
   const [showDelete, setShowDelete] = useState(false)
   const [deleteText, setDeleteText] = useState('')
   const [players, setPlayers] = useState<any[]>([])
-  const [uploading, setUploading] = useState(false)
+ const [uploading, setUploading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { buddies, pendingReceived, pendingSent, acceptRequest, declineRequest, removeBuddy } = useBuddies(profile?.username ?? '')
 
   useEffect(() => {
     if (loading) return
@@ -236,8 +237,48 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             </div>
           </div>
 
-          {/* Challenge CTA */}
-          <div style={{ background: 'linear-gradient(135deg, rgba(230,57,70,0.08) 0%, rgba(255,107,53,0.04) 100%)', border: '1px solid rgba(230,57,70,0.2)', borderRadius: '14px', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+{/* Buddies */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>BUDDIES</span>
+              <span style={{ color: 'var(--accent)', fontSize: '12px' }}>{buddies.length} {buddies.length === 1 ? 'buddy' : 'buddies'}</span>
+            </div>
+
+            {pendingReceived.length > 0 && (
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700, marginBottom: '10px', letterSpacing: '1px' }}>🤝 PENDING REQUESTS</div>
+                {pendingReceived.map(username => (
+                  <div key={username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => router.push(`/profile/${username}`)}>{username}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => acceptRequest(username)} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '6px', padding: '5px 10px', color: 'var(--green)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✅ Accept</button>
+                      <button onClick={() => declineRequest(username)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '5px 10px', color: 'var(--red)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {buddies.length > 0 ? (
+              <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {buddies.map(username => (
+                  <div key={username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => router.push(`/profile/${username}`)}>{username}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => router.push(`/create-challenge?challenge=${username}`)} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '6px', padding: '5px 10px', color: 'var(--accent)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>⚔️ Challenge</button>
+                      <button onClick={() => removeBuddy(username)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '5px 10px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '13px' }}>
+                No buddies yet. Visit someone's profile to add them.
+              </div>
+            )}
+          </div>
+
+          {/* Challenge CTA */}          <div style={{ background: 'linear-gradient(135deg, rgba(230,57,70,0.08) 0%, rgba(255,107,53,0.04) 100%)', border: '1px solid rgba(230,57,70,0.2)', borderRadius: '14px', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>⚔️ Challenge Someone</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>Create a custom debate room · Set your own topic · Stake ELO</div>

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface NavProps { active: string }
 
@@ -21,8 +21,17 @@ export default function Nav({ active }: NavProps) {
     ? profile.username.slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() ?? '?'
 
-  const avatarUrl = profile?.avatar_url ?? null
+const avatarUrl = profile?.avatar_url ?? null
+  const [pendingBuddyCount, setPendingBuddyCount] = useState(0)
 
+  useEffect(() => {
+    if (!profile?.username) return
+    supabase.from('buddies')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_username', profile.username)
+      .eq('status', 'pending')
+      .then(({ count }) => setPendingBuddyCount(count ?? 0))
+  }, [profile?.username])
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
@@ -84,6 +93,12 @@ export default function Nav({ active }: NavProps) {
               </div>
 
               {/* Avatar — shows profile pic if available, else initials */}
+              <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }} onClick={() => { router.push('/profile'); setMenuOpen(false) }}>
+                {pendingBuddyCount > 0 && (
+                  <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', borderRadius: '50%', background: '#e63946', fontSize: '9px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, border: '2px solid var(--bg)' }}>
+                    {pendingBuddyCount}
+                  </div>
+                )}
               <div
                 onClick={() => { router.push('/profile'); setMenuOpen(false) }}
                 title={profile?.username ?? 'Profile'}
@@ -110,6 +125,7 @@ export default function Nav({ active }: NavProps) {
                     fontSize: '12px', fontWeight: 700, color: '#fff',
                   }}>{initials}</div>
                 )}
+             </div>
               </div>
 
               <button

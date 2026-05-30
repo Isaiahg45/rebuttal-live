@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Nav from '../components/Nav'
 import { io } from 'socket.io-client'
 
@@ -9,12 +9,21 @@ export default function CreateChallengePage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
 
+  const searchParams = useSearchParams()
+  const challengeTarget = searchParams.get('challenge')
+
   const [topic, setTopic] = useState('')
   const [duration, setDuration] = useState(300)
   const [eloStake, setEloStake] = useState(25)
   const [debateType, setDebateType] = useState<'text' | 'vc'>('text')
-  const [isPrivate, setIsPrivate] = useState(false)
+  const [isPrivate, setIsPrivate] = useState(!!challengeTarget)
   const [password, setPassword] = useState('')
+
+  useEffect(() => {
+    if (challengeTarget) {
+      setIsPrivate(true)
+    }
+  }, [challengeTarget])
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -110,11 +119,16 @@ export default function CreateChallengePage() {
             <button onClick={() => router.push('/rebut')} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px', padding: 0, fontFamily: 'DM Sans, sans-serif' }}>
               ← Back to Lobby
             </button>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(28px, 6vw, 40px)', letterSpacing: '3px', marginBottom: '6px', textShadow: '0 0 30px rgba(230,57,70,0.2)' }}>
-              ⚔️ CREATE CHALLENGE
+           <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(28px, 6vw, 40px)', letterSpacing: '3px', marginBottom: '6px', textShadow: '0 0 30px rgba(230,57,70,0.2)' }}>
+              ⚔️ {challengeTarget ? `CHALLENGE ${challengeTarget.toUpperCase()}` : 'CREATE CHALLENGE'}
             </div>
+            {challengeTarget && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.25)', borderRadius: '20px', padding: '6px 14px', fontSize: '13px', color: 'var(--accent)', fontWeight: 600, marginBottom: '10px' }}>
+                🤝 Challenging your buddy <b>{challengeTarget}</b>
+              </div>
+            )}
             <div style={{ fontSize: '14px', color: 'var(--muted)', lineHeight: 1.6 }}>
-              Set your topic, stake your ELO, and let anyone on Rebuttal challenge you. Room is limited to 2 debaters only.
+              {challengeTarget ? `Set your topic and stake. The room will be private — share the password with ${challengeTarget} to let them in.` : 'Set your topic, stake your ELO, and let anyone on Rebuttal challenge you. Room is limited to 2 debaters only.'}
             </div>
           </div>
 
@@ -264,10 +278,16 @@ export default function CreateChallengePage() {
             <div style={{ background: 'linear-gradient(135deg, rgba(230,57,70,0.06), rgba(255,107,53,0.03))', border: '1px solid rgba(230,57,70,0.2)', borderRadius: '14px', padding: '18px 20px' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '12px' }}>Room Preview</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--muted)' }}>Created by</span>
                   <span style={{ color: 'var(--accent)', fontWeight: 600 }}>@{profile.username}</span>
                 </div>
+                {challengeTarget && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)' }}>Challenging</span>
+                    <span style={{ color: 'var(--green)', fontWeight: 600 }}>🤝 @{challengeTarget}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--muted)' }}>Type</span>
                   <span style={{ color: 'var(--text)' }}>{debateType === 'vc' ? '🎙️ Voice' : '💬 Text'}</span>
