@@ -407,7 +407,7 @@ if (blob.size < 100) { console.warn('🎤 Blob too small:', blob.size); resolve(
   fd.append('audio', blob, `recording.${ext}`)
         try {
           console.log('🎤 Sending to Whisper...')
-          const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+          const res = await fetch('https://rebuttal-live-production-3388.up.railway.app/api/transcribe', { method: 'POST', body: fd })              
           const data = await res.json()
           console.log('🎤 Whisper response:', data)
           resolve(data.transcript || '')
