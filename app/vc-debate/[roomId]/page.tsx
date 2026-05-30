@@ -728,18 +728,25 @@ useEffect(() => {
     setTurnEnded(true)
     turnEndedRef.current = true
     stopListening()
-    setTimeout(async () => {
-      let transcript = getTranscript()
-      // If Web Speech API got nothing, fall back to Whisper
-      if (!transcript && mediaRecorderRef.current) {
-        transcript = await stopMediaRecorderAndTranscribe()
-      } else {
+    const srTranscript = getTranscript()
+    if (srTranscript) {
+      // Web Speech worked — use it directly
+      setTimeout(() => {
+        socket.emit('vc_turn_complete', { instanceId, transcript: srTranscript })
+        setLiveTranscript('')
+        setMicActive(false)
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
-      }
-      socket.emit('vc_turn_complete', { instanceId, transcript })
-      setLiveTranscript('')
-      setMicActive(false)
-    }, 800)
+      }, 400)
+    } else {
+      // Web Speech got nothing — use Whisper
+      setTimeout(async () => {
+        const transcript = await stopMediaRecorderAndTranscribe()
+        console.log('🎤 Whisper transcript:', transcript)
+        socket.emit('vc_turn_complete', { instanceId, transcript })
+        setLiveTranscript('')
+        setMicActive(false)
+      }, 400)
+    }
   }
 
   const handleEndTurnEarly = () => {

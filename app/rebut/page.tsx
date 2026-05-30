@@ -89,11 +89,11 @@ const TYPE_CONFIG: Record<string, { gradient: string; glow: string; border: stri
 }
 
 const ELO_LABELS: Record<string, string> = {
-  casual: '+20–40 ELO',
-  random: '+20–40 ELO',
-  serious: '+40-80 ELO',
-  competitive: '+50–200 ELO',
-  vc: '+30–70 ELO',
+  casual: '+15–25 ELO',
+  random: '+10–20 ELO',
+  serious: '+20-30 ELO',
+  competitive: '+25–35 ELO',
+  vc: '+10–30 ELO',
 }
 
 const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
