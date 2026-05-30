@@ -427,20 +427,28 @@ const startMediaRecorder = useCallback((stream: MediaStream) => {
       if (!mr || mr.state === 'inactive') { resolve(''); return }
       mr.onstop = async () => {
         const mimeType = mr.mimeType || 'audio/webm'
-        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+        let ext = 'webm'
+        if (mimeType.includes('mp4')) ext = 'mp4'
+        else if (mimeType.includes('ogg')) ext = 'ogg'
         const blob = new Blob(audioChunksRef.current, { type: mimeType })
-        if (blob.size < 1000) { resolve(''); return }
+        console.log('🎤 Audio blob size:', blob.size, 'type:', mimeType)
+        if (blob.size < 500) { console.warn('🎤 Blob too small, skipping'); resolve(''); return }
         const fd = new FormData()
-        fd.append('audio', blob, `audio.${ext}`)
+        fd.append('audio', blob, `recording.${ext}`)
         try {
+          console.log('🎤 Sending to Whisper...')
           const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
           const data = await res.json()
+          console.log('🎤 Whisper response:', data)
           resolve(data.transcript || '')
         } catch (e) {
+          console.error('🎤 Whisper fetch error:', e)
           resolve('')
         }
       }
-      mr.stop()
+      // Request any final buffered data before stopping
+      mr.requestData()
+      setTimeout(() => mr.stop(), 200)
     })
   }, [])
   useEffect(() => {
@@ -745,7 +753,7 @@ useEffect(() => {
         socket.emit('vc_turn_complete', { instanceId, transcript })
         setLiveTranscript('')
         setMicActive(false)
-      }, 400)
+      }, 600)
     }
   }
 
