@@ -1178,6 +1178,15 @@ io.on('connection', (socket) => {
         if (oldSocketId) {
           room.players[socket.id] = room.players[oldSocketId]
           delete room.players[oldSocketId]
+          // Update vcState if this player was the current speaker
+          if (room.vcState?.currentSpeaker === oldSocketId) {
+            room.vcState.currentSpeaker = socket.id
+          }
+          // Update scores
+          if (room.vcState?.scores?.[oldSocketId] !== undefined) {
+            room.vcState.scores[socket.id] = room.vcState.scores[oldSocketId]
+            delete room.vcState.scores[oldSocketId]
+          }
         }
         socket.join(instanceId)
         currentRoomId = instanceId
@@ -1418,6 +1427,13 @@ if (Object.keys(room.players).length >= 2) {
         if (oldSocketId) {
           room.players[socket.id] = room.players[oldSocketId]
           delete room.players[oldSocketId]
+          if (room.vcState?.currentSpeaker === oldSocketId) {
+            room.vcState.currentSpeaker = socket.id
+          }
+          if (room.vcState?.scores?.[oldSocketId] !== undefined) {
+            room.vcState.scores[socket.id] = room.vcState.scores[oldSocketId]
+            delete room.vcState.scores[oldSocketId]
+          }
         }
         socket.join(instanceId)
         currentRoomId = instanceId
