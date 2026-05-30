@@ -679,8 +679,15 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
           </div>
           <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '24px' }}>{roomInfo?.topic}</div>
           {status === 'starting' ? (
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '96px', color: 'var(--accent)', lineHeight: 1, marginBottom: '20px' }}>{startCountdown}</div>
-          ) : (
+<div style={{
+              fontFamily: 'var(--font-bebas)',
+              fontSize: '96px',
+              lineHeight: 1,
+              marginBottom: '20px',
+              color: '#ff0000',
+              textShadow: '0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000',
+              animation: 'sinisterPulse 0.8s ease-in-out infinite',
+            }}>{startCountdown}</div>          ) : (
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: 'var(--text)', marginBottom: '16px' }}>{fmt(lobbyCountdown)}</div>
           )}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
@@ -691,10 +698,15 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
               </div>
                
               {micGranted && (
+                <>
                 <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                   <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
                   {isMuted ? 'Unmute Mic' : 'Mute Mic'}
                 </button>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5 }}>
+                  💬 Speak clearly and at a normal volume so the AI can transcribe you accurately
+                </div>
+                </>
               )}
             </div>
           </div>
@@ -706,7 +718,7 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
                 <div key={p.username} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0 }}>
                     {(isMe ? myAvatarUrl : opponentAvatarUrl)
-                      ? <img src={(isMe ? myAvatarUrl : opponentAvatarUrl)!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <img src={(isMe ? myAvatarUrl : opponentAvatarUrl)!} alt={p.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                       : <div style={{ width: '100%', height: '100%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff' }}>
                           {p.username.slice(0, 2).toUpperCase()}
                         </div>
@@ -836,13 +848,6 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
-              <button onClick={() => {
-                const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-                if (SR) startListening()
-                if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-              }} style={{ background: listening ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', border: `1px solid ${listening ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                {listening ? '🔴 Recording... (tap to restart)' : '🎙️ Tap to Record Speech'}
-              </button>
               <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
                 {isMuted ? 'Unmute' : 'Mute'}
@@ -930,8 +935,10 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
           </div>
         </div>
       </div>
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
-    </>
+<style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes sinisterPulse { 0%,100%{ text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000; } 50%{ text-shadow: 0 0 40px #ff0000, 0 0 80px #cc0000, 0 0 120px #990000; } }
+      `}</style>    </>
   )
 }
 //blah
