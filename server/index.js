@@ -1162,10 +1162,15 @@ io.on('connection', (socket) => {
       r.status !== 'ended' &&
       Object.values(r.players).some(p => p.username === username)
     )
-    if (alreadyInRoom) {
-      socket.emit('error', { message: 'You are already in a debate in another tab. Please close it first.' })
-      return
+    // Remove player from any room they're already in (stale session cleanup)
+for (const [rid, r] of Object.entries(vcRooms)) {
+  for (const [sid, p] of Object.entries(r.players)) {
+    if (p.username === username && sid !== socket.id) {
+      delete r.players[sid]
+      io.to(rid).emit('vc_players_update', Object.values(r.players))
     }
+  }
+}
     const room = rooms[instanceId]
     if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
