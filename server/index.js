@@ -1169,7 +1169,36 @@ io.on('connection', (socket) => {
     const room = rooms[instanceId]
     if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
-    if (room.status === 'active') { socket.emit('join_as_spectator', { instanceId }); return }
+    if (room.status === 'active') {
+      // Check if this is a reconnecting VC player
+      const existingPlayer = Object.values(room.players).find(p => p.username === username)
+      if (existingPlayer && room.type === 'vc') {
+        // Reconnect them — update their socket ID
+        const oldSocketId = Object.keys(room.players).find(sid => room.players[sid].username === username)
+        if (oldSocketId) {
+          room.players[socket.id] = room.players[oldSocketId]
+          delete room.players[oldSocketId]
+        }
+        socket.join(instanceId)
+        currentRoomId = instanceId
+        currentUsername = username
+        // Resend current game state
+        socket.emit('vc_room_info', {
+          instanceId, topic: room.topic, emoji: room.emoji,
+          duration: room.duration, status: room.status,
+          countdown: room.countdown, players: Object.values(room.players)
+        })
+        // Resend debate started so client restarts MediaRecorder etc
+        socket.emit('vc_debate_started', {
+          firstSpeakerSocketId: room.currentSpeakerSocketId || socket.id,
+          firstSpeakerUsername: room.currentSpeakerUsername || username,
+          duration: room.timeLeft || room.duration,
+          turnDuration: room.turnDuration || 30
+        })
+        return
+      }
+      socket.emit('join_as_spectator', { instanceId }); return
+    }
     if (elo < room.eloRequired) { socket.emit('error', { message: `You need ${room.eloRequired}+ ELO to join.` }); return }
     if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Room is full.' }); return }
 
