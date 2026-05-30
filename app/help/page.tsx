@@ -140,6 +140,22 @@ export default function HelpPage() {
               ))}
             </div>
           </div>
+       {/* Contact */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '28px', marginTop: '8px', textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>✉️</div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', marginBottom: '8px' }}>CONTACT US</div>
+            <div style={{ fontSize: '14px', color: 'var(--muted)', lineHeight: 1.8, marginBottom: '20px' }}>
+              Need help? Want to report a player, a bug, or just have a question? We read every email.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+              <a href="mailto:rebuttallive@gmail.com" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, rgba(230,57,70,0.15), rgba(255,107,53,0.1))', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '12px', padding: '14px 28px', color: 'var(--accent)', fontSize: '15px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 0 20px rgba(230,57,70,0.15)' }}>
+                📧 rebuttallive@gmail.com
+              </a>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6 }}>
+                Report a bug · Report a player · General questions · Business inquiries
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </>
