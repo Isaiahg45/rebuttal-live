@@ -548,7 +548,7 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
     socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
       setInCooldown(false)
       setCurrentSpeakerUsername(speakerUsername)
-      console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id, 'isMine:', speakerSocketId === socket.id)
+      console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id, 'match:', speakerSocketId === socket.id)
       const isMine = speakerSocketId === socket.id
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
