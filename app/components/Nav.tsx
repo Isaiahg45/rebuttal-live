@@ -23,14 +23,25 @@ export default function Nav({ active }: NavProps) {
 
 const avatarUrl = profile?.avatar_url ?? null
   const [pendingBuddyCount, setPendingBuddyCount] = useState(0)
+  const [buddyNotifs, setBuddyNotifs] = useState<string[]>([])
+  const [showNotifs, setShowNotifs] = useState(false)
 
   useEffect(() => {
     if (!profile?.username) return
-    supabase.from('buddies')
-      .select('id', { count: 'exact', head: true })
-      .eq('recipient_username', profile.username)
-      .eq('status', 'pending')
-      .then(({ count }) => setPendingBuddyCount(count ?? 0))
+    const load = async () => {
+      const { data } = await supabase
+        .from('buddies')
+        .select('requester_username')
+        .eq('recipient_username', profile.username)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+      const names = (data ?? []).map((r: any) => r.requester_username)
+      setBuddyNotifs(names)
+      setPendingBuddyCount(names.length)
+    }
+    load()
+    const interval = setInterval(load, 15000)
+    return () => clearInterval(interval)
   }, [profile?.username])
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
@@ -92,40 +103,52 @@ const avatarUrl = profile?.avatar_url ?? null
                 <span className="elo-label" style={{ fontSize: '11px', color: 'var(--muted)' }}>ELO</span>
               </div>
 
-              {/* Avatar — shows profile pic if available, else initials */}
-              <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }} onClick={() => { router.push('/profile'); setMenuOpen(false) }}>
-                {pendingBuddyCount > 0 && (
-                  <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', borderRadius: '50%', background: '#e63946', fontSize: '9px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, border: '2px solid var(--bg)' }}>
-                    {pendingBuddyCount}
-                  </div>
+             {/* Notification bell */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button onClick={() => setShowNotifs(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', position: 'relative', fontSize: '18px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>
+                  🔔
+                  {pendingBuddyCount > 0 && (
+                    <div style={{ position: 'absolute', top: '0px', right: '0px', width: '15px', height: '15px', borderRadius: '50%', background: '#e63946', fontSize: '9px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a0a' }}>
+                      {pendingBuddyCount}
+                    </div>
+                  )}
+                </button>
+                {showNotifs && (
+                  <>
+                    <div onClick={() => setShowNotifs(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
+                    <div style={{ position: 'absolute', top: '38px', right: 0, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', minWidth: '280px', zIndex: 200, boxShadow: '0 8px 32px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)' }}>NOTIFICATIONS</div>
+                      {buddyNotifs.length === 0 ? (
+                        <div style={{ padding: '20px 16px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>No new notifications 🔕</div>
+                      ) : (
+                        buddyNotifs.map(name => (
+                          <div key={name} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                            <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.4 }}>
+                              🤝 <b>{name}</b> wants to be your buddy
+                            </div>
+                            <button onClick={() => { router.push(`/profile/${name}`); setShowNotifs(false) }} style={{ background: 'rgba(230,57,70,0.15)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '6px', padding: '5px 10px', color: 'var(--accent)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>View</button>
+                          </div>
+                        ))
+                      )}
+                      <div style={{ padding: '10px 16px' }}>
+                        <button onClick={() => { router.push('/profile'); setShowNotifs(false) }} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--accent)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Manage in profile →</button>
+                      </div>
+                    </div>
+                  </>
                 )}
+              </div>
+
+              {/* Avatar */}
               <div
                 onClick={() => { router.push('/profile'); setMenuOpen(false) }}
                 title={profile?.username ?? 'Profile'}
-                style={{
-                  width: '34px', height: '34px', borderRadius: '50%',
-                  overflow: 'hidden',
-                  border: '2px solid rgba(230,57,70,0.5)',
-                  boxShadow: '0 0 10px rgba(230,57,70,0.25)',
-                  cursor: 'pointer', flexShrink: 0,
-                  transition: 'box-shadow 0.2s',
-                }}
+                style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(230,57,70,0.5)', boxShadow: '0 0 10px rgba(230,57,70,0.25)', cursor: 'pointer', flexShrink: 0, transition: 'box-shadow 0.2s' }}
               >
                 {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={initials}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  />
+                  <img src={avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 ) : (
-                  <div style={{
-                    width: '100%', height: '100%',
-                    background: 'linear-gradient(135deg,var(--accent),#ff8c69)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '12px', fontWeight: 700, color: '#fff',
-                  }}>{initials}</div>
+                  <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, color: '#fff' }}>{initials}</div>
                 )}
-             </div>
               </div>
 
               <button

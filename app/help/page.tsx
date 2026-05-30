@@ -44,6 +44,10 @@ const faqs = [
     q: 'Can I spectate ongoing debates?',
     a: 'Yes. Any active debate can be watched in real-time. Click "Watch Live" on any ongoing debate from the lobby. You\'ll see all messages and scores but won\'t be able to participate.'
   },
+ {
+    q: 'What are Buddies?',
+    a: 'Buddies are your connections on Rebuttal. You can send a buddy request to any debater by clicking their profile. Once they accept, you\'re buddies — you\'ll appear in each other\'s buddy list on your profile, and you can challenge them directly to a private custom debate with one tap. Your buddy count is also visible on your public profile. It\'s the fastest way to set up rematches with people you\'ve debated before.'
+  },
   {
     q: 'How do I change my username?',
     a: 'Go to your Profile page and click "Edit Username". Usernames must be 3–16 characters and can only contain letters, numbers, and underscores. Your old username is released when you change it.'

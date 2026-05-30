@@ -14,12 +14,12 @@ export default function PublicProfilePage() {
   const [player, setPlayer] = useState<any>(null)
   const [rank, setRank] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, declineRequest, removeBuddy } = useBuddies(myProfile?.username ?? '')
+  const viewedUsername = decodeURIComponent(username as string)
+  const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, declineRequest, removeBuddy, refresh } = useBuddies(myProfile?.username ?? '')
 
-  const isBuddy = buddies.includes(decodeURIComponent(username))
-  const sentPending = pendingSent.includes(decodeURIComponent(username))
-  const receivedPending = pendingReceived.includes(decodeURIComponent(username))
-  const viewedUsername = decodeURIComponent(username)
+  const isBuddy = buddies.includes(viewedUsername)
+  const sentPending = pendingSent.includes(viewedUsername)
+  const receivedPending = pendingReceived.includes(viewedUsername)
 
   useEffect(() => {
     if (!username) return
@@ -120,6 +120,7 @@ export default function PublicProfilePage() {
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
               {rank && rank > 0 && <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.2)', borderRadius: '20px', padding: '4px 14px', fontSize: '12px', color: '#ffd60a', fontWeight: 600 }}>🌍 Rank #{rank} Globally</div>}
               {winRate > 0 && <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '20px', padding: '4px 14px', fontSize: '12px', color: '#22c55e', fontWeight: 600 }}>{winRate}% win rate</div>}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '4px 14px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>🤝 {player.buddy_count ?? 0} {(player.buddy_count ?? 0) === 1 ? 'buddy' : 'buddies'}</div>
             </div>
           </div>
         </div>
