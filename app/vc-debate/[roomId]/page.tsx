@@ -20,6 +20,7 @@ interface TranscriptEntry {
 interface VCRoomInfo {
   instanceId: string; topic: string; emoji: string
   duration: number; status: string; countdown: number; players: Player[]
+  createdBy?: string
 }
 
 function fmt(s: number) {
@@ -757,6 +758,14 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
                 </div>
               )}
             </div>
+          )}
+          {roomInfo && (roomInfo as any).createdBy === myUsername && status === 'waiting' && (
+            <button onClick={() => {
+              socketRef.current?.emit('vc_cancel_room', { instanceId })
+              router.push('/rebut')
+            }} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 20px', color: 'var(--red)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginBottom: '8px' }}>
+              🗑️ Cancel Room
+            </button>
           )}
           <button onClick={() => router.push('/rebut')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 20px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
             Leave

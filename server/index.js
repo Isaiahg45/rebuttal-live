@@ -788,7 +788,7 @@ function getAvailableCount() {
 }
 
 function getVCWaitingCount() {
-  return Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting').length
+  return Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting' && !r.isCustom).length
 }
 
 function replenishRooms(immediate = false) {
@@ -1497,6 +1497,18 @@ if (Object.keys(room.players).length >= 2) {
     }
 
     console.log(`🎙️ ${username} joined VC room "${room.topic}"`)
+  })
+
+ // ── VC cancel room ────────────────────────────────────────────
+  socket.on('vc_cancel_room', ({ instanceId }) => {
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') return
+    if (room.status !== 'waiting') return
+    if (room.createdBy !== currentUsername) return
+    room.status = 'ended'
+    io.to(instanceId).emit('vc_expired', { message: 'The room creator cancelled this debate.' })
+    io.emit('rooms_update', getRoomList())
+    console.log(`🗑️ ${currentUsername} cancelled their VC room "${room.topic}"`)
   })
 
   // ── VC pay to go first ────────────────────────────────────────
