@@ -422,10 +422,12 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+        localAudioTrackRef.current?.setMuted(false)
+      } else {
+        localAudioTrackRef.current?.setMuted(true)
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
-
     socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
       console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id)
       setInCooldown(false)
@@ -445,13 +447,14 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+        localAudioTrackRef.current?.setMuted(false)
       } else {
         stopListening()
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
+        localAudioTrackRef.current?.setMuted(true)
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
-
     socket.on('vc_cooldown_start', ({ duration }: { duration: number }) => {
       setInCooldown(true)
       setCooldownLeft(duration)

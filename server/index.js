@@ -1076,8 +1076,7 @@ function checkRedundancy(text, priorMessages) {
     if (sim > maxSimilarity) maxSimilarity = sim
   }
   // 0.65+ = very redundant, 0.45+ = somewhat redundant
-  return { isRedundant: maxSimilarity >= 0.65, similarity: maxSimilarity }
-}
+return { isRedundant: maxSimilarity >= 0.85, similarity: maxSimilarity }}
 
 // ─── Argument scoring ──────────────────────────────────────────
 // priorMessages: array of strings (this player's previous argument texts in this room)
@@ -1112,8 +1111,7 @@ Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
 
-REDUNDANCY RULE: If this argument is saying the same thing as the player's prior arguments without adding anything new, score it 0-2 regardless of quality. Prior arguments from this player: "${priorContext || 'none yet'}"
-
+REDUNDANCY RULE: Only penalize (score 0-2) if the argument is an almost word-for-word repeat with zero new information. If the player revisits a previous point but adds new reasoning, examples, counterarguments, or builds on it in any way, score it normally. Prior arguments from this player: "${priorContext || 'none yet'}"
 Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant": boolean}`
         }, { role: 'user', content: text }]
       }),
