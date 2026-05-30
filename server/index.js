@@ -1157,20 +1157,15 @@ io.on('connection', (socket) => {
 
   // ── Join text room ────────────────────────────────────────────
   socket.on('join_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
-    const alreadyInRoom = Object.values(rooms).some(r =>
-      r.instanceId !== 'topic_of_the_day' &&
-      r.status !== 'ended' &&
-      Object.values(r.players).some(p => p.username === username)
-    )
     // Remove player from any room they're already in (stale session cleanup)
-for (const [rid, r] of Object.entries(vcRooms)) {
-  for (const [sid, p] of Object.entries(r.players)) {
-    if (p.username === username && sid !== socket.id) {
-      delete r.players[sid]
-      io.to(rid).emit('vc_players_update', Object.values(r.players))
+    for (const [rid, r] of Object.entries(rooms)) {
+      for (const [sid, p] of Object.entries(r.players)) {
+        if (p.username === username && sid !== socket.id) {
+          delete r.players[sid]
+          io.to(rid).emit('players_update', Object.values(r.players))
+        }
+      }
     }
-  }
-}
     const room = rooms[instanceId]
     if (!room) { socket.emit('error', { message: 'Room not found.' }); return }
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
@@ -1191,19 +1186,8 @@ for (const [rid, r] of Object.entries(vcRooms)) {
           if (room.vcState?.scores?.[oldSocketId] !== undefined) {
             room.vcState.scores[socket.id] = room.vcState.scores[oldSocketId]
             delete room.vcState.scores[oldSocketId]
-            if (oldSocketId) {
-          room.players[socket.id] = room.players[oldSocketId]
-          delete room.players[oldSocketId]
-          if (room.vcState?.currentSpeaker === oldSocketId) {
-            room.vcState.currentSpeaker = socket.id
-          }
-          if (room.vcState?.scores?.[oldSocketId] !== undefined) {
-            room.vcState.scores[socket.id] = room.vcState.scores[oldSocketId]
-            delete room.vcState.scores[oldSocketId]
           }
           console.log(`🔄 ${username} reconnected — old: ${oldSocketId} new: ${socket.id}`)
-        }
-          }
         }
         socket.join(instanceId)
         currentRoomId = instanceId
@@ -1328,10 +1312,7 @@ for (const [rid, r] of Object.entries(vcRooms)) {
     isSpectator = true
     socket.join(instanceId)
     room.spectators[socket.id] = username
-socket.on('vc_live_transcript', ({ instanceId, text }) => {
-  socket.to(instanceId).emit('vc_live_transcript', { text })
-})
-    socket.emit('message_history', room.messages)
+socket.emit('message_history', room.messages)
     socket.emit('room_info', {
       instanceId: room.instanceId, topic: room.topic, emoji: room.emoji,
       type: room.type, duration: room.duration, status: room.status,
@@ -1488,9 +1469,6 @@ if (Object.keys(room.players).length >= 2) {
     socket.join(instanceId)
     room.players[socket.id] = { username, score: 0, elo }
     room.vcState.scores[socket.id] = 0
-socket.on('vc_live_transcript', ({ instanceId, text }) => {
-  socket.to(instanceId).emit('vc_live_transcript', { text })
-})
     socket.emit('message_history', room.messages)
     socket.emit('vc_room_info', {
       instanceId: room.instanceId,
@@ -1516,11 +1494,6 @@ socket.on('vc_live_transcript', ({ instanceId, text }) => {
   })
   if (!room.isCustom) scheduleVCRoom()
 
-      const allIds = Object.keys(room.players)
-      const firstPlayerId = allIds.find(sid => sid !== socket.id)
-      if (firstPlayerId) {
-        io.to(firstPlayerId).emit('vc_initiate_webrtc', { instanceId })
-      }
     }
 
     console.log(`🎙️ ${username} joined VC room "${room.topic}"`)
@@ -1626,15 +1599,9 @@ socket.on('vc_live_transcript', ({ instanceId, text }) => {
     }, room.vcState.turnCooldown * 1000)
   })
 
-  // ── WebRTC signaling ──────────────────────────────────────────
-  socket.on('vc_offer', ({ instanceId, offer }) => {
-    socket.to(instanceId).emit('vc_offer', { offer })
-  })
-  socket.on('vc_answer', ({ instanceId, answer }) => {
-    socket.to(instanceId).emit('vc_answer', { answer })
-  })
-  socket.on('vc_ice_candidate', ({ instanceId, candidate }) => {
-    socket.to(instanceId).emit('vc_ice_candidate', { candidate })
+  // ── VC live transcript relay ──────────────────────────────────
+  socket.on('vc_live_transcript', ({ instanceId, text }) => {
+    socket.to(instanceId).emit('vc_live_transcript', { text })
   })
 
   // ── Disconnect ────────────────────────────────────────────────

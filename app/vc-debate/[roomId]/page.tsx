@@ -356,9 +356,6 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
     })
 
     socket.on('disconnect', () => setConnected(false))
-      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
-
-    socket.on('disconnect', () => setConnected(false))
 
     socket.on('vc_room_info', (info: any) => {
       setRoomInfo(info); setStatus(info.status); setPlayers(info.players || [])
