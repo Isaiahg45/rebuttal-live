@@ -6,25 +6,20 @@ import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Nav from '../../components/Nav'
 import { useRouter } from 'next/navigation'
+import AgoraRTC from 'agora-rtc-sdk-ng'
+import type { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from 'agora-rtc-sdk-ng'
+
+const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!
+const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
 interface Player { username: string; score: number; elo: number }
 interface TranscriptEntry {
-  id: string
-  username: string
-  text: string
-  score: number
-  aiFeedback: string
-  timestamp: number
-  turnNumber: number
+  id: string; username: string; text: string; score: number
+  aiFeedback: string; timestamp: number; turnNumber: number
 }
 interface VCRoomInfo {
-  instanceId: string
-  topic: string
-  emoji: string
-  duration: number
-  status: string
-  countdown: number
-  players: Player[]
+  instanceId: string; topic: string; emoji: string
+  duration: number; status: string; countdown: number; players: Player[]
 }
 
 function fmt(s: number) {
@@ -43,7 +38,6 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
     const ctx = canvas.getContext('2d')!
     const bufferLength = analyser.frequencyBinCount
     const dataArray = new Uint8Array(bufferLength)
-
     const draw = () => {
       rafRef.current = requestAnimationFrame(draw)
       analyser.getByteFrequencyData(dataArray)
@@ -68,23 +62,11 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
       ))}
     </div>
   )
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={120}
-      height={40}
-      style={{ display: 'block', borderRadius: '4px' }}
-    />
-  )
+  return <canvas ref={canvasRef} width={120} height={40} style={{ display: 'block', borderRadius: '4px' }} />
 }
 
 // ── Speech Recognition Hook ───────────────────────────────────
-// ── Speech Recognition Hook ───────────────────────────────────
-// ── Speech Recognition Hook ───────────────────────────────────
-// ── Speech Recognition Hook ───────────────────────────────────
 function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
-  const [supported] = useState(true)
   const [listening, setListening] = useState(false)
   const finalTranscriptRef = useRef('')
   const recognitionRef = useRef<any>(null)
@@ -94,21 +76,16 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
   const startListening = useCallback(() => {
     finalTranscriptRef.current = ''
     onTranscriptUpdateRef.current('')
-    setListening(true)
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) return
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch (e) {}
-      recognitionRef.current = null
-    }
+    if (recognitionRef.current) { try { recognitionRef.current.stop() } catch (e) {} }
     try {
       const rec = new SR()
       rec.continuous = true
       rec.interimResults = true
       rec.lang = 'en-US'
       rec.onresult = (e: any) => {
-        let final = ''
-        let interim = ''
+        let final = '', interim = ''
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) final += e.results[i][0].transcript
           else interim += e.results[i][0].transcript
@@ -117,180 +94,21 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
         onTranscriptUpdateRef.current((finalTranscriptRef.current + interim).trim())
       }
       rec.onerror = () => {}
-      rec.onend = () => { setListening(false) }
+      rec.onend = () => setListening(false)
       rec.start()
       recognitionRef.current = rec
+      setListening(true)
     } catch (e) {}
   }, [])
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch (e) {}
-      recognitionRef.current = null
-    }
+    if (recognitionRef.current) { try { recognitionRef.current.stop() } catch (e) {} }
+    recognitionRef.current = null
     setListening(false)
   }, [])
 
-  const getTranscript = useCallback(() => finalTranscriptRef.current.trim(), [])
-
-  return { supported, listening, startListening, stopListening, getTranscript, finalTranscriptRef }
+  return { listening, startListening, stopListening, finalTranscriptRef }
 }
-// ── WebRTC Hook ───────────────────────────────────────────────
-function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: string) {
-  const peerRef = useRef<RTCPeerConnection | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(null)
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
-  const localAnalyserRef = useRef<AnalyserNode | null>(null)
-  const remoteAnalyserRef = useRef<AnalyserNode | null>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const [micGranted, setMicGranted] = useState(false)
-  const [remoteAudioActive, setRemoteAudioActive] = useState(false)
-
-  const initMic = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          sampleRate: 16000,
-        },
-        video: false
-      })
-      localStreamRef.current = stream
-      setMicGranted(true)
-
-      // Set up local audio analyser for visualizer
-      const ctx = new AudioContext()
-      audioCtxRef.current = ctx
-      const source = ctx.createMediaStreamSource(stream)
-      const analyser = ctx.createAnalyser()
-      analyser.fftSize = 64
-      source.connect(analyser)
-      localAnalyserRef.current = analyser
-
-      return stream
-    } catch (e) {
-      console.error('Mic access denied:', e)
-      return null
-    }
-  }, [])
-
-  const createPeer = useCallback((isInitiator: boolean) => {
-    // Don't recreate if already connected
-    if (peerRef.current) {
-      const state = peerRef.current.connectionState
-      if (state === 'connected' || state === 'connecting') {
-        console.log('🔗 Peer already', state, '— skipping createPeer')
-        return peerRef.current
-      }
-      peerRef.current.close()
-      peerRef.current = null
-    }
-
-    const peer = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.relay.metered.ca:80' },
-        { urls: 'turn:standard.relay.metered.ca:80', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
-        { urls: 'turn:standard.relay.metered.ca:80?transport=tcp', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
-        { urls: 'turn:standard.relay.metered.ca:443', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
-        { urls: 'turns:standard.relay.metered.ca:443?transport=tcp', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
-      ]
-    })
-    // Add local tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        peer.addTrack(track, localStreamRef.current!)
-      })
-    }
-
-    peer.ontrack = (e) => {
-      console.log('🔊 Got remote audio track')
-      const remoteStream = e.streams[0]
-
-      // Create or reuse audio element
-      if (!remoteAudioRef.current) {
-        const audio = document.createElement('audio')
-        audio.autoplay = true
-        audio.muted = false
-        audio.volume = 1.0
-        audio.style.position = 'fixed'
-        audio.style.bottom = '-100px'
-        document.body.appendChild(audio)
-        remoteAudioRef.current = audio
-      }
-
-      remoteAudioRef.current.srcObject = remoteStream
-      const playPromise = remoteAudioRef.current.play()
-      if (playPromise) {
-        playPromise.catch(() => {
-          // Retry on next user interaction
-          const retry = () => { remoteAudioRef.current?.play().catch(() => {}); document.removeEventListener('click', retry) }
-          document.addEventListener('click', retry)
-        })
-      }
-
-      // Set up remote audio analyser for visualizer
-      if (audioCtxRef.current) {
-        const remoteSource = audioCtxRef.current.createMediaStreamSource(remoteStream)
-        const remoteAnalyser = audioCtxRef.current.createAnalyser()
-        remoteAnalyser.fftSize = 64
-        remoteSource.connect(remoteAnalyser)
-        remoteAnalyserRef.current = remoteAnalyser
-      }
-
-      setRemoteAudioActive(true)
-    }
-
-    peer.onicecandidate = (e) => {
-      if (e.candidate && socketRef.current) {
-        socketRef.current.emit('vc_ice_candidate', { instanceId: roomId, candidate: e.candidate })
-      }
-    }
-
-    peer.onconnectionstatechange = () => {
-      console.log('🔗 Peer connection state:', peer.connectionState)
-    }
-
-    peer.onicegatheringstatechange = () => {
-      console.log('🧊 ICE gathering state:', peer.iceGatheringState)
-    }
-
-    peerRef.current = peer
-
-    if (isInitiator) {
-      peer.createOffer({ offerToReceiveAudio: true }).then(offer => {
-        peer.setLocalDescription(offer)
-        socketRef.current?.emit('vc_offer', { instanceId: roomId, offer })
-      }).catch(e => console.error('Create offer error:', e))
-    }
-
-    return peer
-  }, [roomId])
-
-  const cleanup = useCallback(() => {
-    peerRef.current?.close()
-    localStreamRef.current?.getTracks().forEach(t => t.stop())
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null
-      remoteAudioRef.current.remove()
-      remoteAudioRef.current = null
-    }
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-      audioCtxRef.current.close()
-    }
-    peerRef.current = null
-    localStreamRef.current = null
-    localAnalyserRef.current = null
-    remoteAnalyserRef.current = null
-    audioCtxRef.current = null
-  }, [])
-
-  // Enable or disable mic track (doesn't stop it, just mutes)
-  const setMicActive = useCallback((active: boolean) => {
-    // Keep track always enabled for MediaRecorder — muting handled by WebRTC
-  }, [])
-
-return { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef }}
 
 // ── Main Component ────────────────────────────────────────────
 export default function VCDebatePage() {
@@ -303,7 +121,6 @@ export default function VCDebatePage() {
 
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
-  const [mySocketId, setMySocketId] = useState('')
   const [isMuted, setIsMuted] = useState(false)
   const [roomInfo, setRoomInfo] = useState<VCRoomInfo | null>(null)
   const [status, setStatus] = useState<'waiting' | 'starting' | 'active' | 'ended' | 'expired'>('waiting')
@@ -329,9 +146,19 @@ export default function VCDebatePage() {
   const [showForfeitModal, setShowForfeitModal] = useState(false)
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
   const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null)
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [opponentSpeaking, setOpponentSpeaking] = useState(false)
-  const speakingIntervalRef = useRef<any>(null)
+  const [voiceReady, setVoiceReady] = useState(false)
+  const [remoteAudioActive, setRemoteAudioActive] = useState(false)
+  const [micGranted, setMicGranted] = useState(false)
+
+  // Agora refs
+  const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
+  const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const localAnalyserRef = useRef<AnalyserNode | null>(null)
+  const remoteAnalyserRef = useRef<AnalyserNode | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // Other refs
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
   const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -341,49 +168,105 @@ export default function VCDebatePage() {
   const turnTimerRef = useRef<any>(null)
   const cooldownTimerRef = useRef<any>(null)
   const myUsernameRef = useRef(myUsername)
-  const [voiceReady, setVoiceReady] = useState(false)
-  const mySocketIdRef = useRef(mySocketId)
   const profileRef = useRef(profile)
   const userRef = useRef(user)
   const turnEndedRef = useRef(false)
   const isMyTurnRef = useRef(false)
   const chatRef = useRef<HTMLDivElement>(null)
+  const speakingIntervalRef = useRef<any>(null)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [opponentSpeaking, setOpponentSpeaking] = useState(false)
 
   useEffect(() => { myUsernameRef.current = myUsername }, [myUsername])
-
-  useEffect(() => { mySocketIdRef.current = mySocketId }, [mySocketId])
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { turnEndedRef.current = turnEnded }, [turnEnded])
   useEffect(() => { isMyTurnRef.current = isMyTurn }, [isMyTurn])
-useEffect(() => {
+
+  // Avatar fetches
+  useEffect(() => {
     if (!myUsername || myUsername.startsWith('guest')) return
-    supabase.from('profiles').select('avatar_url').eq('username', myUsername).single().then(({ data }) => {
-      if (data?.avatar_url) setMyAvatarUrl(data.avatar_url)
-    })
+    supabase.from('profiles').select('avatar_url').eq('username', myUsername).single()
+      .then(({ data }) => { if (data?.avatar_url) setMyAvatarUrl(data.avatar_url) })
   }, [myUsername])
 
- useEffect(() => {
+  const playersRef = useRef<Player[]>([])
+  useEffect(() => {
+    playersRef.current = players
     if (!myUsername || players.length < 2) return
     const opp = players.find(p => p.username !== myUsername)
-    if (!opp?.username || opp.username === myUsername) return
-    console.log('Fetching opponent avatar for:', opp.username, 'my username:', myUsername)
-    supabase
-      .from('profiles')
-      .select('username, avatar_url')
-      .eq('username', opp.username)
-      .single()
-      .then(({ data, error }) => {
-        console.log('Opponent avatar result:', opp.username, '→', data?.avatar_url, 'error:', error)
-        if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
-      })
+    if (!opp?.username) return
+    supabase.from('profiles').select('avatar_url').eq('username', opp.username).single()
+      .then(({ data }) => { if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url) })
   }, [players, myUsername])
- const { supported: speechSupported, listening, startListening, stopListening, getTranscript, finalTranscriptRef } =
-    useSpeechRecognition(setLiveTranscript)
 
-  const { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef } =
-  useWebRTC(socketRef, instanceId)
-const startMediaRecorder = useCallback((stream: MediaStream) => {
+  // Speech recognition
+  const { listening, startListening, stopListening, finalTranscriptRef } = useSpeechRecognition(setLiveTranscript)
+
+  // Init Agora
+  const initAgora = useCallback(async (channelName: string, uid: string) => {
+    try {
+const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
+      agoraClientRef.current = client
+      // Get mic permission + local stream for MediaRecorder
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      localStreamRef.current = stream
+      setMicGranted(true)
+
+      // Set up local analyser
+      const ctx = new AudioContext()
+      audioCtxRef.current = ctx
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 64
+      source.connect(analyser)
+      localAnalyserRef.current = analyser
+
+      // Create Agora audio track from same mic
+      const localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack()
+      localAudioTrackRef.current = localAudioTrack
+
+      // Join Agora channel — use socket ID as uid (numeric hash)
+      const numericUid = Math.floor(Math.random() * 100000) + 1
+      await client.join(AGORA_APP_ID, channelName, null, numericUid)
+      await client.publish([localAudioTrack])
+
+      // Handle remote user publishing audio
+      client.on('user-published', async (remoteUser, mediaType) => {
+        if (mediaType === 'audio') {
+          await client.subscribe(remoteUser, 'audio')
+          const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
+          remoteTrack.play()
+          setRemoteAudioActive(true)
+
+          // Set up remote analyser
+          if (audioCtxRef.current) {
+            try {
+              const remoteStream = new MediaStream()
+              // Use Web Audio destination trick
+              const dest = audioCtxRef.current.createMediaStreamDestination()
+              const remoteAnalyser = audioCtxRef.current.createAnalyser()
+              remoteAnalyser.fftSize = 64
+              // Connect through gainNode to analyser
+              const gainNode = audioCtxRef.current.createGain()
+              gainNode.connect(remoteAnalyser)
+              gainNode.connect(audioCtxRef.current.destination)
+              remoteAnalyserRef.current = remoteAnalyser
+            } catch (e) {}
+          }
+        }
+      })
+
+      client.on('user-unpublished', () => setRemoteAudioActive(false))
+
+      console.log('✅ Agora joined channel:', channelName)
+    } catch (e) {
+      console.error('Agora init error:', e)
+    }
+  }, [])
+
+  // MediaRecorder
+  const startMediaRecorder = useCallback((stream: MediaStream) => {
     audioChunksRef.current = []
     let mimeType = ''
     if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus'
@@ -391,11 +274,10 @@ const startMediaRecorder = useCallback((stream: MediaStream) => {
     else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4'
     else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg'
     const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
-    mr.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunksRef.current.push(e.data)
-    }
-mr.start(250)
+    mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+    mr.start(250)
     mediaRecorderRef.current = mr
+    console.log('🎙️ MediaRecorder started, mimeType:', mimeType || 'default')
   }, [])
 
   const stopMediaRecorderAndTranscribe = useCallback(async (): Promise<string> => {
@@ -408,27 +290,26 @@ mr.start(250)
         if (mimeType.includes('mp4')) ext = 'mp4'
         else if (mimeType.includes('ogg')) ext = 'ogg'
         const blob = new Blob(audioChunksRef.current, { type: mimeType })
-        console.log('🎤 Audio blob size:', blob.size, 'type:', mimeType)
-if (blob.size < 100) { console.warn('🎤 Blob too small:', blob.size); resolve(''); return }        const fd = new FormData()
-        // Save blob info for debugging
-        console.log('🎤 Chunks count:', audioChunksRef.current.length, 'blob size:', blob.size, 'mimeType:', mimeType)
-  fd.append('audio', blob, `recording.${ext}`)
+        console.log('🎤 Blob size:', blob.size, 'chunks:', audioChunksRef.current.length, 'type:', mimeType)
+        if (blob.size < 100) { console.warn('🎤 Blob too small'); resolve(''); return }
+        const fd = new FormData()
+        fd.append('audio', blob, `recording.${ext}`)
         try {
-          console.log('🎤 Sending to Whisper...')
-          const res = await fetch('https://rebuttal-live-production-3388.up.railway.app/api/transcribe', { method: 'POST', body: fd })              
+          const res = await fetch(`${SERVER_URL}/api/transcribe`, { method: 'POST', body: fd })
           const data = await res.json()
           console.log('🎤 Whisper response:', data)
           resolve(data.transcript || '')
         } catch (e) {
-          console.error('🎤 Whisper fetch error:', e)
+          console.error('🎤 Whisper error:', e)
           resolve('')
         }
       }
-      // Request any final buffered data before stopping
       mr.requestData()
       setTimeout(() => mr.stop(), 200)
     })
   }, [])
+
+  // Username setup
   useEffect(() => {
     if (loading) return
     if (guestParam) { setMyUsername(guestParam); return }
@@ -436,80 +317,67 @@ if (blob.size < 100) { console.warn('🎤 Blob too small:', blob.size); resolve(
     if (!user) setMyUsername('guest' + Math.floor(1000 + Math.random() * 9000))
   }, [loading, profile, user, guestParam])
 
+  // Socket + Agora setup
   useEffect(() => {
     if (!myUsername) return
+
     countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
     countdownAudioRef.current.preload = 'auto'
-
     lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
     lobbyAudioRef.current.preload = 'auto'
     lobbyAudioRef.current.loop = true
     lobbyAudioRef.current.volume = 0.35
 
     const unlockAudio = () => {
-      ;[countdownAudioRef].forEach(ref => {
+      [countdownAudioRef].forEach(ref => {
         if (!ref.current) return
-        ref.current.play().then(() => {
-          ref.current!.pause()
-          ref.current!.currentTime = 0
-        }).catch(() => {})
+        ref.current.play().then(() => { ref.current!.pause(); ref.current!.currentTime = 0 }).catch(() => {})
       })
     }
     document.addEventListener('click', unlockAudio, { once: true })
     document.addEventListener('touchstart', unlockAudio, { once: true })
 
-    const socket = io('https://rebuttal-live-production-3388.up.railway.app', { transports: ['websocket', 'polling'] })
+    const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
     socket.on('connect', async () => {
       setConnected(true)
-      setMySocketId(socket.id ?? '')
-      await initMic()
+      // Init Agora with instanceId as channel name
+      await initAgora(instanceId, socket.id ?? '')
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
     })
 
-    socket.on('reconnect', async () => {
+    socket.on('reconnect', () => {
       setConnected(true)
-      setMySocketId(socket.id ?? '')
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
     })
 
-    socket.on('reconnect', async () => {
-      setConnected(true)
-      setMySocketId(socket.id ?? '')
-      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
-    })
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('vc_room_info', (info: any) => {
-      setRoomInfo(info); setStatus(info.status); setPlayers(info.players || []); setLobbyCountdown(info.countdown || 1200)
+      setRoomInfo(info); setStatus(info.status); setPlayers(info.players || [])
+      setLobbyCountdown(info.countdown || 1200)
       if (info.status === 'waiting' || info.status === 'starting') {
         try { lobbyAudioRef.current?.play() } catch (e) {}
       }
     })
 
-socket.on('vc_players_update', (p: Player[]) => {
+    socket.on('vc_players_update', (p: Player[]) => {
       setPlayers(p)
       const opp = p.find(pl => pl.username !== myUsername)
-      if (!opp?.username || opp.username === myUsername) return
-      supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('username', opp.username)
-        .single()
-        .then(({ data }) => {
-          if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
-        })
+      if (opp?.username) {
+        supabase.from('profiles').select('avatar_url').eq('username', opp.username).single()
+          .then(({ data }) => { if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url) })
+      }
     })
+
     socket.on('vc_starting', ({ startCountdown: sc, players: p }: any) => {
       setStatus('starting'); setStartCountdown(sc); setPlayers(p)
     })
 
-socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
+    socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
-      if (count === 4) {
-        try { lobbyAudioRef.current?.pause() } catch (e) {}
-      }
+      if (count === 4) { try { lobbyAudioRef.current?.pause() } catch (e) {} }
       if (count === 3) {
         try {
           if (countdownAudioRef.current) {
@@ -519,22 +387,23 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         } catch (e) {}
       }
     })
+
     socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, duration, turnDuration }: any) => {
+      console.log('🎯 vc_debate_started — firstSpeakerSocketId:', firstSpeakerSocketId, 'socket.id:', socket.id)
       try { lobbyAudioRef.current?.pause() } catch (e) {}
-      // Fetch opponent avatar at debate start when both players confirmed
-      const currentPlayers = players
-      const opp = currentPlayers.find(p => p.username !== myUsername)
-      if (opp?.username && !opp.username.startsWith('guest')) {
+
+      // Fetch opponent avatar
+      const opp = playersRef.current.find(p => p.username !== myUsername)
+      if (opp?.username) {
         supabase.from('profiles').select('avatar_url').eq('username', opp.username).single()
           .then(({ data }) => { if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url) })
       }
+
       setStatus('active')
       setTimeLeft(duration)
       setCurrentSpeakerUsername(firstSpeakerUsername)
-      setTimeLeft(duration)
-      setCurrentSpeakerUsername(firstSpeakerUsername)
-      console.log('🎯 vc_debate_started — firstSpeakerSocketId:', firstSpeakerSocketId, 'socket.id:', socket.id, 'isMine:', firstSpeakerSocketId === socket.id)
       const isMine = firstSpeakerSocketId === socket.id
+      console.log('🎯 isMine:', isMine)
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
       setTurnNumber(1)
@@ -542,33 +411,23 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
 
       clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) { clearInterval(timerRef.current); return 0 }
-          return prev - 1
-        })
+        setTimeLeft(prev => { if (prev <= 1) { clearInterval(timerRef.current); return 0 } return prev - 1 })
       }, 1000)
 
-      // Keep both mics on — only mute the non-speaker
       if (isMine) {
-        setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-          .then(freshStream => startMediaRecorder(freshStream))
-          .catch(() => { console.log('🎙️ Starting MediaRecorder, stream:', localStreamRef.current)
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        else console.warn('🎙️ NO STREAM — localStreamRef is null!') })
-      } else {
-        setMicActive(false)
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
 
     socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
+      console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id)
       setInCooldown(false)
       setCurrentSpeakerUsername(speakerUsername)
-      console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id, 'match:', speakerSocketId === socket.id)
       const isMine = speakerSocketId === socket.id
+      console.log('🎯 isMine:', isMine)
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
       setTurnNumber(tn)
@@ -577,29 +436,20 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       turnEndedRef.current = false
       setLiveTranscript('')
 
-      // Switch mic: enable for speaker, disable for listener
-     if (isMine) {
-        setMicActive(true)
+      if (isMine) {
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-          .then(freshStream => startMediaRecorder(freshStream))
-          .catch(() => { console.log('🎙️ Starting MediaRecorder, stream:', localStreamRef.current)
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        else console.warn('🎙️ NO STREAM — localStreamRef is null!') })
       } else {
         stopListening()
-        setMicActive(false)
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
       }
-
       startTurnTimer(turnDuration, isMine, socket)
     })
 
     socket.on('vc_cooldown_start', ({ duration }: { duration: number }) => {
       setInCooldown(true)
       setCooldownLeft(duration)
-      // DON'T mute mic during cooldown — wait for vc_turn_start to switch
       clearInterval(cooldownTimerRef.current)
       cooldownTimerRef.current = setInterval(() => {
         setCooldownLeft(prev => { if (prev <= 1) { clearInterval(cooldownTimerRef.current); return 0 } return prev - 1 })
@@ -615,14 +465,23 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
     })
 
     socket.on('vc_system_message', ({ text }: { text: string }) => {
-      setTranscripts(prev => [...prev, { id: `sys-${Date.now()}`, username: '— system —', text, score: 0, aiFeedback: '', timestamp: Date.now(), turnNumber: 0 }])
+      setTranscripts(prev => [...prev, {
+        id: `sys-${Date.now()}`, username: '— system —', text,
+        score: 0, aiFeedback: '', timestamp: Date.now(), turnNumber: 0
+      }])
     })
 
     socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo }: any) => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
-      cleanup()
+      // Clean up Agora
+      try {
+        await localAudioTrackRef.current?.close()
+        await agoraClientRef.current?.leave()
+      } catch (e) {}
+      if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
+
       const currentProfile = profileRef.current
       const currentUser = userRef.current
       if (!currentProfile?.username || !currentUser) return
@@ -652,50 +511,34 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       }).eq('id', currentUser.id)
     })
 
-    // WebRTC signaling
-    socket.on('vc_initiate_webrtc', () => {
-      console.log('🔗 Initiating WebRTC as offerer')
-      createPeer(true)
-    })
-
-    socket.on('vc_offer', async ({ offer }: any) => {
-      console.log('📞 Got offer, creating answer')
-      const peer = createPeer(false)
-      await peer.setRemoteDescription(new RTCSessionDescription(offer))
-      const answer = await peer.createAnswer()
-      await peer.setLocalDescription(answer)
-      socket.emit('vc_answer', { instanceId, answer })
-    })
-
-    socket.on('vc_answer', async ({ answer }: any) => {
-      try {
-        await peerRef.current?.setRemoteDescription(new RTCSessionDescription(answer))
-        console.log('✅ Remote description set')
-      } catch (e) { console.error('Set remote description error:', e) }
-    })
-
-    socket.on('vc_ice_candidate', async ({ candidate }: any) => {
-      try {
-        if (peerRef.current?.remoteDescription) {
-          await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate))
-        }
-      } catch (e) {}
-    })
-
     socket.on('error', ({ message }: { message: string }) => { alert(message); router.push('/rebut') })
-socket.on('vc_expired', () => { try { lobbyAudioRef.current?.pause() } catch (e) {}; setStatus('expired'); router.push('/rebut') })
+    socket.on('vc_expired', () => {
+      try { lobbyAudioRef.current?.pause() } catch (e) {}
+      setStatus('expired'); router.push('/rebut')
+    })
+
     return () => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
       try { countdownAudioRef.current?.pause() } catch (e) {}
-      if (lobbyAudioRef.current) { lobbyAudioRef.current.src = '' }
-      if (countdownAudioRef.current) { countdownAudioRef.current.src = '' }
-      socket.disconnect(); cleanup()
-      clearInterval(timerRef.current); clearInterval(turnTimerRef.current); clearInterval(cooldownTimerRef.current)
+      if (lobbyAudioRef.current) lobbyAudioRef.current.src = ''
+      if (countdownAudioRef.current) countdownAudioRef.current.src = ''
+      socket.disconnect()
+      clearInterval(timerRef.current)
+      clearInterval(turnTimerRef.current)
+      clearInterval(cooldownTimerRef.current)
+      clearInterval(speakingIntervalRef.current)
       document.removeEventListener('click', unlockAudio)
       document.removeEventListener('touchstart', unlockAudio)
+      // Clean up Agora
+      localAudioTrackRef.current?.close()
+      agoraClientRef.current?.leave().catch(() => {})
+      if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
+      localStreamRef.current?.getTracks().forEach(t => t.stop())
     }
   }, [myUsername])
-useEffect(() => {
+
+  // Speaking detection
+  useEffect(() => {
     if (!micGranted) return
     let speaking = false
     speakingIntervalRef.current = setInterval(() => {
@@ -704,30 +547,11 @@ useEffect(() => {
       localAnalyserRef.current.getByteFrequencyData(data)
       const avg = data.reduce((a, b) => a + b, 0) / data.length
       const nowSpeaking = avg > 10
-      if (nowSpeaking !== speaking) {
-        speaking = nowSpeaking
-        setIsSpeaking(nowSpeaking)
-      }
+      if (nowSpeaking !== speaking) { speaking = nowSpeaking; setIsSpeaking(nowSpeaking) }
     }, 80)
     return () => clearInterval(speakingIntervalRef.current)
   }, [micGranted])
 
-  useEffect(() => {
-    if (!remoteAudioActive) return
-    let speaking = false
-    const interval = setInterval(() => {
-      if (!remoteAnalyserRef.current) return
-      const data = new Uint8Array(remoteAnalyserRef.current.frequencyBinCount)
-      remoteAnalyserRef.current.getByteFrequencyData(data)
-      const avg = data.reduce((a, b) => a + b, 0) / data.length
-      const nowSpeaking = avg > 10
-      if (nowSpeaking !== speaking) {
-        speaking = nowSpeaking
-        setOpponentSpeaking(nowSpeaking)
-      }
-    }, 80)
-    return () => clearInterval(interval)
-  }, [remoteAudioActive])
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [transcripts, liveTranscript])
@@ -741,13 +565,11 @@ useEffect(() => {
     turnTimerRef.current = setInterval(() => {
       remaining--
       setTurnTimeLeft(remaining)
-      if (remaining <= 0) {
-        clearInterval(turnTimerRef.current)
-        if (isMine) endMyTurn(socket)
-      }
+      if (remaining <= 0) { clearInterval(turnTimerRef.current); if (isMine) endMyTurn(socket) }
     }, 1000)
   }
-function endMyTurn(socket: Socket) {
+
+  function endMyTurn(socket: Socket) {
     if (turnEndedRef.current) return
     setTurnEnded(true)
     turnEndedRef.current = true
@@ -757,7 +579,6 @@ function endMyTurn(socket: Socket) {
       console.log('🏁 Whisper transcript:', transcript)
       socket.emit('vc_turn_complete', { instanceId, transcript })
       setLiveTranscript('')
-      setMicActive(false)
     }, 600)
   }
 
@@ -766,17 +587,17 @@ function endMyTurn(socket: Socket) {
     clearInterval(turnTimerRef.current)
     endMyTurn(socketRef.current)
   }
-const handleToggleMute = () => {
-  const newMuted = !isMuted
-  setIsMuted(newMuted)
-  localStreamRef.current?.getAudioTracks().forEach(track => {
-    track.enabled = !newMuted
-  })
-}
-  const handleForfeit = () => {
-    setShowForfeitModal(false)
-    router.push('/rebut')
+
+  const handleToggleMute = () => {
+    const newMuted = !isMuted
+    setIsMuted(newMuted)
+    if (localAudioTrackRef.current) {
+      if (newMuted) localAudioTrackRef.current.setMuted(true)
+      else localAudioTrackRef.current.setMuted(false)
+    }
   }
+
+  const handleForfeit = () => { setShowForfeitModal(false); router.push('/rebut') }
 
   const opponent = players.find(p => p.username !== myUsername)
   const myScore = scores[myUsername] ?? 0
@@ -857,55 +678,48 @@ const handleToggleMute = () => {
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: 'var(--text)', marginBottom: '16px' }}>{fmt(lobbyCountdown)}</div>
           )}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
-           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-  <div style={{ fontSize: '13px', color: micGranted ? 'var(--green)' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <span>{micGranted ? '✅' : '⚠️'}</span>
-    {micGranted ? 'Microphone ready' : 'Microphone access required — please allow when prompted'}
-  </div>
-  {micGranted && !voiceReady && (
-    <button
-      onClick={() => {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-        if (SpeechRecognition) {
-          const test = new SpeechRecognition()
-          test.start()
-          setTimeout(() => { try { test.stop() } catch (e) {} }, 300)
-        }
-        setVoiceReady(true)
-      }}
-      style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '10px', padding: '10px 20px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', animation: 'pulse 1s infinite' }}
-    >
-      🎙️ Tap to Enable Voice Transcription
-    </button>
-  )}
-  {micGranted && voiceReady && (
-    <div style={{ fontSize: '12px', color: 'var(--green)' }}>✅ Voice transcription ready</div>
-  )}
-  {micGranted && (
-    <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-      <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
-      {isMuted ? 'Unmute Mic' : 'Mute Mic'}
-    </button>
-  )}
-</div>
-{!speechSupported && <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '8px' }}>⚠️ Voice transcription requires Chrome or Edge on desktop. iOS/Safari not supported.</div>}          </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <div style={{ fontSize: '13px', color: micGranted ? 'var(--green)' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>{micGranted ? '✅' : '⏳'}</span>
+                {micGranted ? 'Microphone ready' : 'Connecting microphone...'}
+              </div>
+              {micGranted && !voiceReady && (
+                <button
+                  onClick={() => {
+                    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+                    if (SR) { const t = new SR(); t.start(); setTimeout(() => { try { t.stop() } catch (e) {} }, 300) }
+                    setVoiceReady(true)
+                  }}
+                  style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '10px', padding: '10px 20px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', animation: 'pulse 1s infinite' }}
+                >
+                  🎙️ Tap to Enable Voice Transcription
+                </button>
+              )}
+              {micGranted && voiceReady && <div style={{ fontSize: '12px', color: 'var(--green)' }}>✅ Voice transcription ready</div>}
+              {micGranted && (
+                <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                  <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
+                  {isMuted ? 'Unmute Mic' : 'Mute Mic'}
+                </button>
+              )}
+            </div>
+          </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
             {players.map((p) => {
               const isMe = p.username === myUsername
               const speaking = isMe ? isSpeaking : opponentSpeaking
               return (
                 <div key={p.username} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, boxShadow: speaking ? '0 0 16px rgba(34,197,94,0.8), 0 0 6px rgba(34,197,94,0.5)' : 'none', transition: 'border-color 0.1s, box-shadow 0.1s', flexShrink: 0, animation: speaking ? 'speakPulse 0.6s ease-in-out infinite' : 'none' }}>
-                   {(isMe ? myAvatarUrl : opponentAvatarUrl)
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0 }}>
+                    {(isMe ? myAvatarUrl : opponentAvatarUrl)
                       ? <img src={(isMe ? myAvatarUrl : opponentAvatarUrl)!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <div style={{ width: '100%', height: '100%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff' }}>
                           {p.username.slice(0, 2).toUpperCase()}
                         </div>
                     }
                   </div>
-                  <span style={{ fontSize: '13px', color: isMe ? 'var(--text)' : 'var(--text2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '13px', color: isMe ? 'var(--text)' : 'var(--text2)' }}>
                     {p.username}{isMe && <span style={{ color: 'var(--accent)', fontSize: '10px', marginLeft: '4px' }}>(you)</span>}
-                    {speaking && <span style={{ fontSize: '9px', color: '#22c55e' }}>🎙️</span>}
                   </span>
                 </div>
               )
@@ -950,7 +764,6 @@ const handleToggleMute = () => {
   return (
     <>
       <Nav active="rebut" />
-
       {showForfeitModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(6px)', padding: '16px' }}>
           <div style={{ background: 'var(--surface)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '16px', padding: '32px', maxWidth: '380px', width: '100%', textAlign: 'center' }}>
@@ -968,7 +781,6 @@ const handleToggleMute = () => {
       )}
 
       <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
         {/* Header */}
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -991,22 +803,18 @@ const handleToggleMute = () => {
 
         {/* Audio visualizers */}
         <div style={{ background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid var(--border)', padding: '10px 20px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-          {/* My audio bar */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ fontSize: '10px', color: isMyTurn ? 'var(--accent)' : 'var(--muted)', fontWeight: 600, letterSpacing: '1px' }}>
-              {isMyTurn ? '🎙️ YOU — SPEAKING' : '🔇 YOU — MUTED'}
+              {isMyTurn ? '🎙️ YOU — SPEAKING' : '🔇 YOU — LISTENING'}
             </div>
             <div style={{ background: 'rgba(230,57,70,0.06)', border: `1px solid ${isMyTurn ? 'rgba(230,57,70,0.3)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '8px', padding: '4px 8px', height: '48px', display: 'flex', alignItems: 'center' }}>
               <AudioBar analyser={localAnalyserRef.current} active={isMyTurn && !inCooldown} color="#e63946" />
             </div>
           </div>
-
           <div style={{ fontSize: '18px', flexShrink: 0 }}>⚔️</div>
-
-          {/* Opponent audio bar */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ fontSize: '10px', color: !isMyTurn && !inCooldown ? 'var(--green)' : 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textAlign: 'right' }}>
-              {!isMyTurn && !inCooldown ? `🎙️ ${opponent?.username ?? 'OPPONENT'} — SPEAKING` : `🔇 ${opponent?.username ?? 'OPPONENT'} — MUTED`}
+              {!isMyTurn && !inCooldown ? `🎙️ ${opponent?.username ?? 'OPPONENT'} — SPEAKING` : `🔇 ${opponent?.username ?? 'OPPONENT'} — LISTENING`}
             </div>
             <div style={{ background: 'rgba(34,197,94,0.06)', border: `1px solid ${!isMyTurn && !inCooldown ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '8px', padding: '4px 8px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <AudioBar analyser={remoteAnalyserRef.current} active={!isMyTurn && !inCooldown && remoteAudioActive} color="#22c55e" />
@@ -1034,21 +842,17 @@ const handleToggleMute = () => {
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
-             {isMyTurn && (
-               <button onClick={() => {
+              <button onClick={() => {
                 const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
                 if (SR) startListening()
-                console.log('🎙️ Starting MediaRecorder, stream:', localStreamRef.current)
-        if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        else console.warn('🎙️ NO STREAM — localStreamRef is null!')
+                if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
               }} style={{ background: listening ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', border: `1px solid ${listening ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 {listening ? '🔴 Recording... (tap to restart)' : '🎙️ Tap to Record Speech'}
               </button>
-              )}
               <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-  <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
-  {isMuted ? 'Unmute' : 'Mute'}
-</button>
+                <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
+                {isMuted ? 'Unmute' : 'Mute'}
+              </button>
               <button onClick={() => setShowForfeitModal(true)} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 14px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 🏳️ Forfeit & Leave
               </button>
@@ -1119,13 +923,13 @@ const handleToggleMute = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: connected ? 'var(--green)' : 'var(--red)' }} />
-              {connected ? (isMyTurn ? '🎙️ Your mic is live' : '🔇 Mic muted — listening') : 'Reconnecting...'}
+              {connected ? (isMyTurn ? '🎙️ Your mic is live' : '🔇 Listening') : 'Reconnecting...'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Turn {turnNumber} · Voice Debate</div>
             <div style={{ fontSize: '12px', color: remoteAudioActive ? 'var(--green)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {remoteAudioActive ? (
-                <><div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1s infinite' }} /> Audio live</>
-              ) : '⏳ Connecting audio...'}
+              {remoteAudioActive
+                ? <><div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1s infinite' }} /> Audio live</>
+                : '⏳ Connecting audio...'}
             </div>
           </div>
         </div>
