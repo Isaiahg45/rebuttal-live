@@ -150,7 +150,8 @@ const passwordParam = searchParams.get('password')
   const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null)
   const [voiceReady, setVoiceReady] = useState(false)
   const [remoteAudioActive, setRemoteAudioActive] = useState(false)
-  const [micGranted, setMicGranted] = useState(false)
+const [micGranted, setMicGranted] = useState(false)
+  const [audioTooLow, setAudioTooLow] = useState(false)
 
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
@@ -261,7 +262,12 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         }
       })
 
-      client.on('user-unpublished', () => setRemoteAudioActive(false))
+     client.on('user-unpublished', () => setRemoteAudioActive(false))
+
+      client.on('exception', (evt: any) => {
+        if (evt.code === 2001) setAudioTooLow(true)
+        if (evt.code === 4001) setAudioTooLow(false)
+      })
 
       console.log('✅ Agora joined channel:', channelName)
     } catch (e) {
@@ -703,10 +709,6 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
                
               {micGranted && (
                 <>
-                <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '10px', padding: '8px 18px', color: isMuted ? 'var(--red)' : 'var(--green)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                  <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
-                  {isMuted ? 'Unmute Mic' : 'Mute Mic'}
-                </button>
                 <div style={{ fontSize: '14px', fontWeight: 700, textAlign: 'center', lineHeight: 1.6, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
                   ⚠️ Speak clearly and at a normal volume so the AI can transcribe you accurately — no mumbling <span style={{ color: 'var(--red)' }}>!</span>
                 </div>
@@ -860,10 +862,6 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
-              <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
-                {isMuted ? 'Unmute' : 'Mute'}
-              </button>
               <button onClick={() => setShowForfeitModal(true)} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '5px 14px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 🏳️ Forfeit & Leave
               </button>
@@ -882,6 +880,14 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
             </div>
           )}
         </div>
+
+       {/* Audio too low warning */}
+        {audioTooLow && isMyTurn && !inCooldown && (
+          <div style={{ background: 'rgba(239,68,68,0.12)', borderBottom: '1px solid rgba(239,68,68,0.4)', padding: '10px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px', animation: 'pulse 1s infinite' }}>
+            <span style={{ fontSize: '20px' }}>📢</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)' }}>Speak up — the AI can't hear you clearly!</span>
+          </div>
+        )}
 
         {/* Live transcript */}
         {(isMyTurn ? liveTranscript : opponentLiveTranscript) && !inCooldown && (
