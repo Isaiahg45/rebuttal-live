@@ -1189,11 +1189,13 @@ io.on('connection', (socket) => {
           countdown: room.countdown, players: Object.values(room.players)
         })
         // Resend debate started so client restarts MediaRecorder etc
+        const currentSpeakerId = room.vcState?.currentSpeaker || socket.id
+        const currentSpeakerPlayer = room.players[currentSpeakerId]
         socket.emit('vc_debate_started', {
-          firstSpeakerSocketId: room.currentSpeakerSocketId || socket.id,
-          firstSpeakerUsername: room.currentSpeakerUsername || username,
+          firstSpeakerSocketId: currentSpeakerId,
+          firstSpeakerUsername: currentSpeakerPlayer?.username || username,
           duration: room.timeLeft || room.duration,
-          turnDuration: room.turnDuration || 30
+          turnDuration: room.vcState?.turnDuration || 30
         })
         return
       }
@@ -1408,8 +1410,35 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
     const room = rooms[instanceId]
     if (!room || room.type !== 'vc') { socket.emit('error', { message: 'VC room not found.' }); return }
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
-    if (Object.keys(room.players).length >= 2) { socket.emit('error', { message: 'VC room is full — only 2 debaters allowed.' }); return }
-
+if (Object.keys(room.players).length >= 2) {
+      // Check if this is a reconnecting player
+      const existingPlayer = Object.values(room.players).find(p => p.username === username)
+      if (existingPlayer && room.status === 'active') {
+        const oldSocketId = Object.keys(room.players).find(sid => room.players[sid].username === username)
+        if (oldSocketId) {
+          room.players[socket.id] = room.players[oldSocketId]
+          delete room.players[oldSocketId]
+        }
+        socket.join(instanceId)
+        currentRoomId = instanceId
+        currentUsername = username
+        socket.emit('vc_room_info', {
+          instanceId, topic: room.topic, emoji: room.emoji,
+          duration: room.duration, status: room.status,
+          countdown: room.countdown, players: Object.values(room.players)
+        })
+        const currentSpeakerId = room.vcState?.currentSpeaker || socket.id
+        const currentSpeakerPlayer = room.players[currentSpeakerId]
+        socket.emit('vc_debate_started', {
+          firstSpeakerSocketId: currentSpeakerId,
+          firstSpeakerUsername: currentSpeakerPlayer?.username || username,
+          duration: room.timeLeft || room.duration,
+          turnDuration: room.vcState?.turnDuration || 30
+        })
+        return
+      }
+      socket.emit('error', { message: 'VC room is full — only 2 debaters allowed.' }); return
+    }
     // Password check for private VC rooms
     if (room.isPrivate && room.password) {
       const joinPassword = arguments[0]?.password
