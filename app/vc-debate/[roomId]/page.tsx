@@ -108,9 +108,10 @@ function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
     }
 
     const rec = new SpeechRecognition()
-    rec.continuous = true
+    rec.continuous = false
     rec.interimResults = true
     rec.lang = 'en-US'
+    rec.maxAlternatives = 1
 
     rec.onresult = (e: any) => {
       let interim = ''
@@ -358,7 +359,9 @@ export default function VCDebatePage() {
   const [eloChange, setEloChange] = useState<number | null>(null)
   const [showForfeitModal, setShowForfeitModal] = useState(false)
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
+  const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const [srFailed, setSrFailed] = useState(false)
   const [opponentSpeaking, setOpponentSpeaking] = useState(false)
   const speakingIntervalRef = useRef<any>(null)
   const socketRef = useRef<Socket | null>(null)
@@ -389,6 +392,14 @@ useEffect(() => {
       if (data?.avatar_url) setMyAvatarUrl(data.avatar_url)
     })
   }, [myUsername])
+
+  useEffect(() => {
+    const opp = players.find(p => p.username !== myUsername)
+    if (!opp || opp.username.startsWith('guest')) return
+    supabase.from('profiles').select('avatar_url').eq('username', opp.username).single().then(({ data }) => {
+      if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
+    })
+  }, [players, myUsername])
   const { supported: speechSupported, listening, startListening, stopListening, getTranscript } =
     useSpeechRecognition(setLiveTranscript)
 
@@ -822,8 +833,8 @@ const handleToggleMute = () => {
               return (
                 <div key={p.username} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', border: `2px solid ${speaking ? '#22c55e' : isMe ? 'var(--accent)' : 'var(--border)'}`, boxShadow: speaking ? '0 0 16px rgba(34,197,94,0.8), 0 0 6px rgba(34,197,94,0.5)' : 'none', transition: 'border-color 0.1s, box-shadow 0.1s', flexShrink: 0, animation: speaking ? 'speakPulse 0.6s ease-in-out infinite' : 'none' }}>
-                    {isMe && myAvatarUrl
-                      ? <img src={myAvatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                   {(isMe ? myAvatarUrl : opponentAvatarUrl)
+                      ? <img src={(isMe ? myAvatarUrl : opponentAvatarUrl)!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <div style={{ width: '100%', height: '100%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff' }}>
                           {p.username.slice(0, 2).toUpperCase()}
                         </div>
@@ -960,15 +971,14 @@ const handleToggleMute = () => {
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
-              {!listening && isMyTurn && (
+             {isMyTurn && (
                 <button onClick={() => {
                   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
                   if (SR) startListening()
-                }} style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                  🎙️ Tap to Manually Record Speech
+                }} style={{ background: listening ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', border: `1px solid ${listening ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                  {listening ? '🔴 Recording... (tap to restart)' : '🎙️ Tap to Record Speech'}
                 </button>
               )}
-              {listening && <div style={{ fontSize: '11px', color: 'var(--green)' }}>🔴 Recording...</div>}
               <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
   <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
   {isMuted ? 'Unmute' : 'Mute'}
