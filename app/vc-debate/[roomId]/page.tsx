@@ -344,16 +344,17 @@ useEffect(() => {
   }, [myUsername])
 
  useEffect(() => {
-    if (!myUsername) return
+    if (!myUsername || players.length < 2) return
     const opp = players.find(p => p.username !== myUsername)
-    if (!opp?.username) return
+    if (!opp?.username || opp.username === myUsername) return
+    console.log('Fetching opponent avatar for:', opp.username, 'my username:', myUsername)
     supabase
       .from('profiles')
       .select('username, avatar_url')
       .eq('username', opp.username)
       .single()
       .then(({ data, error }) => {
-        console.log('Opponent avatar fetch:', opp.username, data, error)
+        console.log('Opponent avatar result:', opp.username, '→', data?.avatar_url, 'error:', error)
         if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
       })
   }, [players, myUsername])
@@ -455,8 +456,19 @@ if (blob.size < 100) { console.warn('🎤 Blob too small:', blob.size); resolve(
       }
     })
 
-    socket.on('vc_players_update', (p: Player[]) => setPlayers(p))
-
+socket.on('vc_players_update', (p: Player[]) => {
+      setPlayers(p)
+      const opp = p.find(pl => pl.username !== myUsername)
+      if (!opp?.username || opp.username === myUsername) return
+      supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('username', opp.username)
+        .single()
+        .then(({ data }) => {
+          if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
+        })
+    })
     socket.on('vc_starting', ({ startCountdown: sc, players: p }: any) => {
       setStatus('starting'); setStartCountdown(sc); setPlayers(p)
     })
@@ -501,7 +513,9 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-        if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+        setTimeout(() => {
+          if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+        }, 200)
       } else {
         setMicActive(false)
       }
@@ -525,7 +539,9 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-        if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+        setTimeout(() => {
+          if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+        }, 200)
       } else {
         stopListening()
         setMicActive(false)
