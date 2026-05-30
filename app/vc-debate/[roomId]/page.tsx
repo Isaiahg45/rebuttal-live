@@ -514,6 +514,7 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setCurrentSpeakerUsername(firstSpeakerUsername)
       setTimeLeft(duration)
       setCurrentSpeakerUsername(firstSpeakerUsername)
+      console.log('🎯 vc_debate_started — firstSpeakerSocketId:', firstSpeakerSocketId, 'socket.id:', socket.id, 'isMine:', firstSpeakerSocketId === socket.id)
       const isMine = firstSpeakerSocketId === socket.id
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
@@ -547,6 +548,7 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
     socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
       setInCooldown(false)
       setCurrentSpeakerUsername(speakerUsername)
+      console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id, 'isMine:', speakerSocketId === socket.id)
       const isMine = speakerSocketId === socket.id
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
