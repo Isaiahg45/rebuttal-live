@@ -2025,3 +2025,26 @@ app.get('/totd-winner', async (req, res) => {
 
 boot()
 httpServer.listen(3001, () => console.log('🚀 Socket server running on port 3001'))
+// ─── Transcribe endpoint ────────────────────────────────────────
+const multer = require('multer')
+const upload = multer({ storage: multer.memoryStorage() })
+
+app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    const buffer = req.file?.buffer
+    console.log('Transcribe hit — size:', buffer?.length)
+    if (!buffer || buffer.length < 100) return res.json({ transcript: '' })
+    const { toFile } = require('openai')
+    const file = await toFile(buffer, 'audio.mp4', { type: 'audio/mp4' })
+    const result = await openai.audio.transcriptions.create({
+      file,
+      model: 'whisper-1',
+      language: 'en',
+    })
+    console.log('Whisper result:', result.text)
+    res.json({ transcript: result.text })
+  } catch (e) {
+    console.error('Transcribe error:', e)
+    res.json({ transcript: '' })
+  }
+})
