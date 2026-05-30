@@ -468,6 +468,17 @@ if (blob.size < 100) { console.warn('🎤 Blob too small:', blob.size); resolve(
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
     })
 
+    socket.on('reconnect', async () => {
+      setConnected(true)
+      setMySocketId(socket.id ?? '')
+      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
+    })
+
+    socket.on('reconnect', async () => {
+      setConnected(true)
+      setMySocketId(socket.id ?? '')
+      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo })
+    })
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('vc_room_info', (info: any) => {

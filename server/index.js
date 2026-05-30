@@ -1186,6 +1186,18 @@ io.on('connection', (socket) => {
           if (room.vcState?.scores?.[oldSocketId] !== undefined) {
             room.vcState.scores[socket.id] = room.vcState.scores[oldSocketId]
             delete room.vcState.scores[oldSocketId]
+            if (oldSocketId) {
+          room.players[socket.id] = room.players[oldSocketId]
+          delete room.players[oldSocketId]
+          if (room.vcState?.currentSpeaker === oldSocketId) {
+            room.vcState.currentSpeaker = socket.id
+          }
+          if (room.vcState?.scores?.[oldSocketId] !== undefined) {
+            room.vcState.scores[socket.id] = room.vcState.scores[oldSocketId]
+            delete room.vcState.scores[oldSocketId]
+          }
+          console.log(`🔄 ${username} reconnected — old: ${oldSocketId} new: ${socket.id}`)
+        }
           }
         }
         socket.join(instanceId)
