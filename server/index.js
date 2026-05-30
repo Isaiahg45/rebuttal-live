@@ -39,7 +39,7 @@ async function supabaseRest(path, method = 'GET', body = null) {
 
 // ─── Constants ─────────────────────────────────────────────────
 const TARGET_AVAILABLE = 4
-const TARGET_VC_AVAILABLE = 3
+const TARGET_VC_AVAILABLE = 2
 const DISTRIBUTION = { casual: 0.25, serious: 0.45, competitive: 0.15, random: 0.15 }
 
 // ─── Topic pools ───────────────────────────────────────────────
@@ -776,13 +776,14 @@ function scheduleRoom(type, immediate = false) {
   }, delay)
 }
 function scheduleVCRoom(immediate = false) {
+  if (getVCWaitingCount() >= TARGET_VC_AVAILABLE) return
   const delay = immediate ? 0 : 10000
   setTimeout(() => {
+    if (getVCWaitingCount() >= TARGET_VC_AVAILABLE) return
     createVCRoom()
     io.emit('rooms_update', getRoomList())
   }, delay)
 }
-
 function getAvailableCount() {
   return Object.values(rooms).filter(r => r.status === 'waiting' && r.type !== 'vc').length + pendingRoomCreations
 }
