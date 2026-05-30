@@ -82,102 +82,27 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
+// ── Speech Recognition Hook ───────────────────────────────────
 function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
-  const [supported, setSupported] = useState(false)
+  const [supported] = useState(true)
   const [listening, setListening] = useState(false)
-  const transcriptRef = useRef('')
   const finalTranscriptRef = useRef('')
-  const shouldListenRef = useRef(false)
-  const recognitionRef = useRef<any>(null)
   const onTranscriptUpdateRef = useRef(onTranscriptUpdate)
   useEffect(() => { onTranscriptUpdateRef.current = onTranscriptUpdate }, [onTranscriptUpdate])
 
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRecognition) setSupported(true)
-  }, [])
-
-  const createAndStart = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition || !shouldListenRef.current) return
-
-    // Stop existing
-    if (recognitionRef.current) {
-      try { recognitionRef.current.onend = null; recognitionRef.current.stop() } catch (e) {}
-      recognitionRef.current = null
-    }
-
-    const rec = new SpeechRecognition()
-    rec.continuous = false
-    rec.interimResults = true
-    rec.lang = 'en-US'
-    rec.maxAlternatives = 1
-
-    rec.onresult = (e: any) => {
-      let interim = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          finalTranscriptRef.current += ' ' + e.results[i][0].transcript
-        } else {
-          interim += e.results[i][0].transcript
-        }
-      }
-      transcriptRef.current = finalTranscriptRef.current
-      onTranscriptUpdateRef.current((finalTranscriptRef.current + interim).trim())
-    }
-
-    rec.onerror = (e: any) => {
-      console.warn('SR error:', e.error)
-      if (shouldListenRef.current && e.error !== 'aborted' && e.error !== 'not-allowed') {
-        setTimeout(createAndStart, 300)
-      }
-    }
-
-    rec.onend = () => {
-      setListening(false)
-      if (shouldListenRef.current) {
-        setTimeout(createAndStart, 300)
-      }
-    }
-
-    recognitionRef.current = rec
-    try {
-      rec.start()
-      setListening(true)
-      console.log('🎙️ SR started, finalTranscript so far:', finalTranscriptRef.current)
-    } catch (e) {
-      console.warn('SR start failed:', e)
-      setTimeout(createAndStart, 500)
-    }
-  }, [])
-
   const startListening = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) return
-    // Reset transcripts for new turn
-    transcriptRef.current = ''
     finalTranscriptRef.current = ''
     onTranscriptUpdateRef.current('')
-    shouldListenRef.current = true
-    createAndStart()
-  }, [createAndStart])
+    setListening(true)
+  }, [])
 
   const stopListening = useCallback(() => {
-    shouldListenRef.current = false
-    if (recognitionRef.current) {
-      try { recognitionRef.current.onend = null; recognitionRef.current.stop() } catch (e) {}
-      recognitionRef.current = null
-    }
     setListening(false)
   }, [])
 
-  const getTranscript = useCallback(() => {
-    const result = finalTranscriptRef.current.trim()
-    console.log('📝 getTranscript called, result:', result)
-    return result
-  }, [])
+  const getTranscript = useCallback(() => finalTranscriptRef.current.trim(), [])
 
-  return { supported, listening, startListening, stopListening, getTranscript }
+  return { supported, listening, startListening, stopListening, getTranscript, finalTranscriptRef }
 }
 // ── WebRTC Hook ───────────────────────────────────────────────
 function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: string) {
@@ -401,7 +326,7 @@ useEffect(() => {
       if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
     })
   }, [players, myUsername])
-  const { supported: speechSupported, listening, startListening, stopListening, getTranscript } =
+ const { supported: speechSupported, listening, startListening, stopListening, getTranscript, finalTranscriptRef } =
     useSpeechRecognition(setLiveTranscript)
 
   const { micGranted, remoteAudioActive, initMic, createPeer, peerRef, cleanup, setMicActive, localAnalyserRef, remoteAnalyserRef, localStreamRef } =
@@ -730,31 +655,18 @@ useEffect(() => {
       }
     }, 1000)
   }
-
-  function endMyTurn(socket: Socket) {
+function endMyTurn(socket: Socket) {
     if (turnEndedRef.current) return
     setTurnEnded(true)
     turnEndedRef.current = true
     stopListening()
-    const srTranscript = getTranscript()
-    if (srTranscript) {
-      // Web Speech worked — use it directly
-      setTimeout(() => {
-        socket.emit('vc_turn_complete', { instanceId, transcript: srTranscript })
-        setLiveTranscript('')
-        setMicActive(false)
-        if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
-      }, 400)
-    } else {
-      // Web Speech got nothing — use Whisper
-      setTimeout(async () => {
-        const transcript = await stopMediaRecorderAndTranscribe()
-        console.log('🎤 Whisper transcript:', transcript)
-        socket.emit('vc_turn_complete', { instanceId, transcript })
-        setLiveTranscript('')
-        setMicActive(false)
-      }, 600)
-    }
+    setTimeout(async () => {
+      const transcript = await stopMediaRecorderAndTranscribe()
+      console.log('🏁 Whisper transcript:', transcript)
+      socket.emit('vc_turn_complete', { instanceId, transcript })
+      setLiveTranscript('')
+      setMicActive(false)
+    }, 600)
   }
 
   const handleEndTurnEarly = () => {
