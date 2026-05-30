@@ -703,8 +703,8 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
                   <span style={{ fontSize: '16px' }}>{isMuted ? '🎙️✕' : '🎙️'}</span>
                   {isMuted ? 'Unmute Mic' : 'Mute Mic'}
                 </button>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5 }}>
-                  💬 Speak clearly and at a normal volume so the AI can transcribe you accurately
+                <div style={{ fontSize: '14px', fontWeight: 700, textAlign: 'center', lineHeight: 1.6, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
+                  ⚠️ Speak clearly and at a normal volume so the AI can transcribe you accurately <span style={{ color: 'var(--red)' }}>!</span>
                 </div>
                 </>
               )}
@@ -763,9 +763,9 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
           </button>
         </div>
       </div>
+      <style>{`@keyframes orangePulse { 0%,100%{ opacity:1; text-shadow: 0 0 12px rgba(255,140,0,0.4); } 50%{ opacity:0.75; text-shadow: 0 0 24px rgba(255,140,0,0.8); } }`}</style>
     </>
   )
-
   // ── ACTIVE DEBATE ──
   return (
     <>
@@ -938,7 +938,8 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
 <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes sinisterPulse { 0%,100%{ text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000; } 50%{ text-shadow: 0 0 40px #ff0000, 0 0 80px #cc0000, 0 0 120px #990000; } }
-      `}</style>    </>
+        @keyframes orangePulse { 0%,100%{ opacity:1; text-shadow: 0 0 12px rgba(255,140,0,0.4); } 50%{ opacity:0.75; text-shadow: 0 0 24px rgba(255,140,0,0.8); } }
+      `}</style>   </>
   )
 }
-//blah
+//Have fun!
