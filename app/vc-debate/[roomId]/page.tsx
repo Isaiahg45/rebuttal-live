@@ -83,7 +83,7 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
 // ── Speech Recognition Hook ───────────────────────────────────
-ffunction useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
+function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
   const [supported] = useState(true)
   const [listening, setListening] = useState(false)
   const finalTranscriptRef = useRef('')
@@ -387,7 +387,8 @@ const startMediaRecorder = useCallback((stream: MediaStream) => {
       if (e.data.size > 0) audioChunksRef.current.push(e.data)
     }
 mr.start(250)
-    mediaRecorderRef.current = mr  }, [])
+    mediaRecorderRef.current = mr
+  }, [])
 
   const stopMediaRecorderAndTranscribe = useCallback(async (): Promise<string> => {
     return new Promise((resolve) => {
@@ -532,9 +533,9 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-        setTimeout(() => {
-          if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        }, 200)
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(freshStream => startMediaRecorder(freshStream))
+          .catch(() => { if (localStreamRef.current) startMediaRecorder(localStreamRef.current) })
       } else {
         setMicActive(false)
       }
@@ -558,9 +559,9 @@ socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
         setMicActive(true)
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
-        setTimeout(() => {
-          if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        }, 200)
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(freshStream => startMediaRecorder(freshStream))
+          .catch(() => { if (localStreamRef.current) startMediaRecorder(localStreamRef.current) })
       } else {
         stopListening()
         setMicActive(false)
