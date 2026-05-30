@@ -184,23 +184,11 @@ function useWebRTC(socketRef: React.MutableRefObject<Socket | null>, roomId: str
 
     const peer = new RTCPeerConnection({
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        { urls: 'turn:standard.relay.metered.ca:80', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
+        { urls: 'turn:standard.relay.metered.ca:80?transport=tcp', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
+        { urls: 'turn:standard.relay.metered.ca:443', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
+        { urls: 'turns:standard.relay.metered.ca:443?transport=tcp', username: '5ea9bac977714b21db431d36', credential: 'VYnaBhs8/3vpjN2C' },
       ]
     })
     // Add local tracks
