@@ -1023,12 +1023,13 @@ const handleToggleMute = () => {
                 Done Speaking Early
               </button>
              {isMyTurn && (
-                <button onClick={() => {
-                  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-                  if (SR) startListening()
-                }} style={{ background: listening ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', border: `1px solid ${listening ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                  {listening ? '🔴 Recording... (tap to restart)' : '🎙️ Tap to Record Speech'}
-                </button>
+               <button onClick={() => {
+                const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+                if (SR) startListening()
+                if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+              }} style={{ background: listening ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', border: `1px solid ${listening ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.3)'}`, borderRadius: '8px', padding: '6px 16px', color: 'var(--green)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                {listening ? '🔴 Recording... (tap to restart)' : '🎙️ Tap to Record Speech'}
+              </button>
               )}
               <button onClick={handleToggleMute} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '8px', padding: '6px 16px', color: isMuted ? 'var(--red)' : 'rgba(255,255,255,0.6)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
   <span>{isMuted ? '🎙️✕' : '🎙️'}</span>
