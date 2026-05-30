@@ -396,7 +396,7 @@ useEffect(() => {
 
   useEffect(() => {
     const opp = players.find(p => p.username !== myUsername)
-    if (!opp || opp.username.startsWith('guest')) return
+    if (!opp || !opp.username || opp.username.startsWith('guest') || opp.username.startsWith('bot_')) return
     supabase.from('profiles').select('avatar_url').eq('username', opp.username).single().then(({ data }) => {
       if (data?.avatar_url) setOpponentAvatarUrl(data.avatar_url)
     })
@@ -408,7 +408,12 @@ useEffect(() => {
   useWebRTC(socketRef, instanceId)
 const startMediaRecorder = useCallback((stream: MediaStream) => {
     audioChunksRef.current = []
-    const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' })
+    let mimeType = ''
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus'
+    else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm'
+    else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4'
+    else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg'
+    const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
     mr.ondataavailable = (e) => {
       if (e.data.size > 0) audioChunksRef.current.push(e.data)
     }
@@ -1064,8 +1069,13 @@ const handleToggleMute = () => {
             const isMe = t.username === myUsername
             return (
               <div key={t.id} style={{ display: 'flex', gap: '10px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                  {t.username.slice(0, 2).toUpperCase()}
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', border: '1px solid var(--border)', flexShrink: 0 }}>
+                  {(isMe ? myAvatarUrl : opponentAvatarUrl)
+                    ? <img src={(isMe ? myAvatarUrl : opponentAvatarUrl)!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <div style={{ width: '100%', height: '100%', background: isMe ? 'linear-gradient(135deg,var(--accent),#ff8c69)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>
+                        {t.username.slice(0, 2).toUpperCase()}
+                      </div>
+                  }
                 </div>
                 <div style={{ maxWidth: '75%' }}>
                   <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '3px', textAlign: isMe ? 'right' : 'left' }}>{t.username} · Turn {t.turnNumber}</div>
