@@ -956,8 +956,14 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         }
       }
 
-      if (room.countdown <= 0) {
+     if (room.countdown <= 0) {
         if (playerCount < 2) {
+         if (room.isCustom) {
+            const ageSeconds = (Date.now() - room.createdAt) / 1000
+            if (ageSeconds < 5) return
+            room.countdown = 1800
+            return
+          }
           room.status = 'ended'
           io.to(room.instanceId).emit('room_expired', { message: 'Not enough players joined. Room expired.' })
           console.log(`💨 Expired: "${room.topic}" (${playerCount} players)`)
@@ -990,8 +996,11 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         return
       }
       if (playerCount === 0 && room.isCustom) {
-        room.status = 'ended'
-        console.log(`⚔️ Custom active room auto-expired (empty): "${room.topic}"`)
+        const ageSeconds = (Date.now() - room.createdAt) / 1000
+        if (ageSeconds > 5) {
+          room.status = 'ended'
+          console.log(`⚔️ Custom active room auto-expired (empty): "${room.topic}"`)
+        }
         return
       }
       const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
@@ -1298,14 +1307,6 @@ io.on('connection', (socket) => {
     }
 
     console.log(`⚔️ Custom room by ${username}: "${topic.trim()}" (${isPrivate ? 'private' : 'public'}, ${isVC ? 'vc' : 'text'})`)
-
-    // Auto-join the creator
-    currentRoomId = id
-    currentUsername = username
-    isSpectator = false
-    socket.join(id)
-    rooms[id].players[socket.id] = { username, score: 0, elo: 0 }
-    if (isVC) rooms[id].vcState.scores[socket.id] = 0
 
     socket.emit('custom_room_created', { instanceId: id, type: isVC ? 'vc' : 'text' })
     io.emit('rooms_update', getRoomList())
