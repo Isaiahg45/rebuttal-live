@@ -676,7 +676,7 @@ export default function DebatePage() {
                           {msg.score > 0 ? '+' : ''}{msg.score} pts{msg.score >= 25 && ' 🔥'}{msg.score >= 28 && ' 🏆'}
                         </span>
                         {msg.aiFeedback && (
-                          <span style={{ fontSize: '11px', color: 'var(--blue)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--blue)', lineHeight: 1.5 }}>
                             🤖 {msg.aiFeedback}
                           </span>
                         )}
