@@ -1103,7 +1103,7 @@ async function scoreArgument(text, topic, roomType, priorMessages = []) {
     const result = await Promise.race([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 120,
+        max_tokens: 200,
         messages: [{
           role: 'system',
           content: `You are a debate judge. Topic: "${topic}" (${roomType}).
