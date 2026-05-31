@@ -679,7 +679,7 @@ function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, l
   casual:      { min: 15, max: 25 },
   random:      { min: 10, max: 20 },
   serious:     { min: 20, max: 30 },
-  competitive: { min: 25, max: 35 },
+  competitive: { min: 45, max: 80 },
   vc:          { min: 10, max: 35 },
 }
   const { min, max } = ranges[type] ?? { min: 20, max: 40 }
