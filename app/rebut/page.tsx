@@ -111,6 +111,7 @@ export default function RebutPage() {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [hoveredPlayer, setHoveredPlayer] = useState<{ username: string; elo?: number; x: number; y: number } | null>(null)
   const [playerElos, setPlayerElos] = useState<Record<string, number>>({})
+  const [creatorAvatars, setCreatorAvatars] = useState<Record<string, string>>({})
   const [roomMessages, setRoomMessages] = useState<Record<string, ChatMsg[]>>({})
   const [endedRooms, setEndedRooms] = useState<Record<string, EndedRoom>>({})
   const prevLiveRef = useRef<Map<string, RoomData>>(new Map())
@@ -154,6 +155,18 @@ export default function RebutPage() {
         const map: Record<string, number> = {}
         data.forEach(p => { map[p.username] = p.elo })
         setPlayerElos(prev => ({ ...prev, ...map }))
+      }
+    })
+  }, [rooms])
+
+  useEffect(() => {
+    const creators = [...new Set(rooms.filter(r => r.createdBy && !(r.createdBy in creatorAvatars)).map(r => r.createdBy!))]
+    if (creators.length === 0) return
+    supabase.from('profiles').select('username, avatar_url').in('username', creators).then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach(p => { if (p.avatar_url) map[p.username] = p.avatar_url })
+        setCreatorAvatars(prev => ({ ...prev, ...map }))
       }
     })
   }, [rooms])
@@ -523,8 +536,17 @@ const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
                           </div>
 
                           {room.createdBy && (
-                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '2px' }}>
-                              by <span style={{ color: 'rgba(255,255,255,0.5)' }}>{room.createdBy}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                              <div style={{ width: '18px', height: '18px', borderRadius: '50%', overflow: 'hidden', border: `1px solid ${c.border}`, flexShrink: 0 }}>
+                                {creatorAvatars[room.createdBy] ? (
+                                  <img src={creatorAvatars[room.createdBy]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700, color: '#fff' }}>
+                                    {room.createdBy.slice(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>by <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>{room.createdBy}</span></span>
                             </div>
                           )}
                         </div>
