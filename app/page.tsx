@@ -221,7 +221,7 @@ export default function Home() {
           </div>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>© 2026 ViralBot AI LLC</span>
         </div>
-//brah
+//brahh
       </div>
       <style>{`
         @keyframes pulseDiscord {
