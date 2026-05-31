@@ -9,6 +9,16 @@ import { useRouter } from 'next/navigation'
 import AgoraRTC from 'agora-rtc-sdk-ng'
 import type { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from 'agora-rtc-sdk-ng'
 
+function getTierName(elo: number): string {
+  if (elo >= 1000) return 'Rebutter'
+  if (elo >= 700) return 'Elite Arguer'
+  if (elo >= 500) return 'Master Debater'
+  if (elo >= 400) return 'Competitive Arguer'
+  if (elo >= 300) return 'Arguer'
+  if (elo >= 200) return 'Competitive Talker'
+  if (elo >= 100) return 'Casual Talker'
+  return 'Incompetent'
+}
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
@@ -519,12 +529,33 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
         change = myPlace === 0 ? eloChanges.winnerElo : -Math.round(eloChanges.loserBase)
       }
       setEloChange(change)
-      const newElo = Math.max(0, (currentProfile.elo ?? 0) + change)
+      const oldElo = currentProfile.elo ?? 0
+      const newElo = Math.max(0, oldElo + change)
       await supabase.from('profiles').update({
         elo: newElo,
         wins: myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0),
         debates: (currentProfile.debates ?? 0) + 1,
       }).eq('id', currentUser.id)
+
+      // ELO notification
+      await supabase.from('notifications').insert({
+        recipient_username: currentProfile.username,
+        type: 'elo_change',
+        message: change >= 0
+          ? `📈 You gained ${change} ELO in your last debate! You now have ${newElo} ELO.`
+          : `📉 You lost ${Math.abs(change)} ELO in your last debate. You now have ${newElo} ELO.`,
+      })
+
+      // Tier up notification
+      const oldTierName = getTierName(oldElo)
+      const newTierName = getTierName(newElo)
+      if (newTierName !== oldTierName && newElo > oldElo) {
+        await supabase.from('notifications').insert({
+          recipient_username: currentProfile.username,
+          type: 'tier_up',
+          message: `🏆 You ranked up! You are now a ${newTierName}. Keep debating!`,
+        })
+      }
     })
 
     socket.on('error', ({ message }: { message: string }) => { alert(message); router.push('/rebut') })

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Nav from '../components/Nav'
 import { io } from 'socket.io-client'
+import { supabase } from '../../lib/supabase'
 
 function CreateChallengeContent() {
   const { user, profile, loading } = useAuth()
@@ -83,6 +84,13 @@ function CreateChallengeContent() {
 
     socket.on('custom_room_created', ({ instanceId, type }: { instanceId: string; type: string }) => {
       socket.disconnect()
+      if (challengeTarget) {
+        supabase.from('notifications').insert({
+          recipient_username: challengeTarget,
+          type: 'challenge',
+          message: `⚔️ Your buddy ${profile.username} challenged you to a debate! Check your rooms.`,
+        })
+      }
       if (type === 'vc') {
         router.push(`/vc-debate/${instanceId}${isPrivate && password ? `?password=${encodeURIComponent(password)}` : ''}`)
       } else {

@@ -1307,6 +1307,9 @@ io.on('connection', (socket) => {
 
     socket.emit('custom_room_created', { instanceId: id, type: isVC ? 'vc' : 'text' })
     io.emit('rooms_update', getRoomList())
+
+    // If challenging a buddy, send them a notification via Supabase
+    // (handled client-side from create-challenge page)
   })
 
   // ── Spectate text room ────────────────────────────────────────

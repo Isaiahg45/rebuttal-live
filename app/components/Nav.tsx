@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { useNotifications } from '../hooks/useNotifications'
 
 interface NavProps { active: string }
 
@@ -22,27 +23,9 @@ export default function Nav({ active }: NavProps) {
     : user?.email?.slice(0, 2).toUpperCase() ?? '?'
 
 const avatarUrl = profile?.avatar_url ?? null
-  const [pendingBuddyCount, setPendingBuddyCount] = useState(0)
-  const [buddyNotifs, setBuddyNotifs] = useState<string[]>([])
   const [showNotifs, setShowNotifs] = useState(false)
-
-  useEffect(() => {
-    if (!profile?.username) return
-    const load = async () => {
-      const { data } = await supabase
-        .from('buddies')
-        .select('requester_username')
-        .eq('recipient_username', profile.username)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-      const names = (data ?? []).map((r: any) => r.requester_username)
-      setBuddyNotifs(names)
-      setPendingBuddyCount(names.length)
-    }
-    load()
-    const interval = setInterval(load, 15000)
-    return () => clearInterval(interval)
-  }, [profile?.username])
+  const { notifications, markSeen, markAllSeen } = useNotifications(profile?.username ?? '')
+  const pendingBuddyCount = notifications.length
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
@@ -116,23 +99,28 @@ const avatarUrl = profile?.avatar_url ?? null
                 {showNotifs && (
                   <>
                     <div onClick={() => setShowNotifs(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-                    <div style={{ position: 'absolute', top: '38px', right: 0, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', minWidth: '280px', zIndex: 200, boxShadow: '0 8px 32px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)' }}>NOTIFICATIONS</div>
-                      {buddyNotifs.length === 0 ? (
-                        <div style={{ padding: '20px 16px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>No new notifications 🔕</div>
-                      ) : (
-                        buddyNotifs.map(name => (
-                          <div key={name} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                            <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.4 }}>
-                              🤝 <b>{name}</b> wants to be your buddy
-                            </div>
-                            <button onClick={() => { router.push(`/profile/${name}`); setShowNotifs(false) }} style={{ background: 'rgba(230,57,70,0.15)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '6px', padding: '5px 10px', color: 'var(--accent)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>View</button>
-                          </div>
-                        ))
-                      )}
-                      <div style={{ padding: '10px 16px' }}>
-                        <button onClick={() => { router.push('/profile'); setShowNotifs(false) }} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--accent)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Manage in profile →</button>
+                    <div style={{ position: 'absolute', top: '38px', right: 0, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', minWidth: '300px', maxWidth: '340px', zIndex: 200, boxShadow: '0 8px 32px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>NOTIFICATIONS</span>
+                        {notifications.length > 0 && (
+                          <button onClick={markAllSeen} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Clear all</button>
+                        )}
                       </div>
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '24px 16px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
+                          <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔕</div>
+                          No new notifications
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                          {notifications.map(n => (
+                            <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', background: 'rgba(255,255,255,0.02)' }}>
+                              <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5, flex: 1 }}>{n.message}</div>
+                              <button onClick={() => markSeen(n.id)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 8px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

@@ -25,12 +25,22 @@ export function useBuddies(myUsername: string) {
 
   const sendRequest = async (toUsername: string) => {
     await supabase.from('buddies').insert({ requester_username: myUsername, recipient_username: toUsername })
+    await supabase.from('notifications').insert({
+      recipient_username: toUsername,
+      type: 'buddy_request',
+      message: `🤝 ${myUsername} sent you a buddy request!`,
+    })
     refresh()
   }
 
   const acceptRequest = async (fromUsername: string) => {
     await supabase.from('buddies').update({ status: 'accepted' })
       .eq('requester_username', fromUsername).eq('recipient_username', myUsername)
+    await supabase.from('notifications').insert({
+      recipient_username: fromUsername,
+      type: 'buddy_accepted',
+      message: `🤝 ${myUsername} accepted your buddy request! You're now buddies.`,
+    })
     refresh()
   }
 
