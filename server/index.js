@@ -1681,14 +1681,17 @@ io.to(currentRoomId).emit('vc_debate_ended', {
 
     // ── Custom room disconnect ────────────────────────────────────
     if (room.isCustom) {
-      // If creator leaves while waiting, expire the room immediately
+      // If creator leaves while waiting and no one else is in the room, expire it
       if (room.status === 'waiting' && room.createdBy === currentUsername) {
-        room.status = 'ended'
-        io.to(currentRoomId).emit('room_expired', { message: 'The room creator left. Room closed.' })
-        io.emit('rooms_update', getRoomList())
-        console.log(`🗑️ Custom room expired — creator ${currentUsername} left during waiting`)
-        delete room.players[socket.id]
-        return
+        const remainingPlayers = Object.keys(room.players).filter(sid => sid !== socket.id)
+        if (remainingPlayers.length === 0) {
+          room.status = 'ended'
+          io.to(currentRoomId).emit('room_expired', { message: 'The room creator left. Room closed.' })
+          io.emit('rooms_update', getRoomList())
+          console.log(`🗑️ Custom room expired — creator ${currentUsername} left during waiting`)
+          delete room.players[socket.id]
+          return
+        }
       }
       if (room.status === 'active') {
         const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
