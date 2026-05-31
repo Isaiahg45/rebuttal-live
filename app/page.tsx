@@ -203,6 +203,108 @@ export default function Home() {
           </div>
         )}
 
+        {/* How to Play Guide */}
+        <div style={{ padding: 'clamp(32px, 5vw, 48px) clamp(16px, 4vw, 48px)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '28px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--muted)', whiteSpace: 'nowrap' }}>How to Play</span>
+            <div style={{ height: '1px', flex: 1, background: 'linear-gradient(90deg, var(--border), transparent)', marginLeft: '16px' }} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', maxWidth: '1100px', margin: '0 auto' }}>
+
+            {/* Chat Debates */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>💬</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', color: 'var(--accent)' }}>CHAT DEBATES</div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.8, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>1.</span><span>Go to <b>Rebut</b> and pick any open room — Casual, Serious, Competitive, or Random.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>2.</span><span>Type your argument and hit <b>Rebut</b>. The AI judge scores it instantly (0–30 pts).</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>3.</span><span>Keep arguing until the timer runs out. <b>Highest score wins.</b></span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>4.</span><span>Winner earns ELO. Loser loses a small amount. Guests don't earn ELO — <b>sign up to rank.</b></span></div>
+              </div>
+              <Link href="/rebut" style={{ marginTop: 'auto', background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.25)', borderRadius: '8px', padding: '10px', color: 'var(--accent)', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block' }}>Join a Chat Debate →</Link>
+            </div>
+
+            {/* Voice Debates */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(0,180,216,0.1)', border: '1px solid rgba(0,180,216,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>🎙️</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', color: '#00b4d8' }}>VOICE DEBATES</div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.8, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#00b4d8', fontWeight: 700, flexShrink: 0 }}>1.</span><span>Click any <b>🎙️ VOICE</b> room in the lobby. Allow microphone access when prompted.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#00b4d8', fontWeight: 700, flexShrink: 0 }}>2.</span><span>Wait for an opponent. Once matched, a <b>10 second countdown</b> begins.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#00b4d8', fontWeight: 700, flexShrink: 0 }}>3.</span><span>Take turns speaking for <b>30 seconds each</b>. Speak clearly — AI transcribes and scores your speech.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#00b4d8', fontWeight: 700, flexShrink: 0 }}>4.</span><span>Your mic <b>auto-mutes</b> when it's your opponent's turn. No interruptions.</span></div>
+              </div>
+              <Link href="/rebut" style={{ marginTop: 'auto', background: 'rgba(0,180,216,0.1)', border: '1px solid rgba(0,180,216,0.25)', borderRadius: '8px', padding: '10px', color: '#00b4d8', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block' }}>Join a Voice Debate →</Link>
+            </div>
+
+            {/* Custom Games */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(255,214,10,0.1)', border: '1px solid rgba(255,214,10,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>⚔️</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', color: 'var(--gold)' }}>CUSTOM GAMES</div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.8, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>1.</span><span>Go to <b>Create Challenge</b> from your profile or the lobby.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>2.</span><span>Set your own <b>topic, duration, ELO stake</b>, and choose text or voice format.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>3.</span><span>Make it <b>private with a password</b> to challenge a specific person, or public for anyone to join.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>4.</span><span>Share the room link with your opponent and debate on your terms.</span></div>
+              </div>
+              <Link href="/create-challenge" style={{ marginTop: 'auto', background: 'rgba(255,214,10,0.1)', border: '1px solid rgba(255,214,10,0.25)', borderRadius: '8px', padding: '10px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block' }}>Create a Challenge →</Link>
+            </div>
+
+            {/* Buddies */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>🤝</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', color: '#a855f7' }}>BUDDIES</div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.8, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#a855f7', fontWeight: 700, flexShrink: 0 }}>1.</span><span>Click any player's username to view their <b>public profile</b>.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#a855f7', fontWeight: 700, flexShrink: 0 }}>2.</span><span>Hit <b>🤝 Add Buddy</b> to send them a buddy request.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#a855f7', fontWeight: 700, flexShrink: 0 }}>3.</span><span>Once accepted, they appear in your <b>buddy list</b> on your profile.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#a855f7', fontWeight: 700, flexShrink: 0 }}>4.</span><span>Challenge your buddies directly to <b>private custom debates</b> anytime.</span></div>
+              </div>
+              <Link href="/rankings" style={{ marginTop: 'auto', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: '8px', padding: '10px', color: '#a855f7', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block' }}>Find Debaters →</Link>
+            </div>
+
+            {/* How to Win */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>🏆</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', color: 'var(--green)' }}>HOW TO WIN</div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.8, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>→</span><span><b>Use real evidence</b> — statistics, examples, and facts score higher than opinions alone.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>→</span><span><b>Rebut directly</b> — responding to your opponent's specific points earns bonus points.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>→</span><span><b>Stay structured</b> — Claim → Reason → Example. The AI rewards organized arguments.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>→</span><span><b>Don't repeat yourself</b> — making the same point twice gets penalized. Introduce new angles.</span></div>
+              </div>
+              <Link href="/help" style={{ marginTop: 'auto', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: '8px', padding: '10px', color: 'var(--green)', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block' }}>Full Strategy Guide →</Link>
+            </div>
+
+            {/* ELO & Ranking */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(255,107,53,0.1)', border: '1px solid rgba(255,107,53,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>📈</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', color: '#ff6b35' }}>RANKING UP</div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.8, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#ff6b35', fontWeight: 700, flexShrink: 0 }}>→</span><span>Start at <b>Incompetent (0 ELO)</b> and climb through 8 tiers up to <b>💎 Rebutter</b>.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#ff6b35', fontWeight: 700, flexShrink: 0 }}>→</span><span>Win debates to gain ELO. Competitive rooms offer <b>+50 to +80 ELO</b> per win.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#ff6b35', fontWeight: 700, flexShrink: 0 }}>→</span><span>Win <b>Debate of the Day</b> to earn a massive <b>+300 ELO</b> bonus.</span></div>
+                <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#ff6b35', fontWeight: 700, flexShrink: 0 }}>→</span><span>High ELO unlocks <b>Competitive rooms</b> — the highest stakes debates on the platform.</span></div>
+              </div>
+              <Link href="/rankings" style={{ marginTop: 'auto', background: 'rgba(255,107,53,0.1)', border: '1px solid rgba(255,107,53,0.25)', borderRadius: '8px', padding: '10px', color: '#ff6b35', fontSize: '13px', fontWeight: 700, textAlign: 'center', display: 'block' }}>View Global Rankings →</Link>
+            </div>
+
+          </div>
+        </div>
+
         {/* Footer */}
         <div style={{ padding: '32px clamp(16px, 4vw, 48px)', borderTop: '1px solid var(--border)', marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '16px', letterSpacing: '2px', color: 'var(--muted)' }}>
