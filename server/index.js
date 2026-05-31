@@ -1426,15 +1426,16 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
 
   // ── Join VC room ──────────────────────────────────────────────
   socket.on('join_vc_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
-    // Clear any stale sessions for this username
-for (const [rid, r] of Object.entries(rooms)) {
-  for (const [sid, p] of Object.entries(r.players)) {
-    if (p.username === username && sid !== socket.id) {
-      delete r.players[sid]
-      io.to(rid).emit('vc_players_update', Object.values(r.players))
+    // Clear any stale sessions for this username (but not from the room they're joining)
+    for (const [rid, r] of Object.entries(rooms)) {
+      if (rid === instanceId) continue
+      for (const [sid, p] of Object.entries(r.players)) {
+        if (p.username === username && sid !== socket.id) {
+          delete r.players[sid]
+          io.to(rid).emit('vc_players_update', Object.values(r.players))
+        }
+      }
     }
-  }
-}
     const room = rooms[instanceId]
     if (!room || room.type !== 'vc') { socket.emit('error', { message: 'VC room not found.' }); return }
     if (room.status === 'ended') { socket.emit('error', { message: 'This room has ended.' }); return }
