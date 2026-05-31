@@ -7,6 +7,15 @@ const OpenAI = require('openai')
 
 const app = express()
 app.use(cors())
+
+const rateLimit = require('express-rate-limit')
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: 'Too many requests, slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+}))
 const httpServer = http.createServer(app)
 const openai = new OpenAI.OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -1357,11 +1366,16 @@ socket.emit('message_history', room.messages)
   })
 
   // ── Send text message ─────────────────────────────────────────
+  const messageTimes = []
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]
     if (!room) return
     if (instanceId !== 'topic_of_the_day' && room.status !== 'active') return
     if (isSpectator) return
+    const now = Date.now()
+    messageTimes.push(now)
+    const recent = messageTimes.filter(t => now - t < 10000)
+    if (recent.length > 5) { socket.emit('error', { message: 'You are sending messages too fast.' }); return }
 
     totalArgumentsMade++
     supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
