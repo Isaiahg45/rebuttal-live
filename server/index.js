@@ -1370,6 +1370,7 @@ socket.emit('message_history', room.messages)
 
   // ── Send text message ─────────────────────────────────────────
   const messageTimes = []
+  const FOUNDERS = ['jake', 'zay']
   socket.on('send_message', async ({ instanceId, username, text }) => {
     const room = rooms[instanceId]
     if (!room) return
@@ -1378,7 +1379,9 @@ socket.emit('message_history', room.messages)
     const now = Date.now()
     messageTimes.push(now)
     const recent = messageTimes.filter(t => now - t < 10000)
-    if (recent.length > 5) { socket.emit('error', { message: 'You are sending messages too fast.' }); return }
+    if (recent.length > 5 && !FOUNDERS.includes(username?.toLowerCase())) {
+      socket.emit('error', { message: 'You are sending messages too fast.' }); return
+    }
 
     totalArgumentsMade++
     supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
@@ -1678,6 +1681,15 @@ io.to(currentRoomId).emit('vc_debate_ended', {
 
     // ── Custom room disconnect ────────────────────────────────────
     if (room.isCustom) {
+      // If creator leaves while waiting, expire the room immediately
+      if (room.status === 'waiting' && room.createdBy === currentUsername) {
+        room.status = 'ended'
+        io.to(currentRoomId).emit('room_expired', { message: 'The room creator left. Room closed.' })
+        io.emit('rooms_update', getRoomList())
+        console.log(`🗑️ Custom room expired — creator ${currentUsername} left during waiting`)
+        delete room.players[socket.id]
+        return
+      }
       if (room.status === 'active') {
         const otherSocketId = Object.keys(room.players).find(sid => sid !== socket.id)
         if (otherSocketId && room.players[otherSocketId]) {
