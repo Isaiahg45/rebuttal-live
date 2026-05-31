@@ -1166,7 +1166,9 @@ io.on('connection', (socket) => {
   // ── Join text room ────────────────────────────────────────────
   socket.on('join_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
     // Remove player from any room they're already in (stale session cleanup)
+    // Skip the target room to avoid wiping the creator's entry before they rejoin
     for (const [rid, r] of Object.entries(rooms)) {
+      if (rid === instanceId) continue
       for (const [sid, p] of Object.entries(r.players)) {
         if (p.username === username && sid !== socket.id) {
           delete r.players[sid]
