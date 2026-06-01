@@ -6,8 +6,7 @@ export const TIERS = [
   { min: 300,  label: 'Arguer', short: 'ARGUER', emoji: '💬', color: '#ff9500', glow: 'rgba(255,149,0,0.35)', bg: 'rgba(255,149,0,0.08)' },
   { min: 200,  label: 'Competitive Talker', short: 'COMP TALKER', emoji: '🗣️', color: '#22c55e', glow: 'rgba(34,197,94,0.35)', bg: 'rgba(34,197,94,0.08)' },
   { min: 100,  label: 'Casual Talker', short: 'CASUAL TALKER', emoji: '😄', color: '#00d4ff', glow: 'rgba(0,212,255,0.35)', bg: 'rgba(0,212,255,0.08)' },
-  { min: 0,    label: 'Incompetent', short: 'INCOMPETENT', emoji: '🤔', color: '#666', glow: 'rgba(100,100,100,0.3)', bg: 'rgba(100,100,100,0.05)' },
-  { min: -Infinity, label: 'Incompetent', short: 'INCOMPETENT', emoji: '💀', color: '#444', glow: 'rgba(80,80,80,0.3)', bg: 'rgba(80,80,80,0.05)' },
+  { min: -Infinity, label: 'Incompetent', short: 'INCOMPETENT', emoji: '💀', color: '#666', glow: 'rgba(100,100,100,0.3)', bg: 'rgba(100,100,100,0.05)' },
 ]
 
 export function getTier(elo: number) {

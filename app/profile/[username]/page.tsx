@@ -147,7 +147,7 @@ export default function PublicProfilePage() {
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: tier.color }}>{(tier as any).emoji}{' '}{tier.label}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
-                {tier.min === 0 ? '0–99 ELO' : tier.min === 100 ? '100–199 ELO' : tier.min === 200 ? '200–299 ELO' : tier.min === 300 ? '300–399 ELO' : tier.min === 400 ? '400–499 ELO' : tier.min === 500 ? '500–699 ELO' : tier.min === 700 ? '700–999 ELO' : '1000+ ELO'} bracket
+                {tier.min === -Infinity ? '−∞–99 ELO' : tier.min === 100 ? '100–199 ELO' : tier.min === 200 ? '200–299 ELO' : tier.min === 300 ? '300–399 ELO' : tier.min === 400 ? '400–499 ELO' : tier.min === 500 ? '500–699 ELO' : tier.min === 700 ? '700–999 ELO' : '1000+ ELO'} bracket
               </div>
             </div>
           </div>
