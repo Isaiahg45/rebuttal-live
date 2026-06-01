@@ -227,7 +227,7 @@ export default function RankingsPage() {
                           {tier.label}
                         </div>
                         <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', marginTop: '2px' }}>
-                          {tier.min === 0 ? '0–99' : tier.min === 100 ? '100–199' : tier.min === 200 ? '200–299' : tier.min === 300 ? '300–399' : tier.min === 400 ? '400–499' : tier.min === 500 ? '500–699' : tier.min === 700 ? '700–999' : '1000+'} ELO
+                          {tier.min === -Infinity ? '−∞–99' : tier.min === 100 ? '100–199' : tier.min === 200 ? '200–299' : tier.min === 300 ? '300–399' : tier.min === 400 ? '400–499' : tier.min === 500 ? '500–699' : tier.min === 700 ? '700–999' : '1000+'} ELO
                         </div>
                       </div>
                       {isMe && (
