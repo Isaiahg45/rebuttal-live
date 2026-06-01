@@ -949,13 +949,26 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
       }
 
       if (playerCount >= 2) {
-        const targetCountdown = 30 + (playerCount - 2) * 10
-        if (room.countdown > targetCountdown) {
-          room.countdown = targetCountdown
-          io.to(room.instanceId).emit('system_message', { text: `⚡ ${playerCount} players joined — starting in ${targetCountdown}s!` })
+        // For custom rooms, deduplicate players by username before counting
+        if (room.isCustom) {
+          const seenUsernames = new Set()
+          for (const [sid, p] of Object.entries(room.players)) {
+            if (seenUsernames.has(p.username)) {
+              delete room.players[sid]
+            } else {
+              seenUsernames.add(p.username)
+            }
+          }
+        }
+        const deduped = Object.keys(room.players).length
+        if (deduped >= 2) {
+          const targetCountdown = 30 + (deduped - 2) * 10
+          if (room.countdown > targetCountdown) {
+            room.countdown = targetCountdown
+            io.to(room.instanceId).emit('system_message', { text: `⚡ ${deduped} players joined — starting in ${targetCountdown}s!` })
+          }
         }
       }
-
      if (room.countdown <= 0) {
         if (playerCount < 2) {
          if (room.isCustom) {
@@ -1021,7 +1034,6 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
             if (!player.username || player.username.startsWith('guest')) continue
             const delta = i === 0 ? stake : -stake
             const currentElo = player.elo ?? 0
-            const newElo = Math.max(0, currentElo + delta)
             const isWinner = i === 0
             supabaseRest(
               `profiles?username=eq.${encodeURIComponent(player.username)}`,
@@ -1032,7 +1044,7 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
                 `profiles?username=eq.${encodeURIComponent(player.username)}`,
                 'PATCH',
                 {
-                  elo: Math.max(0, (data[0].elo ?? 0) + delta),
+                  elo: (data[0].elo ?? 0) + delta,
                   wins: isWinner ? (data[0].wins ?? 0) + 1 : (data[0].wins ?? 0),
                   debates: (data[0].debates ?? 0) + 1,
                 }
@@ -1241,6 +1253,12 @@ io.on('connection', (socket) => {
       }
     }
 
+    // Remove any existing entry for this username in this room (stale socket)
+    for (const [sid, p] of Object.entries(room.players)) {
+      if (p.username === username && sid !== socket.id) {
+        delete room.players[sid]
+      }
+    }
     currentRoomId = instanceId
     currentUsername = username
     isSpectator = false
@@ -1486,6 +1504,13 @@ if (Object.keys(room.players).length >= 2) {
       }
     }
 
+    // Remove any existing entry for this username in this room (stale socket)
+    for (const [sid, p] of Object.entries(room.players)) {
+      if (p.username === username && sid !== socket.id) {
+        delete room.players[sid]
+        if (room.vcState?.scores?.[sid] !== undefined) delete room.vcState.scores[sid]
+      }
+    }
     currentRoomId = instanceId
     currentUsername = username
     isSpectator = false
@@ -1716,7 +1741,7 @@ io.to(currentRoomId).emit('vc_debate_ended', {
                   `profiles?username=eq.${encodeURIComponent(p.username)}`,
                   'PATCH',
                   {
-                    elo: Math.max(0, (data[0].elo ?? 0) + delta),
+                    elo: (data[0].elo ?? 0) + delta,
                     wins: delta > 0 ? (data[0].wins ?? 0) + 1 : (data[0].wins ?? 0),
                     debates: (data[0].debates ?? 0) + 1,
                   }
@@ -1781,7 +1806,7 @@ io.to(currentRoomId).emit('vc_debate_ended', {
                     `profiles?username=eq.${encodeURIComponent(p.username)}`,
                     'PATCH',
                     {
-                      elo: Math.max(0, (data[0].elo ?? 0) + delta),
+                      elo: (data[0].elo ?? 0) + delta,
                       wins: delta > 0 ? (data[0].wins ?? 0) + 1 : (data[0].wins ?? 0),
                       debates: (data[0].debates ?? 0) + 1,
                     }
@@ -1828,8 +1853,8 @@ io.to(currentRoomId).emit('debate_ended', {
       const loss = calculateEloChanges(room.type, 2, room.duration).loserBase
       supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'GET').then(data => {
         if (!data?.[0]) return
-        supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'PATCH', {
-          elo: Math.max(0, (data[0].elo ?? 0) - loss),
+       supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'PATCH', {
+          elo: (data[0].elo ?? 0) - loss,
           debates: (data[0].debates ?? 0) + 1,
         }).catch(() => {})
       }).catch(() => {})

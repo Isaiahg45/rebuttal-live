@@ -331,7 +331,7 @@ export default function DebatePage() {
         else { const f = (myPlace - 2) / (totalPlayers - 3); change = -Math.round(loserBase * (0.3 + f * 0.7)) }
       }
       setEloChange(change)
-      const newElo = Math.max(0, (currentProfile.elo ?? 0) + change)
+      const newElo = (currentProfile.elo ?? 0) + change
       const { error } = await supabase.from('profiles').update({
         elo: newElo,
         wins: myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0),

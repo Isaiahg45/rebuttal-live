@@ -11,12 +11,13 @@ import type { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from 'agora
 
 function getTierName(elo: number): string {
   if (elo >= 1000) return 'Rebutter'
-  if (elo >= 700) return 'Elite Arguer'
-  if (elo >= 500) return 'Master Debater'
+  if (elo >= 700) return 'Competitive Debater'
+  if (elo >= 500) return 'Debater'
   if (elo >= 400) return 'Competitive Arguer'
   if (elo >= 300) return 'Arguer'
   if (elo >= 200) return 'Competitive Talker'
   if (elo >= 100) return 'Casual Talker'
+  if (elo >= 0) return 'Incompetent'
   return 'Incompetent'
 }
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!
@@ -530,7 +531,7 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
       }
       setEloChange(change)
       const oldElo = currentProfile.elo ?? 0
-      const newElo = Math.max(0, oldElo + change)
+      const newElo = oldElo + change
       await supabase.from('profiles').update({
         elo: newElo,
         wins: myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0),
