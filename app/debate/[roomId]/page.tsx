@@ -821,7 +821,12 @@ export default function DebatePage() {
                     {msg.username}
                   </div>
                   <div style={{ background: isMe ? 'rgba(230,57,70,0.1)' : 'var(--surface)', border: `1px solid ${isMe ? 'rgba(230,57,70,0.25)' : 'var(--border)'}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', lineHeight: 1.6, color: 'var(--text)' }}>
-                    {msg.text}
+                    {msg.text.split('\n').map((line, i, arr) => (
+                      <span key={i}>
+                        {line}
+                        {i < arr.length - 1 && <br />}
+                      </span>
+                    ))}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                     {isPending ? (
@@ -870,15 +875,17 @@ export default function DebatePage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px' }}>
-              <input
+              <textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+                }}
                 onPaste={e => {
                   e.preventDefault()
                   setMessages(prev => [...prev, { id: `paste-${Date.now()}`, username: '— system —', text: '🚫 NO COPY AND PASTING!', score: 0, aiFeedback: '', timestamp: Date.now() }])
                 }}
-               disabled={!connected || (suddenDeath && suddenDeathPhase === 'first' && suddenDeathFirst !== myUsername) || (suddenDeath && suddenDeathPhase === 'second' && suddenDeathSecond !== myUsername) || (suddenDeath && suddenDeathPhase === 'cooldown')}
+                disabled={!connected || (suddenDeath && suddenDeathPhase === 'first' && suddenDeathFirst !== myUsername) || (suddenDeath && suddenDeathPhase === 'second' && suddenDeathSecond !== myUsername) || (suddenDeath && suddenDeathPhase === 'cooldown')}
                 placeholder={
                   !connected ? 'Reconnecting...' :
                   suddenDeath && suddenDeathPhase === 'cooldown' ? 'Wait for your turn...' :
@@ -886,9 +893,10 @@ export default function DebatePage() {
                   suddenDeath && suddenDeathPhase === 'second' && suddenDeathSecond !== myUsername ? 'Wait — opponent is arguing...' :
                   suddenDeath ? '⚡ SUDDEN DEATH — argue now!' :
                   cooldown > 0 ? 'Type your next argument — sends when cooldown ends...' :
-                  'Make your argument. Be precise, use evidence, stay civil.'
+                  'Make your argument. Shift+Enter for new lines.'
                 }
-                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
+                rows={3}
+                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif', resize: 'none', lineHeight: 1.5 }}
               />
               <button
                 onClick={sendMessage}
