@@ -2118,26 +2118,38 @@ async function getBotArgument(topic, personality, recentMessages) {
     const qualityRoll = Math.random()
     let qualityInstruction = ''
 
-    if (qualityRoll < 0.3) {
-      qualityInstruction = 'You are unsure of your position. Hedge your arguments. Use phrases like "I think maybe...", "I\'m not totally sure but...", "could be wrong but...", "idk maybe". Sound uncertain.'
-    } else if (qualityRoll < 0.6) {
-      qualityInstruction = 'Make a mediocre, surface-level point. Don\'t use any evidence. Be vague and generic.'
+    if (qualityRoll < 0.2) {
+      qualityInstruction = 'You have a strong opinion. Make a sharp, direct point. One or two sentences max. No hedging.'
+    } else if (qualityRoll < 0.5) {
+      qualityInstruction = 'Make a solid point with a quick real-world example or comparison. Keep it conversational. One or two sentences.'
+    } else if (qualityRoll < 0.75) {
+      qualityInstruction = 'Push back on the last thing said. Be direct but not aggressive. Sound like a real person in a heated conversation.'
     } else {
-      qualityInstruction = 'Make a basic, simple argument. No statistics or deep reasoning. Keep it casual and short.'
+      qualityInstruction = 'Make a short punchy point. Sound passionate about it. One or two sentences.'
     }
 
     const result = await Promise.race([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 60,
+        max_tokens: 80,
         messages: [{
           role: 'system',
-          content: `You are a regular person casually debating: "${topic}". ${qualityInstruction} Keep under 25 words. Sound like a real person texting, not a formal debater. No bullet points. Just one casual sentence or two.`
+          content: `You are a real person texting in a debate about: "${topic}". ${qualityInstruction}
+
+Rules:
+- Sound exactly like a human texting — casual, natural, imperfect
+- No formal language, no "Furthermore", no bullet points, no lists
+- Don't start with "I think" every time — vary your openers
+- Occasional lowercase, contractions, real slang is fine
+- Max 2 sentences. Never more.
+- Don't sound like an AI. Sound like a 22 year old with opinions.
+- No compliments to the other person, no "great point", no "you make a fair argument"
+- Just say your take directly`
         }, {
           role: 'user',
           content: recentMessages.length === 0
-            ? 'State your opening position on this topic in one casual sentence. Do NOT reference anyone else or say "I agree/disagree". Just state your own take.'
-            : `Recent:\n${context}\n\nYour response:`
+            ? 'Give your opening take on this topic. 1-2 sentences, sound like a real person.'
+            : `Recent messages:\n${context}\n\nYour response (1-2 sentences, sound human):`
         }]
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
@@ -2145,14 +2157,16 @@ async function getBotArgument(topic, personality, recentMessages) {
     return result.choices[0].message.content.trim()
   } catch (e) {
     const fallbacks = [
-      'idk i feel like thats not really true though',
-      'I\'m not sure about that honestly',
-      'yeah but like, it depends right?',
-      'I think you might be wrong about that',
-      'not sure but I feel like the opposite is true',
-      'that\'s a fair point I guess but still',
-      'hmm I never thought about it that way',
-      'I disagree but I can see where you\'re coming from',
+      'nah that\'s not how it works at all',
+      'honestly people overlook how much this actually matters',
+      'the whole argument falls apart when you think about it practically',
+      'that\'s the thing though — it\'s way more complicated than people act',
+      'I get what you\'re saying but the reality is different',
+      'people always say that but where\'s the actual evidence',
+      'this is literally the problem with how people think about this',
+      'yeah no, that logic doesn\'t hold up',
+      'the data actually says the opposite of what most people assume',
+      'you\'re not wrong but you\'re missing the bigger picture',
     ]
     return fallbacks[Math.floor(Math.random() * fallbacks.length)]
   }
@@ -2262,8 +2276,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 100000
-      const maxWait = 170000
+      const minWait = 16000
+      const maxWait = 55000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
@@ -2274,7 +2288,7 @@ async function runBot(botName, personality) {
 
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
       const { score: rawScore, feedback } = await scoreArgument(botText, currentRoom.topic, currentRoom.type)
-      const score = Math.min(rawScore, 12)
+      const score = Math.min(rawScore, 14)
 
       const msg = {
         id: `${Date.now()}-bot-${Math.random()}`,
