@@ -1066,22 +1066,37 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
             const firstScore = sd[room.suddenDeathFirst] || 0
             const secondScore = sd[room.suddenDeathSecond] || 0
             if (firstScore === secondScore) {
-              room.suddenDeathRound++
-              room.suddenDeathScores = {}
-              Object.values(room.players).forEach(p => { room.suddenDeathScores[p.username] = 0 })
-              const players = Object.values(room.players)
-              const firstPlayer = players[Math.floor(Math.random() * players.length)]
-              const secondPlayer = players.find(p => p.username !== firstPlayer.username)
-              room.suddenDeathPhase = 'first'
-              room.suddenDeathFirst = firstPlayer.username
-              room.suddenDeathSecond = secondPlayer.username
-              room.suddenDeathEndsAt = Date.now() + 10000
-              io.to(room.instanceId).emit('sudden_death_start', {
-                round: room.suddenDeathRound,
-                firstPlayer: firstPlayer.username,
-                secondPlayer: secondPlayer.username,
-                turnDuration: 10,
-              })
+              if (room.suddenDeathRound >= 2) {
+                // 2 ties in a row — call it a draw
+                room.inSuddenDeath = false
+                room.status = 'ended'
+                totalDebatesCompleted++
+                const allSorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+                io.to(room.instanceId).emit('debate_ended', {
+                  standings: allSorted,
+                  eloChanges: { winnerElo: 0, secondElo: 0, thirdElo: 0, loserBase: 0 },
+                  type: room.type,
+                  draw: true,
+                })
+                if (!room.isCustom) scheduleRoom(room.type)
+              } else {
+                room.suddenDeathRound++
+                room.suddenDeathScores = {}
+                Object.values(room.players).forEach(p => { room.suddenDeathScores[p.username] = 0 })
+                const players = Object.values(room.players)
+                const firstPlayer = players[Math.floor(Math.random() * players.length)]
+                const secondPlayer = players.find(p => p.username !== firstPlayer.username)
+                room.suddenDeathPhase = 'first'
+                room.suddenDeathFirst = firstPlayer.username
+                room.suddenDeathSecond = secondPlayer.username
+                room.suddenDeathEndsAt = Date.now() + 10000
+                io.to(room.instanceId).emit('sudden_death_start', {
+                  round: room.suddenDeathRound,
+                  firstPlayer: firstPlayer.username,
+                  secondPlayer: secondPlayer.username,
+                  turnDuration: 10,
+                })
+              }
             } else {
               const winner = firstScore > secondScore ? room.suddenDeathFirst : room.suddenDeathSecond
               room.inSuddenDeath = false
@@ -1105,7 +1120,7 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         // Check for tie — trigger sudden death
         const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
         const isTwoPlayer = sorted.length === 2
-        const isTie = isTwoPlayer && sorted[0].score === sorted[1].score && sorted[0].score > 0
+        const isTie = isTwoPlayer && sorted[0].score === sorted[1].score
         if (isTie) {
           room.inSuddenDeath = true
           room.suddenDeathRound = 1
@@ -1796,24 +1811,36 @@ if (Object.keys(room.players).length >= 2) {
           const firstScore = sd[room.players[room.suddenDeathFirst]?.username] || 0
           const secondScore = sd[room.players[room.suddenDeathSecond]?.username] || 0
           if (firstScore === secondScore) {
-            // Tie again
-            room.suddenDeathRound++
-            room.suddenDeathScores = {}
-            Object.values(room.players).forEach(p => { room.suddenDeathScores[p.username] = 0 })
-            const playerIds = Object.keys(room.players)
-            const newFirstId = playerIds[Math.floor(Math.random() * playerIds.length)]
-            const newSecondId = playerIds.find(id => id !== newFirstId)
-            room.suddenDeathFirst = newFirstId
-            room.suddenDeathSecond = newSecondId
-            room.vcState.currentSpeaker = newFirstId
-            room.vcState.turnNumber++
-            io.to(instanceId).emit('vc_sudden_death_start', {
-              round: room.suddenDeathRound,
-              firstSpeakerSocketId: newFirstId,
-              firstSpeakerUsername: room.players[newFirstId]?.username,
-              secondSpeakerUsername: room.players[newSecondId]?.username,
-              turnDuration: 15,
-            })
+            if (room.suddenDeathRound >= 2) {
+              // 2 ties in a row — draw
+              room.inSuddenDeath = false
+              room.status = 'ended'
+              const allSorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+              io.to(instanceId).emit('vc_debate_ended', {
+                standings: allSorted,
+                transcripts: room.vcState.transcripts,
+                eloChanges: { winnerElo: 0, secondElo: 0, thirdElo: 0, loserBase: 0 },
+                draw: true,
+              })
+            } else {
+              room.suddenDeathRound++
+              room.suddenDeathScores = {}
+              Object.values(room.players).forEach(p => { room.suddenDeathScores[p.username] = 0 })
+              const playerIds = Object.keys(room.players)
+              const newFirstId = playerIds[Math.floor(Math.random() * playerIds.length)]
+              const newSecondId = playerIds.find(id => id !== newFirstId)
+              room.suddenDeathFirst = newFirstId
+              room.suddenDeathSecond = newSecondId
+              room.vcState.currentSpeaker = newFirstId
+              room.vcState.turnNumber++
+              io.to(instanceId).emit('vc_sudden_death_start', {
+                round: room.suddenDeathRound,
+                firstSpeakerSocketId: newFirstId,
+                firstSpeakerUsername: room.players[newFirstId]?.username,
+                secondSpeakerUsername: room.players[newSecondId]?.username,
+                turnDuration: 15,
+              })
+            }
           } else {
             const winnerUsername = firstScore > secondScore
               ? room.players[room.suddenDeathFirst]?.username

@@ -96,6 +96,7 @@ export default function DebatePage() {
   const [gameStarted, setGameStarted] = useState(false)
   const [showLeaveWarning, setShowLeaveWarning] = useState(false)
  const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
+  const [isDraw, setIsDraw] = useState(false)
   const [lobbyMessages, setLobbyMessages] = useState<{ username: string; text: string; id: number }[]>([])
   const [lobbyInput, setLobbyInput] = useState('')
   const [suddenDeath, setSuddenDeath] = useState(false)
@@ -304,7 +305,7 @@ export default function DebatePage() {
     })
 
     socket.on('debate_ended', async ({
-      standings: s, eloChanges, forfeit, forfeitUsername, customStake, serverHandledElo,
+      standings: s, eloChanges, forfeit, forfeitUsername, customStake, serverHandledElo, draw,
     }: {
       standings: Player[]
       eloChanges: EloChanges
@@ -313,12 +314,14 @@ export default function DebatePage() {
       forfeitUsername?: string
       customStake?: number
       serverHandledElo?: boolean
+      draw?: boolean
     }) => {
       stopLobbyMusic()
       try { tickingAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
+      if (draw) setIsDraw(true)
       if (isSpectatorRef.current) return
       const currentProfile = profileRef.current
       const currentUser = userRef.current
@@ -516,9 +519,14 @@ export default function DebatePage() {
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '40px', letterSpacing: '3px', marginBottom: '4px' }}>DEBATE OVER</div>
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{roomInfo?.topic}</div>
               {isSpectator && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>You watched as a spectator</div>}
-              {forfeitInfo && (
+             {forfeitInfo && (
                 <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '8px 14px' }}>
                   🏳️ {forfeitInfo.username} forfeited the debate
+                </div>
+              )}
+              {isDraw && (
+                <div style={{ marginTop: '10px', fontSize: '13px', color: '#ffd60a', background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.25)', borderRadius: '8px', padding: '8px 14px' }}>
+                  🤝 Both players tied twice — it's a draw! No ELO gained or lost.
                 </div>
               )}
             </div>

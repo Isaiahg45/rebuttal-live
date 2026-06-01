@@ -163,8 +163,9 @@ const passwordParam = searchParams.get('password')
   const [remoteAudioActive, setRemoteAudioActive] = useState(false)
 const [micGranted, setMicGranted] = useState(false)
   const [audioTooLow, setAudioTooLow] = useState(false)
-  const [suddenDeath, setSuddenDeath] = useState(false)
+ const [suddenDeath, setSuddenDeath] = useState(false)
   const [suddenDeathRound, setSuddenDeathRound] = useState(0)
+  const [isDraw, setIsDraw] = useState(false)
   const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Agora refs
@@ -551,11 +552,11 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
         score: 0, aiFeedback: '', timestamp: Date.now(), turnNumber: 0
       }])
     })
-
-    socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo }: any) => {
+socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo, draw }: any) => {    
       try { lobbyAudioRef.current?.pause() } catch (e) {}
-      setStatus('ended')
+     setStatus('ended')
       setStandings(s)
+      if (draw) setIsDraw(true)
       // Clean up Agora
       try {
         await localAudioTrackRef.current?.close()
@@ -718,8 +719,13 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
               <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎙️</div>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '40px', letterSpacing: '3px', marginBottom: '4px' }}>DEBATE OVER</div>
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{roomInfo?.topic}</div>
+              {isDraw && (
+                <div style={{ marginTop: '10px', fontSize: '13px', color: '#ffd60a', background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.25)', borderRadius: '8px', padding: '8px 14px' }}>
+                  🤝 Both players tied twice — it's a draw! No ELO gained or lost.
+                </div>
+              )}
             </div>
-            {eloChange !== null && (
+            {eloChange !== null && !isDraw && (
               <div style={{ background: eloChange >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${eloChange >= 0 ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '13px', color: 'var(--text2)' }}>Placement: <b style={{ color: 'var(--text)' }}>#{myPlace + 1} of 2</b></div>
                 <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', color: eloChange >= 0 ? 'var(--green)' : 'var(--red)' }}>
