@@ -95,7 +95,9 @@ export default function DebatePage() {
   const [playerAvatars, setPlayerAvatars] = useState<Record<string, string>>({})
   const [gameStarted, setGameStarted] = useState(false)
   const [showLeaveWarning, setShowLeaveWarning] = useState(false)
-  const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
+ const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
+  const [lobbyMessages, setLobbyMessages] = useState<{ username: string; text: string; id: number }[]>([])
+  const [lobbyInput, setLobbyInput] = useState('')
 
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -375,6 +377,12 @@ export default function DebatePage() {
       router.push('/rebut')
     })
 
+    socket.on('lobby_chat', ({ username, text }: { username: string; text: string }) => {
+      const id = Date.now() + Math.random()
+      setLobbyMessages(prev => [...prev, { username, text, id }])
+      setTimeout(() => setLobbyMessages(prev => prev.filter(m => m.id !== id)), 8000)
+    })
+
     socket.on('system_message', ({ text }: { text: string }) => {
       setMessages(prev => [...prev, {
         id: `sys-${Date.now()}-${Math.random()}`,
@@ -554,12 +562,77 @@ export default function DebatePage() {
             </div>
           </div>
 
+          {/* Lobby chat */}
+          {players.length >= 1 && (
+            <div style={{ width: '100%', marginTop: '8px', marginBottom: '8px' }}>
+              {/* Speech bubbles */}
+              <div style={{ minHeight: '60px', marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {lobbyMessages.map(msg => {
+                  const isMe = msg.username === myUsername
+                  return (
+                    <div key={msg.id} style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', justifyContent: isMe ? 'flex-end' : 'flex-start', animation: 'lobbyFadeIn 0.3s ease' }}>
+                      {!isMe && (
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                          {msg.username.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ maxWidth: '70%' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '3px', textAlign: isMe ? 'right' : 'left' }}>{msg.username}</div>
+                        <div style={{ background: isMe ? 'rgba(230,57,70,0.15)' : 'var(--surface)', border: `1px solid ${isMe ? 'rgba(230,57,70,0.3)' : 'var(--border)'}`, borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px', fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>
+                          {msg.text}
+                        </div>
+                      </div>
+                      {isMe && (
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', border: '1px solid rgba(230,57,70,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                          {myUsername.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Input */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '8px 12px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg,var(--accent),#ff8c69)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                  {myUsername.slice(0, 2).toUpperCase()}
+                </div>
+                <input
+                  value={lobbyInput}
+                  onChange={e => setLobbyInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && lobbyInput.trim() && socketRef.current) {
+                      socketRef.current.emit('lobby_chat', { instanceId, username: myUsername, text: lobbyInput.trim() })
+                      setLobbyInput('')
+                    }
+                  }}
+                  placeholder="Say a few words to your opponent..."
+                  maxLength={200}
+                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '13px', fontFamily: 'DM Sans, sans-serif' }}
+                />
+                <button
+                  onClick={() => {
+                    if (lobbyInput.trim() && socketRef.current) {
+                      socketRef.current.emit('lobby_chat', { instanceId, username: myUsername, text: lobbyInput.trim() })
+                      setLobbyInput('')
+                    }
+                  }}
+                  style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '6px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flexShrink: 0 }}
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+
           <button onClick={handleLeaveClick} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 20px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
             Leave Room
           </button>
         </div>
       </div>
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes lobbyFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
     </>
   )
 

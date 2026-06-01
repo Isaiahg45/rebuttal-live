@@ -1389,6 +1389,12 @@ socket.emit('message_history', room.messages)
     console.log(`💬 ${username} joined Debate of the Day — "${room.topic}"`)
   })
 
+ // ── Lobby chat ────────────────────────────────────────────────
+  socket.on('lobby_chat', ({ instanceId, username, text }) => {
+    if (!text?.trim() || !username) return
+    io.to(instanceId).emit('lobby_chat', { username, text: text.trim().slice(0, 200) })
+  })
+
   // ── Send text message ─────────────────────────────────────────
   const messageTimes = []
   const FOUNDERS = ['jake', 'zay']
@@ -1959,8 +1965,8 @@ function findRoomForBot() {
 async function runBot(botName, personality) {
   const state = { roomId: null, active: true }
 
-  async function goOnline() {
-  const onlineDuration = (10 + Math.random() * 10) * 60 * 1000
+ async function goOnline() {
+  const onlineDuration = (40 + Math.random() * 20) * 60 * 1000
   console.log(`🤖 Bot ${botName} online for ${Math.round(onlineDuration / 60000)} mins`)
   state.active = true
   activeBotCount++
@@ -1991,7 +1997,7 @@ async function runBot(botName, personality) {
     state.roomId = null
     activeBotCount--
     state.active = false
-    const offlineDuration = (2 + Math.random() * 9) * 60 * 1000
+    const offlineDuration = (1 + Math.random() * 3) * 60 * 1000
     console.log(`🤖 Bot ${botName} offline for ${Math.round(offlineDuration / 60000)} mins`)
     setTimeout(() => goOnline(), offlineDuration)
   }
