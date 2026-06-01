@@ -346,6 +346,11 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
   useEffect(() => {
     if (!myUsername) return
 
+    const rawPrefs = localStorage.getItem('rebuttal_sound_prefs')
+    const soundPrefs = rawPrefs ? JSON.parse(rawPrefs) : {}
+    const sfxOn = soundPrefs.soundEnabled ?? true
+    const musicOn = soundPrefs.musicEnabled ?? true
+
     countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
     countdownAudioRef.current.preload = 'auto'
     suddenDeathAudioRef.current = new Audio('/sounds/suddendeath.mp3')
@@ -385,7 +390,7 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       setRoomInfo(info); setStatus(info.status); setPlayers(info.players || [])
       setLobbyCountdown(info.countdown || 1200)
       if (info.status === 'waiting' || info.status === 'starting') {
-        try { lobbyAudioRef.current?.play() } catch (e) {}
+        try { if (musicOn) lobbyAudioRef.current?.play() } catch (e) {}
       }
     })
 
@@ -407,7 +412,7 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       if (count === 4) { try { lobbyAudioRef.current?.pause() } catch (e) {} }
       if (count === 3) {
         try {
-          if (countdownAudioRef.current) {
+          if (sfxOn && countdownAudioRef.current) {
             countdownAudioRef.current.currentTime = 0
             countdownAudioRef.current.play()
           }
@@ -512,12 +517,12 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
       setTurnTimeLeft(turnDuration)
       // Play sudden death audio then GO
       try {
-        if (suddenDeathAudioRef.current) {
+        if (sfxOn && suddenDeathAudioRef.current) {
           suddenDeathAudioRef.current.currentTime = 0
           suddenDeathAudioRef.current.play().then(() => {
             suddenDeathAudioRef.current!.onended = () => {
               try {
-                if (countdownAudioRef.current) {
+                if (sfxOn && countdownAudioRef.current) {
                   countdownAudioRef.current.currentTime = 0
                   countdownAudioRef.current.play()
                 }
@@ -533,6 +538,17 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
               startTurnTimer(turnDuration, isMine, socket)
             }
           }).catch(() => {})
+        } else {
+          // SFX off — skip audio, start turn immediately
+          if (isMine) {
+            const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+            if (SR) startListening()
+            if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+            localAudioTrackRef.current?.setMuted(false)
+          } else {
+            localAudioTrackRef.current?.setMuted(true)
+          }
+          startTurnTimer(turnDuration, isMine, socket)
         }
       } catch (e) {}
     })

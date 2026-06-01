@@ -22,8 +22,24 @@ export default function ProfilePage() {
  const [uploading, setUploading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const { buddies, pendingReceived, pendingSent, acceptRequest, declineRequest, removeBuddy } = useBuddies(profile?.username ?? '')
+const { buddies, pendingReceived, pendingSent, acceptRequest, declineRequest, removeBuddy } = useBuddies(profile?.username ?? '')
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [musicEnabled, setMusicEnabled] = useState(true)
 
+  useEffect(() => {
+    const prefs = localStorage.getItem('rebuttal_sound_prefs')
+    if (prefs) {
+      const p = JSON.parse(prefs)
+      setSoundEnabled(p.soundEnabled ?? true)
+      setMusicEnabled(p.musicEnabled ?? true)
+    }
+  }, [])
+
+  const savePref = (key: string, value: boolean) => {
+    const prefs = JSON.parse(localStorage.getItem('rebuttal_sound_prefs') || '{}')
+    prefs[key] = value
+    localStorage.setItem('rebuttal_sound_prefs', JSON.stringify(prefs))
+  }
   useEffect(() => {
     if (loading) return
     if (!user) { router.push('/signup'); return }
@@ -292,6 +308,30 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             <div style={{ padding: '28px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '13px' }}>
               No debates yet.{' '}
               <span onClick={() => router.push('/rebut')} style={{ color: '#e63946', cursor: 'pointer', fontWeight: 500 }}>Start one →</span>
+            </div>
+          </div>
+
+          {/* Sound Settings */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)' }}>SOUND SETTINGS</div>
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {[
+                { label: '🔊 Sound Effects', sublabel: 'Countdown, sudden death audio', key: 'soundEnabled', value: soundEnabled, set: setSoundEnabled },
+                { label: '🎵 Lobby Music', sublabel: 'Background music while waiting', key: 'musicEnabled', value: musicEnabled, set: setMusicEnabled },
+              ].map(({ label, sublabel, key, value, set }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '14px', color: 'var(--text)', fontWeight: 500 }}>{label}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{sublabel}</div>
+                  </div>
+                  <div
+                    onClick={() => { const next = !value; set(next); savePref(key, next) }}
+                    style={{ width: '44px', height: '24px', borderRadius: '12px', background: value ? 'var(--accent)' : 'rgba(255,255,255,0.1)', border: `1px solid ${value ? 'rgba(230,57,70,0.5)' : 'rgba(255,255,255,0.12)'}`, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, boxShadow: value ? '0 0 10px rgba(230,57,70,0.3)' : 'none' }}
+                  >
+                    <div style={{ position: 'absolute', top: '3px', left: value ? '22px' : '3px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

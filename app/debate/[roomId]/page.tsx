@@ -194,6 +194,12 @@ export default function DebatePage() {
   useEffect(() => {
     if (!myUsername) return
 
+    // Load sound prefs
+    const rawPrefs = localStorage.getItem('rebuttal_sound_prefs')
+    const soundPrefs = rawPrefs ? JSON.parse(rawPrefs) : {}
+    const sfxOn = soundPrefs.soundEnabled ?? true
+    const musicOn = soundPrefs.musicEnabled ?? true
+
     // Preload all audio
     countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
     countdownAudioRef.current.preload = 'auto'
@@ -265,7 +271,7 @@ export default function DebatePage() {
       }
       // Start lobby jazz when joining a waiting room
       if ((info.status === 'waiting' || info.status === 'starting') && !info.isSpectator) {
-        try { lobbyAudioRef.current?.play() } catch (e) {}
+        try { if (musicOn) lobbyAudioRef.current?.play() } catch (e) {}
       }
     })
 
@@ -282,7 +288,7 @@ export default function DebatePage() {
       }
       if (count === 3) {
         try {
-          if (countdownAudioRef.current) {
+          if (sfxOn && countdownAudioRef.current) {
             countdownAudioRef.current.currentTime = 0
             countdownAudioRef.current.play()
           }
@@ -369,9 +375,9 @@ export default function DebatePage() {
       if (myRoom) {
         const prevCountdown = myRoom.countdown
         setLobbyCountdown(prev => {
-          if (prev === 30 && myRoom.countdown <= 30) {
+         if (prev === 30 && myRoom.countdown <= 30) {
             try {
-              if (tickingAudioRef.current) {
+              if (sfxOn && tickingAudioRef.current) {
                 tickingAudioRef.current.currentTime = 0
                 tickingAudioRef.current.play()
               }
@@ -400,12 +406,12 @@ export default function DebatePage() {
       setSuddenDeathTimeLeft(turnDuration)
       setSuddenDeathCooldown(0)
       try {
-        if (suddenDeathAudioRef.current) {
+        if (sfxOn && suddenDeathAudioRef.current) {
           suddenDeathAudioRef.current.currentTime = 0
           suddenDeathAudioRef.current.play().then(() => {
             suddenDeathAudioRef.current!.onended = () => {
               try {
-                if (countdownAudioRef.current) {
+                if (sfxOn && countdownAudioRef.current) {
                   countdownAudioRef.current.currentTime = 0
                   countdownAudioRef.current.play()
                 }
