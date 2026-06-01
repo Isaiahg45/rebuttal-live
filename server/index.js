@@ -2276,8 +2276,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 16000
-      const maxWait = 55000
+      const minWait = 55000
+      const maxWait = 150000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
@@ -2288,7 +2288,7 @@ async function runBot(botName, personality) {
 
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
       const { score: rawScore, feedback } = await scoreArgument(botText, currentRoom.topic, currentRoom.type)
-      const score = Math.min(rawScore, 14)
+      const score = Math.min(rawScore, 12)
 
       const msg = {
         id: `${Date.now()}-bot-${Math.random()}`,
