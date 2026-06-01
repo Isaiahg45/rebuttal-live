@@ -163,6 +163,9 @@ const passwordParam = searchParams.get('password')
   const [remoteAudioActive, setRemoteAudioActive] = useState(false)
 const [micGranted, setMicGranted] = useState(false)
   const [audioTooLow, setAudioTooLow] = useState(false)
+  const [suddenDeath, setSuddenDeath] = useState(false)
+  const [suddenDeathRound, setSuddenDeathRound] = useState(0)
+  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
@@ -344,6 +347,8 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
 
     countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
     countdownAudioRef.current.preload = 'auto'
+    suddenDeathAudioRef.current = new Audio('/sounds/suddendeath.mp3')
+    suddenDeathAudioRef.current.preload = 'auto'
     lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
     lobbyAudioRef.current.preload = 'auto'
     lobbyAudioRef.current.loop = true
@@ -491,6 +496,55 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
       setPaidToGoFirst(paidUsername); setCanOverride(socketId !== socket.id)
     })
 
+    socket.on('vc_sudden_death_start', ({ round, firstSpeakerSocketId, firstSpeakerUsername, secondSpeakerUsername, turnDuration }: any) => {
+      setSuddenDeath(true)
+      setSuddenDeathRound(round)
+      setInCooldown(false)
+      setTurnEnded(false)
+      turnEndedRef.current = false
+      setLiveTranscript('')
+      setOpponentLiveTranscript('')
+      setCurrentSpeakerUsername(firstSpeakerUsername)
+      const isMine = firstSpeakerSocketId === socket.id
+      setIsMyTurn(isMine)
+      isMyTurnRef.current = isMine
+      setTurnTimeLeft(turnDuration)
+      // Play sudden death audio then GO
+      try {
+        if (suddenDeathAudioRef.current) {
+          suddenDeathAudioRef.current.currentTime = 0
+          suddenDeathAudioRef.current.play().then(() => {
+            suddenDeathAudioRef.current!.onended = () => {
+              try {
+                if (countdownAudioRef.current) {
+                  countdownAudioRef.current.currentTime = 0
+                  countdownAudioRef.current.play()
+                }
+              } catch (e) {}
+              if (isMine) {
+                const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+                if (SR) startListening()
+                if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
+                localAudioTrackRef.current?.setMuted(false)
+              } else {
+                localAudioTrackRef.current?.setMuted(true)
+              }
+              startTurnTimer(turnDuration, isMine, socket)
+            }
+          }).catch(() => {})
+        }
+      } catch (e) {}
+    })
+
+    socket.on('vc_sudden_death_switch', ({ nextSocketId, cooldown: cd }: any) => {
+      setInCooldown(true)
+      setCooldownLeft(cd)
+      clearInterval(cooldownTimerRef.current)
+      cooldownTimerRef.current = setInterval(() => {
+        setCooldownLeft(prev => { if (prev <= 1) { clearInterval(cooldownTimerRef.current); return 0 } return prev - 1 })
+      }, 1000)
+    })
+
     socket.on('vc_system_message', ({ text }: { text: string }) => {
       setTranscripts(prev => [...prev, {
         id: `sys-${Date.now()}`, username: '— system —', text,
@@ -570,6 +624,7 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
       try { countdownAudioRef.current?.pause() } catch (e) {}
       if (lobbyAudioRef.current) lobbyAudioRef.current.src = ''
       if (countdownAudioRef.current) countdownAudioRef.current.src = ''
+      if (suddenDeathAudioRef.current) { suddenDeathAudioRef.current.pause(); suddenDeathAudioRef.current.src = '' }
       socket.disconnect()
       clearInterval(timerRef.current)
       clearInterval(turnTimerRef.current)
@@ -853,8 +908,19 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
           </div>
         </div>
 
+        {/* Sudden Death Banner */}
+        {suddenDeath && (
+          <div style={{ background: 'linear-gradient(135deg, rgba(255,0,0,0.15), rgba(180,0,0,0.1))', borderBottom: '2px solid rgba(255,50,0,0.7)', padding: '10px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', animation: 'sdFlicker 0.8s ease-in-out infinite' }}>
+            <span style={{ fontSize: '20px' }}>⚡</span>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '16px', letterSpacing: '3px', color: '#ff3300', textAlign: 'center' }}>
+              SUDDEN DEATH{suddenDeathRound > 1 ? ` — ROUND ${suddenDeathRound}` : ''} · 15 SECONDS EACH
+            </div>
+            <span style={{ fontSize: '20px' }}>⚡</span>
+          </div>
+        )}
+
         {/* Audio visualizers */}
-        <div style={{ background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid var(--border)', padding: '10px 20px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+        <div style={{ background: suddenDeath ? 'rgba(180,0,0,0.08)' : 'rgba(0,0,0,0.3)', borderBottom: '1px solid var(--border)', padding: '10px 20px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ fontSize: '10px', color: isMyTurn ? 'var(--accent)' : 'var(--muted)', fontWeight: 600, letterSpacing: '1px' }}>
               {isMyTurn ? '🎙️ YOU — SPEAKING' : '🔇 YOU — LISTENING'}
@@ -987,7 +1053,8 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
       </div>
 <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-        @keyframes sinisterPulse { 0%,100%{ text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000; } 50%{ text-shadow: 0 0 40px #ff0000, 0 0 80px #cc0000, 0 0 120px #990000; } }
+       @keyframes sinisterPulse { 0%,100%{ text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000; } 50%{ text-shadow: 0 0 40px #ff0000, 0 0 80px #cc0000, 0 0 120px #990000; } }
+        @keyframes sdFlicker { 0%,100%{ box-shadow: 0 2px 12px rgba(255,50,0,0.3); border-color: rgba(255,50,0,0.7); } 50%{ box-shadow: 0 2px 24px rgba(255,80,0,0.5); border-color: rgba(255,100,0,1); } }
         @keyframes orangePulse { 0%,100%{ opacity:1; text-shadow: 0 0 12px rgba(255,140,0,0.4); } 50%{ opacity:0.75; text-shadow: 0 0 24px rgba(255,140,0,0.8); } }
       `}</style>   </>
   )

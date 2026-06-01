@@ -98,6 +98,14 @@ export default function DebatePage() {
  const [forfeitInfo, setForfeitInfo] = useState<{ username: string } | null>(null)
   const [lobbyMessages, setLobbyMessages] = useState<{ username: string; text: string; id: number }[]>([])
   const [lobbyInput, setLobbyInput] = useState('')
+  const [suddenDeath, setSuddenDeath] = useState(false)
+  const [suddenDeathRound, setSuddenDeathRound] = useState(0)
+  const [suddenDeathFirst, setSuddenDeathFirst] = useState<string | null>(null)
+  const [suddenDeathSecond, setSuddenDeathSecond] = useState<string | null>(null)
+  const [suddenDeathPhase, setSuddenDeathPhase] = useState<'first' | 'cooldown' | 'second' | null>(null)
+  const [suddenDeathTimeLeft, setSuddenDeathTimeLeft] = useState(0)
+  const [suddenDeathCooldown, setSuddenDeathCooldown] = useState(0)
+  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -188,6 +196,9 @@ export default function DebatePage() {
     // Preload all audio
     countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
     countdownAudioRef.current.preload = 'auto'
+
+    suddenDeathAudioRef.current = new Audio('/sounds/suddendeath.mp3')
+    suddenDeathAudioRef.current.preload = 'auto'
 
     tickingAudioRef.current = new Audio('/sounds/ticking.mp3')
     tickingAudioRef.current.preload = 'auto'
@@ -377,6 +388,46 @@ export default function DebatePage() {
       router.push('/rebut')
     })
 
+    socket.on('sudden_death_start', ({ round, firstPlayer, secondPlayer, turnDuration }: any) => {
+      setSuddenDeath(true)
+      setSuddenDeathRound(round)
+      setSuddenDeathFirst(firstPlayer)
+      setSuddenDeathSecond(secondPlayer)
+      setSuddenDeathPhase('first')
+      setSuddenDeathTimeLeft(turnDuration)
+      setSuddenDeathCooldown(0)
+      try {
+        if (suddenDeathAudioRef.current) {
+          suddenDeathAudioRef.current.currentTime = 0
+          suddenDeathAudioRef.current.play().then(() => {
+            suddenDeathAudioRef.current!.onended = () => {
+              try {
+                if (countdownAudioRef.current) {
+                  countdownAudioRef.current.currentTime = 0
+                  countdownAudioRef.current.play()
+                }
+              } catch (e) {}
+            }
+          }).catch(() => {})
+        }
+      } catch (e) {}
+    })
+
+    socket.on('sudden_death_tick', ({ timeLeft, phase }: any) => {
+      setSuddenDeathTimeLeft(timeLeft)
+      setSuddenDeathPhase(phase)
+    })
+
+    socket.on('sudden_death_switch', ({ nextPlayer, cooldown: cd }: any) => {
+      setSuddenDeathPhase('cooldown')
+      setSuddenDeathCooldown(cd)
+    })
+
+    socket.on('sudden_death_second_start', ({ player }: any) => {
+      setSuddenDeathPhase('second')
+      setSuddenDeathTimeLeft(10)
+    })
+
     socket.on('lobby_chat', ({ username, text }: { username: string; text: string }) => {
       const id = Date.now() + Math.random()
       setLobbyMessages(prev => [...prev, { username, text, id }])
@@ -397,6 +448,7 @@ export default function DebatePage() {
       try { tickingAudioRef.current?.pause() } catch (e) {}
       try { countdownAudioRef.current?.pause() } catch (e) {}
       if (lobbyAudioRef.current) { lobbyAudioRef.current.pause(); lobbyAudioRef.current.src = '' }
+      if (suddenDeathAudioRef.current) { suddenDeathAudioRef.current.pause(); suddenDeathAudioRef.current.src = '' }
       if (tickingAudioRef.current) { tickingAudioRef.current.src = '' }
       if (countdownAudioRef.current) { countdownAudioRef.current.src = '' }
       socket.disconnect()
@@ -692,6 +744,32 @@ export default function DebatePage() {
           </div>
         </div>
 
+       {/* Sudden Death Banner */}
+        {suddenDeath && (
+          <div style={{ background: 'linear-gradient(135deg, rgba(255,0,0,0.15), rgba(180,0,0,0.1))', borderBottom: '2px solid rgba(255,50,0,0.7)', padding: '10px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', animation: 'sdFlicker 0.8s ease-in-out infinite' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '20px' }}>⚡</span>
+              <div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '15px', letterSpacing: '3px', color: '#ff3300' }}>
+                  SUDDEN DEATH{suddenDeathRound > 1 ? ` — ROUND ${suddenDeathRound}` : ''}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,120,80,0.9)' }}>
+                  {suddenDeathPhase === 'first'
+                    ? `${suddenDeathFirst} is arguing — ${suddenDeathTimeLeft}s left`
+                    : suddenDeathPhase === 'cooldown'
+                    ? `${suddenDeathSecond} gets ready in ${suddenDeathCooldown}s...`
+                    : suddenDeathPhase === 'second'
+                    ? `${suddenDeathSecond} is arguing — ${suddenDeathTimeLeft}s left`
+                    : 'Calculating winner...'}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', color: '#ff3300', letterSpacing: '2px', textShadow: '0 0 16px rgba(255,50,0,0.7)' }}>
+              {suddenDeathPhase === 'cooldown' ? suddenDeathCooldown : suddenDeathTimeLeft}
+            </div>
+          </div>
+        )}
+
         {/* Score bar */}
         <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
           {sortedPlayers.map((p, i) => (
@@ -707,8 +785,8 @@ export default function DebatePage() {
           ))}
         </div>
 
-        {/* Chat */}
-        <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {/* Chat */}
+        <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px', background: suddenDeath ? 'linear-gradient(180deg, rgba(180,0,0,0.07) 0%, transparent 50%)' : 'transparent', transition: 'background 1s' }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', marginTop: '40px' }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>{isSpectator ? '👁' : '⚡'}</div>
@@ -792,8 +870,16 @@ export default function DebatePage() {
                   e.preventDefault()
                   setMessages(prev => [...prev, { id: `paste-${Date.now()}`, username: '— system —', text: '🚫 NO COPY AND PASTING!', score: 0, aiFeedback: '', timestamp: Date.now() }])
                 }}
-                disabled={!connected}
-                placeholder={!connected ? 'Reconnecting...' : cooldown > 0 ? 'Type your next argument — sends when cooldown ends...' : 'Make your argument. Be precise, use evidence, stay civil.'}
+               disabled={!connected || (suddenDeath && suddenDeathPhase === 'first' && suddenDeathFirst !== myUsername) || (suddenDeath && suddenDeathPhase === 'second' && suddenDeathSecond !== myUsername) || (suddenDeath && suddenDeathPhase === 'cooldown')}
+                placeholder={
+                  !connected ? 'Reconnecting...' :
+                  suddenDeath && suddenDeathPhase === 'cooldown' ? 'Wait for your turn...' :
+                  suddenDeath && suddenDeathPhase === 'first' && suddenDeathFirst !== myUsername ? 'Wait — opponent is arguing...' :
+                  suddenDeath && suddenDeathPhase === 'second' && suddenDeathSecond !== myUsername ? 'Wait — opponent is arguing...' :
+                  suddenDeath ? '⚡ SUDDEN DEATH — argue now!' :
+                  cooldown > 0 ? 'Type your next argument — sends when cooldown ends...' :
+                  'Make your argument. Be precise, use evidence, stay civil.'
+                }
                 style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif' }}
               />
               <button
@@ -810,6 +896,7 @@ export default function DebatePage() {
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes sdFlicker { 0%,100%{ box-shadow: 0 2px 12px rgba(255,50,0,0.3); border-color: rgba(255,50,0,0.7); } 50%{ box-shadow: 0 2px 24px rgba(255,80,0,0.5); border-color: rgba(255,100,0,1); } }
       `}</style>
     </>
   )
