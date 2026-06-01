@@ -106,7 +106,8 @@ export default function DebatePage() {
   const [suddenDeathPhase, setSuddenDeathPhase] = useState<'first' | 'cooldown' | 'second' | null>(null)
   const [suddenDeathTimeLeft, setSuddenDeathTimeLeft] = useState(0)
   const [suddenDeathCooldown, setSuddenDeathCooldown] = useState(0)
-  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
+ const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
+  const popAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -207,6 +208,10 @@ export default function DebatePage() {
     suddenDeathAudioRef.current = new Audio('/sounds/suddendeath.mp3')
     suddenDeathAudioRef.current.preload = 'auto'
 
+    popAudioRef.current = new Audio('/sounds/pop.mp3')
+    popAudioRef.current.preload = 'auto'
+    popAudioRef.current.volume = 0.5
+
     tickingAudioRef.current = new Audio('/sounds/ticking.mp3')
     tickingAudioRef.current.preload = 'auto'
 
@@ -255,6 +260,12 @@ export default function DebatePage() {
         const filtered = prev.filter(m => !(m.pending && m.username === msg.username))
         return [...filtered, msg]
       })
+      try {
+        if (sfxOn && popAudioRef.current) {
+          popAudioRef.current.currentTime = 0
+          popAudioRef.current.play().catch(() => {})
+        }
+      } catch (e) {}
     })
 
     socket.on('players_update', (p: Player[]) => setPlayers(p))
@@ -456,8 +467,9 @@ export default function DebatePage() {
       stopLobbyMusic()
       try { tickingAudioRef.current?.pause() } catch (e) {}
       try { countdownAudioRef.current?.pause() } catch (e) {}
-      if (lobbyAudioRef.current) { lobbyAudioRef.current.pause(); lobbyAudioRef.current.src = '' }
+     if (lobbyAudioRef.current) { lobbyAudioRef.current.pause(); lobbyAudioRef.current.src = '' }
       if (suddenDeathAudioRef.current) { suddenDeathAudioRef.current.pause(); suddenDeathAudioRef.current.src = '' }
+      if (popAudioRef.current) { popAudioRef.current.pause(); popAudioRef.current.src = '' }
       if (tickingAudioRef.current) { tickingAudioRef.current.src = '' }
       if (countdownAudioRef.current) { countdownAudioRef.current.src = '' }
       socket.disconnect()

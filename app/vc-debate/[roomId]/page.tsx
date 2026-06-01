@@ -166,7 +166,8 @@ const [micGranted, setMicGranted] = useState(false)
  const [suddenDeath, setSuddenDeath] = useState(false)
   const [suddenDeathRound, setSuddenDeathRound] = useState(0)
   const [isDraw, setIsDraw] = useState(false)
-  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
+ const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
+  const popAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
@@ -355,6 +356,11 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
     countdownAudioRef.current.preload = 'auto'
     suddenDeathAudioRef.current = new Audio('/sounds/suddendeath.mp3')
     suddenDeathAudioRef.current.preload = 'auto'
+
+    popAudioRef.current = new Audio('/sounds/pop.mp3')
+    popAudioRef.current.preload = 'auto'
+    popAudioRef.current.volume = 0.5
+
     lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
     lobbyAudioRef.current.preload = 'auto'
     lobbyAudioRef.current.loop = true
@@ -496,6 +502,12 @@ socket.on('vc_live_transcript', ({ text }: { text: string }) => {
 })
     socket.on('vc_turn_scored', ({ entry, scores: s }: any) => {
       setTranscripts(prev => [...prev, entry]); setScores(s)
+      try {
+        if (sfxOn && popAudioRef.current) {
+          popAudioRef.current.currentTime = 0
+          popAudioRef.current.play().catch(() => {})
+        }
+      } catch (e) {}
     })
 
     socket.on('vc_go_first_update', ({ paidUsername, socketId }: any) => {
@@ -642,6 +654,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       if (lobbyAudioRef.current) lobbyAudioRef.current.src = ''
       if (countdownAudioRef.current) countdownAudioRef.current.src = ''
       if (suddenDeathAudioRef.current) { suddenDeathAudioRef.current.pause(); suddenDeathAudioRef.current.src = '' }
+      if (popAudioRef.current) { popAudioRef.current.pause(); popAudioRef.current.src = '' }
       socket.disconnect()
       clearInterval(timerRef.current)
       clearInterval(turnTimerRef.current)
