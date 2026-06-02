@@ -2101,7 +2101,7 @@ io.to(currentRoomId).emit('debate_ended', {
 // ─── Bots ──────────────────────────────────────────────────────
 const BOT_NAMES = [
   'diddyblud', 'rhetorical', 'mike', 'primelarper', 'john', 'joseph',
-  'caleb', 'averon', 'duke', 'rebutron', 'henry', 'sam',
+  'caleb', 'averon', 'duke', 'adam', 'henry', 'sam',
   'james', 'marcus', 'JAKE', 'ethan'
 ]
 
