@@ -2099,7 +2099,7 @@ io.to(currentRoomId).emit('debate_ended', {
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 18
+const BOT_NAMES = Array.from({ length: 16
  }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
 )
@@ -2279,8 +2279,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 55000
-      const maxWait = 150000
+      const minWait = 30000
+      const maxWait = 90000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
@@ -2291,7 +2291,7 @@ async function runBot(botName, personality) {
 
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
       const { score: rawScore, feedback } = await scoreArgument(botText, currentRoom.topic, currentRoom.type)
-      const score = Math.min(rawScore, 12)
+      const score = Math.min(rawScore, 14)
 
       const msg = {
         id: `${Date.now()}-bot-${Math.random()}`,
