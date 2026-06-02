@@ -2334,8 +2334,8 @@ async function runBot(botName, personality) {
 
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 30000
-      const maxWait = 90000
+      const minWait = 20000
+      const maxWait = 70000
       const randomWait = minWait + Math.random() * (maxWait - minWait)
 
       if (timeSinceLast < minWait) {
