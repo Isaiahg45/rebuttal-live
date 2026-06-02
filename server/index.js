@@ -775,11 +775,13 @@ function scheduleRoom(type, immediate = false) {
   pendingRoomCreations++
   setTimeout(() => {
     pendingRoomCreations--
-    // Re-check vc cap at creation time
     if (type === 'vc') {
       const waitingVc = Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting').length
       if (waitingVc >= 2) { io.emit('rooms_update', getRoomList()); return }
     }
+    // Hard cap on text rooms
+    const currentWaiting = Object.values(rooms).filter(r => r.status === 'waiting' && r.type !== 'vc' && !r.isCustom).length
+    if (currentWaiting >= TARGET_AVAILABLE) { io.emit('rooms_update', getRoomList()); return }
     createRoom(type)
     io.emit('rooms_update', getRoomList())
   }, delay)
@@ -794,7 +796,7 @@ function scheduleVCRoom(immediate = false) {
   }, delay)
 }
 function getAvailableCount() {
-  return Object.values(rooms).filter(r => r.status === 'waiting' && r.type !== 'vc').length + pendingRoomCreations
+  return Object.values(rooms).filter(r => r.status === 'waiting' && r.type !== 'vc' && !r.isCustom).length + pendingRoomCreations
 }
 
 function getVCWaitingCount() {
@@ -809,6 +811,7 @@ function replenishRooms(immediate = false) {
 
   const needed = TARGET_AVAILABLE - getAvailableCount()
   if (needed <= 0) return
+  if (getAvailableCount() >= TARGET_AVAILABLE) return
   for (let i = 0; i < needed; i++) {
     const rand = Math.random()
     let cumulative = 0
