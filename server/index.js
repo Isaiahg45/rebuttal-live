@@ -2099,11 +2099,9 @@ io.to(currentRoomId).emit('debate_ended', {
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = [
-  'diddyblud', 'rhetorical', 'mike', 'primelarper', 'john', 'joseph',
-  'caleb', 'averon', 'duke', 'adam', 'henry', 'sam',
-  'james', 'marcus', 'JAKE', 'ethan'
-]
+const BOT_NAMES = Array.from({ length: 16 }, () =>
+  'guest' + Math.floor(1000 + Math.random() * 9000)
+)
 
 const BOT_PERSONALITIES = [
   'You are a confident, evidence-based debater. Use statistics and real examples. Be direct.',
