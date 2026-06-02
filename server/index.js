@@ -2099,10 +2099,11 @@ io.to(currentRoomId).emit('debate_ended', {
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 16
- }, () =>
-  'guest' + Math.floor(1000 + Math.random() * 9000)
-)
+const BOT_NAMES = [
+  'diddyblud', 'rhetorical', 'mike', 'primelarper', 'john', 'joseph',
+  'caleb', 'averon', 'duke', 'rebutron', 'henry', 'sam',
+  'james', 'marcus', 'JAKE', 'ethan'
+]
 
 const BOT_PERSONALITIES = [
   'You are a confident, evidence-based debater. Use statistics and real examples. Be direct.',
@@ -2199,23 +2200,30 @@ async function runBot(botName, personality) {
   joinRoom()
 }
 
-  async function goOffline() {
+ async function goOffline() {
     if (state.roomId && rooms[state.roomId]) {
       const room = rooms[state.roomId]
       const wasActive = room.status === 'active'
 
-      // Apply ELO forfeit loss for bot leaving active non-custom room
-      // (bots have no DB record but we still need to trigger auto-win for real players)
+      // Bot forfeit — lose ELO like a real player
+      if (wasActive && !room.isCustom) {
+        const loss = calculateEloChanges(room.type, 2, room.duration).loserBase
+        const current = botElos[botName] || { elo: 100, wins: 0, debates: 0 }
+        const newElo = current.elo - loss
+        const newDebates = current.debates + 1
+        botElos[botName] = { ...current, elo: newElo, debates: newDebates }
+        supabaseRest(`profiles?username=eq.${encodeURIComponent(botName)}`, 'PATCH', {
+          elo: newElo,
+          debates: newDebates,
+        }).catch(() => {})
+        console.log(`🤖 Bot ${botName} forfeited — lost ${loss} ELO (now ${newElo})`)
+      }
 
       delete room.players[`bot_${botName}`]
       io.to(state.roomId).emit('players_update', Object.values(room.players))
       io.to(state.roomId).emit('system_message', { text: `${botName} left` })
 
-      if (wasActive) {
-        const realPlayers = Object.values(room.players).filter((p) => !p.username.startsWith('guest') || true)
-        // Always check auto-win — if 1 real player left, they win
-        checkForAutoWin(state.roomId)
-      }
+      if (wasActive) checkForAutoWin(state.roomId)
 
       io.emit('rooms_update', getRoomList())
     }
@@ -2237,8 +2245,9 @@ async function runBot(botName, personality) {
       setTimeout(joinRoom, 15000 + Math.random() * 15000)
       return
     }
-    state.roomId = room.instanceId
-    room.players[`bot_${botName}`] = { username: botName, score: 0, elo: 0 }
+   state.roomId = room.instanceId
+    const botEloData = botElos[botName] || { elo: 100 }
+    room.players[`bot_${botName}`] = { username: botName, score: 0, elo: botEloData.elo }
     io.to(room.instanceId).emit('players_update', Object.values(room.players))
     io.to(room.instanceId).emit('system_message', { text: `${botName} joined the debate` })
     io.emit('rooms_update', getRoomList())
@@ -2265,6 +2274,52 @@ async function runBot(botName, personality) {
   }
 
   async function startDebating(room) {
+    // Listen for debate end to apply ELO
+    const botSocket = { roomId: room.instanceId }
+    const applyBotElo = (data) => {
+      if (!data?.standings) return
+      const place = data.standings.findIndex(p => p.username === botName)
+      if (place === -1) return
+      if (data.draw) return // no ELO change on draw
+      const current = botElos[botName] || { elo: 100, wins: 0, debates: 0 }
+      const { winnerElo, loserBase } = data.eloChanges || {}
+      const change = place === 0 ? (winnerElo || 20) : -(loserBase || 15)
+      const newElo = current.elo + change
+      const newWins = place === 0 ? current.wins + 1 : current.wins
+      const newDebates = current.debates + 1
+      botElos[botName] = { elo: newElo, wins: newWins, debates: newDebates }
+      supabaseRest(`profiles?username=eq.${encodeURIComponent(botName)}`, 'PATCH', {
+        elo: newElo,
+        wins: newWins,
+        debates: newDebates,
+      }).catch(() => {})
+      console.log(`🤖 Bot ${botName} finished #${place + 1} — ELO ${change >= 0 ? '+' : ''}${change} (now ${newElo})`)
+    }
+
+    // Hook into the room's debate_ended event via game loop result
+    const eloCheckInterval = setInterval(() => {
+      const r = rooms[state.roomId]
+      if (!r || r.status !== 'ended') return
+      clearInterval(eloCheckInterval)
+      // Find bot's final standing from room data
+      const allSorted = Object.values(r.players || {}).sort((a, b) => b.score - a.score)
+      const place = allSorted.findIndex(p => p.username === botName)
+      if (place === -1) return
+      const current = botElos[botName] || { elo: 100, wins: 0, debates: 0 }
+      const eloChanges = calculateEloChanges(r.type, allSorted.length, r.duration, allSorted[0]?.elo ?? 0, allSorted[allSorted.length - 1]?.elo ?? 0)
+      const change = place === 0 ? eloChanges.winnerElo : place === 1 ? eloChanges.secondElo : -eloChanges.loserBase
+      const newElo = current.elo + change
+      const newWins = place === 0 ? current.wins + 1 : current.wins
+      const newDebates = current.debates + 1
+      botElos[botName] = { elo: newElo, wins: newWins, debates: newDebates }
+      supabaseRest(`profiles?username=eq.${encodeURIComponent(botName)}`, 'PATCH', {
+        elo: newElo,
+        wins: newWins,
+        debates: newDebates,
+      }).catch(() => {})
+      console.log(`🤖 Bot ${botName} finished #${place + 1} — ELO ${change >= 0 ? '+' : ''}${change} (now ${newElo})`)
+    }, 2000)
+
     await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000))
 
     async function sendBotMessage() {
@@ -2330,6 +2385,18 @@ function startBots() {
 }
 
 // ─── Boot ──────────────────────────────────────────────────────
+const botElos = {}
+
+async function loadBotElos() {
+  const data = await supabaseRest(
+    `profiles?username=in.(${BOT_NAMES.map(n => `"${n}"`).join(',')})&select=username,elo,wins,debates`
+  )
+  if (data) {
+    data.forEach(p => { botElos[p.username] = { elo: p.elo ?? 100, wins: p.wins ?? 0, debates: p.debates ?? 0 } })
+  }
+  console.log(`🤖 Loaded ELOs for ${Object.keys(botElos).length} bots`)
+}
+
 async function boot() {
   const totdData = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
   if (totdData?.[0]?.username) {
@@ -2347,6 +2414,7 @@ async function boot() {
   } catch (e) {
     console.log('Could not load stats:', e.message)
   }
+ await loadBotElos()
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} text rooms + 1 VC room`)
   setTimeout(refillAIQueue, 2000)
