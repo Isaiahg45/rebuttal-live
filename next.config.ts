@@ -8,12 +8,12 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline'; default-src *; connect-src *; media-src *;",
+            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline'; default-src *; connect-src * wss://*.agora.io wss://*.sd-rtn.com; media-src *; worker-src blob:;",
           },
         ],
       },
     ]
   },
-};
+}; 
 
 export default nextConfig;
