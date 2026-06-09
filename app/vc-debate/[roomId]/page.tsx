@@ -259,14 +259,16 @@ const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: f
 const { token } = await tokenRes.json()
 await client.join(AGORA_APP_ID, channelName, token, numericUid)
       console.log('✅ Agora joined, uid:', numericUid, 'channel:', channelName)
-     localAudioTrack.setMuted(true) // start muted, unmute only when it's your turn
-await client.publish([localAudioTrack])
+     await client.publish([localAudioTrack])
 
       // Handle remote user publishing audio
    client.on('user-published', async (remoteUser, mediaType) => {
   if (mediaType === 'audio') {
     await client.subscribe(remoteUser, 'audio')
-    const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
+   const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
+    if (audioCtxRef.current?.state === 'suspended') {
+      await audioCtxRef.current.resume()
+    }
     remoteTrack.play()
     setRemoteAudioActive(true)
 
