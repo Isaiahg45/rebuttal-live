@@ -425,6 +425,10 @@ console.log('✅ Remote analyser connected')
 
    socket.on('connect', async () => {
   setConnected(true)
+  if (!agoraInitializedRef.current) {
+    agoraInitializedRef.current = true
+    await initAgora(instanceId, socket.id ?? '')
+  }
   socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
 })
     socket.on('reconnect', () => {
