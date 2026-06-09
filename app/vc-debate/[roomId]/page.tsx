@@ -271,6 +271,9 @@ await client.join(AGORA_APP_ID, channelName, token, numericUid)
       await audioCtxRef.current.resume()
     }
     remoteTrack.play()
+    // Force audio output on iOS
+    const audioEl = document.querySelector('audio')
+    if (audioEl) audioEl.setAttribute('playsinline', 'true')
     setRemoteAudioActive(true)
 
     const connectRemoteAnalyser = async (retries = 5) => {
