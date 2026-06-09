@@ -222,7 +222,7 @@ const [micGranted, setMicGranted] = useState(false)
   // Speech recognition
 const { listening, startListening, stopListening, finalTranscriptRef } = useSpeechRecognition((t) => {
   setLiveTranscript(t)
-  socketRef.current?.emit('vc_live_transcript', { instanceId, text: t })
+  socketRef.current?.emit('vc_live_transcript', { instanceId, text: t, username: myUsernameRef.current })
 })
   // Init Agora
   const initAgora = useCallback(async (channelName: string, uid: string) => {
@@ -261,20 +261,19 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
           setRemoteAudioActive(true)
 
           // Set up remote analyser
-          if (audioCtxRef.current) {
-            try {
-              const remoteStream = new MediaStream()
-              // Use Web Audio destination trick
-              const dest = audioCtxRef.current.createMediaStreamDestination()
-              const remoteAnalyser = audioCtxRef.current.createAnalyser()
-              remoteAnalyser.fftSize = 64
-              // Connect through gainNode to analyser
-              const gainNode = audioCtxRef.current.createGain()
-              gainNode.connect(remoteAnalyser)
-              gainNode.connect(audioCtxRef.current.destination)
-              remoteAnalyserRef.current = remoteAnalyser
-            } catch (e) {}
-          }
+  
+if (audioCtxRef.current) {
+  try {
+    const remoteAnalyser = audioCtxRef.current.createAnalyser()
+    remoteAnalyser.fftSize = 64
+    // Get the actual audio element Agora created and pipe it into Web Audio
+    const remoteStream = new MediaStream()
+    remoteTrack.getMediaStreamTrack && remoteStream.addTrack(remoteTrack.getMediaStreamTrack())
+    const source = audioCtxRef.current.createMediaStreamSource(remoteStream)
+    source.connect(remoteAnalyser)
+    remoteAnalyserRef.current = remoteAnalyser
+  } catch (e) { console.error('Remote analyser error:', e) }
+}
         }
       })
 
@@ -497,8 +496,10 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
         setCooldownLeft(prev => { if (prev <= 1) { clearInterval(cooldownTimerRef.current); return 0 } return prev - 1 })
       }, 1000)
     })
-socket.on('vc_live_transcript', ({ text }: { text: string }) => {
-  setOpponentLiveTranscript(text)
+socket.on('vc_live_transcript', ({ text, username }: { text: string; username: string }) => {
+  if (username !== myUsernameRef.current) {
+    setOpponentLiveTranscript(text)
+  }
 })
     socket.on('vc_turn_scored', ({ entry, scores: s }: any) => {
       setTranscripts(prev => [...prev, entry]); setScores(s)

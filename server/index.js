@@ -1877,9 +1877,9 @@ if (Object.keys(room.players).length >= 2) {
   })
 
   // ── VC live transcript relay ──────────────────────────────────
-  socket.on('vc_live_transcript', ({ instanceId, text }) => {
-    socket.to(instanceId).emit('vc_live_transcript', { text })
-  })
+ socket.on('vc_live_transcript', ({ instanceId, text, username }) => {
+  socket.to(instanceId).emit('vc_live_transcript', { text, username })
+})
 
   // ── Disconnect ────────────────────────────────────────────────
   socket.on('disconnect', () => {
