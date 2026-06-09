@@ -495,10 +495,8 @@ console.log('✅ Remote analyser connected')
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        localAudioTrackRef.current?.setMuted(false)
-      } else {
-        localAudioTrackRef.current?.setMuted(true)
-      }
+localAudioTrackRef.current?.setEnabled(true)      } else {
+localAudioTrackRef.current?.setEnabled(false)      }
       startTurnTimer(turnDuration, isMine, socket)
     })
     socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
@@ -520,12 +518,10 @@ console.log('✅ Remote analyser connected')
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-        localAudioTrackRef.current?.setMuted(false)
-      } else {
+localAudioTrackRef.current?.setEnabled(true)      } else {
         stopListening()
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
-        localAudioTrackRef.current?.setMuted(true)
-      }
+localAudioTrackRef.current?.setEnabled(false)      }
       startTurnTimer(turnDuration, isMine, socket)
     })
     socket.on('vc_cooldown_start', ({ duration }: { duration: number }) => {
@@ -584,10 +580,8 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
                 const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
                 if (SR) startListening()
                 if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-                localAudioTrackRef.current?.setMuted(false)
-              } else {
-                localAudioTrackRef.current?.setMuted(true)
-              }
+localAudioTrackRef.current?.setEnabled(true)              } else {
+localAudioTrackRef.current?.setEnabled(false)              }
               startTurnTimer(turnDuration, isMine, socket)
             }
           }).catch(() => {})
@@ -597,10 +591,8 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
             const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
             if (SR) startListening()
             if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-            localAudioTrackRef.current?.setMuted(false)
-          } else {
-            localAudioTrackRef.current?.setMuted(true)
-          }
+localAudioTrackRef.current?.setEnabled(true)          } else {
+localAudioTrackRef.current?.setEnabled(false)          }
           startTurnTimer(turnDuration, isMine, socket)
         }
       } catch (e) {}
@@ -708,11 +700,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       document.removeEventListener('touchstart', unlockAudio)
       // Clean up Agora
      // Clean up Agora
-      if (agoraClientRef.current) {
-        localAudioTrackRef.current?.close()
-        agoraClientRef.current?.leave().catch(() => {})
-        agoraClientRef.current = null
-      }
+    // Don't leave Agora here — only leave on debate end or forfeit
       if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
       localStreamRef.current?.getTracks().forEach(t => t.stop())
     }
