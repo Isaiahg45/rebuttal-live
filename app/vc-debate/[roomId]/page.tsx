@@ -250,7 +250,9 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
 
       // Join Agora channel — use socket ID as uid (numeric hash)
       const numericUid = Math.floor(Math.random() * 100000) + 1
-      await client.join(AGORA_APP_ID, channelName, null, numericUid)
+     const tokenRes = await fetch(`${SERVER_URL}/api/agora-token?channelName=${channelName}&uid=${numericUid}`)
+const { token } = await tokenRes.json()
+await client.join(AGORA_APP_ID, channelName, token, numericUid)
       console.log('✅ Agora joined, uid:', numericUid, 'channel:', channelName)
       await client.publish([localAudioTrack])
 

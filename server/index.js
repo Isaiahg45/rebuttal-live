@@ -4,6 +4,7 @@ const http = require('http')
 const { Server } = require('socket.io')
 const cors = require('cors')
 const OpenAI = require('openai')
+const { RtcTokenBuilder, RtcRole } = require('agora-token')
 
 const app = express()
 app.use(cors())
@@ -2421,6 +2422,20 @@ async function boot() {
 }
 
 // ─── Routes ────────────────────────────────────────────────────
+
+app.get('/api/agora-token', (req, res) => {
+  const { channelName, uid } = req.query
+  const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID
+  const appCertificate = process.env.AGORA_APP_CERTIFICATE
+  const expirationTimeInSeconds = 3600
+  const currentTimestamp = Math.floor(Date.now() / 1000)
+  const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds
+  const token = RtcTokenBuilder.buildTokenWithUid(
+    appId, appCertificate, channelName, parseInt(uid), RtcRole.PUBLISHER, privilegeExpiredTs, privilegeExpiredTs
+  )
+  res.json({ token })
+})
+
 app.get('/top-arguments', async (req, res) => {
   try {
     const data = await supabaseRest('top_arguments?select=*&order=score.desc&limit=3')
