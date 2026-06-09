@@ -131,6 +131,7 @@ export default function VCDebatePage() {
   const instanceId = params.roomId as string
   const guestParam = searchParams.get('guest')
 const passwordParam = searchParams.get('password')
+const agoraInitializedRef = useRef(false)
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
@@ -226,22 +227,15 @@ const { listening, startListening, stopListening, finalTranscriptRef } = useSpee
   socketRef.current?.emit('vc_live_transcript', { instanceId, text: t, username: myUsernameRef.current })
 })
   // Init Agora
-  const initAgora = useCallback(async (channelName: string, uid: string) => {
+const initAgora = useCallback(async (channelName: string, uid: string) => {
+  try {
+    const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
     try {
-const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
-try {
   await client.startProxyServer(3)
   console.log('✅ Agora proxy enabled')
 } catch (e) {
   console.warn('⚠️ Proxy failed, connecting directly:', e)
 }
-// Init Agora once when username is ready
-const agoraInitializedRef = useRef(false)
-useEffect(() => {
-  if (!myUsername || agoraInitializedRef.current) return
-  agoraInitializedRef.current = true
-  initAgora(instanceId, '')
-}, [myUsername, instanceId])
 agoraClientRef.current = client
 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
@@ -424,6 +418,10 @@ console.log('✅ Remote analyser connected')
 
    socket.on('connect', async () => {
   setConnected(true)
+  if (!agoraInitializedRef.current) {
+    agoraInitializedRef.current = true
+    await initAgora(instanceId, socket.id ?? '')
+  }
   socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
 })
     socket.on('reconnect', () => {
