@@ -406,12 +406,13 @@ console.log('✅ Remote analyser connected')
     socketRef.current = socket
 
     socket.on('connect', async () => {
-      setConnected(true)
-      // Init Agora with instanceId as channel name
-      await initAgora(instanceId, socket.id ?? '')
-      socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
-    })
-
+  setConnected(true)
+  // Init Agora with instanceId as channel name
+  if (!agoraClientRef.current) {
+    await initAgora(instanceId, socket.id ?? '')
+  }
+  socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
+})
     socket.on('reconnect', () => {
       setConnected(true)
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
