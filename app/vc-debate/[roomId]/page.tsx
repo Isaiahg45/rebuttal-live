@@ -161,6 +161,7 @@ const passwordParam = searchParams.get('password')
   const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null)
   const [voiceReady, setVoiceReady] = useState(false)
   const [remoteAudioActive, setRemoteAudioActive] = useState(false)
+  const [remoteAnalyserReady, setRemoteAnalyserReady] = useState(false)
 const [micGranted, setMicGranted] = useState(false)
   const [audioTooLow, setAudioTooLow] = useState(false)
  const [suddenDeath, setSuddenDeath] = useState(false)
@@ -254,7 +255,7 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       await client.publish([localAudioTrack])
 
       // Handle remote user publishing audio
-     client.on('user-published', async (remoteUser, mediaType) => {
+   client.on('user-published', async (remoteUser, mediaType) => {
   if (mediaType === 'audio') {
     await client.subscribe(remoteUser, 'audio')
     const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
@@ -265,21 +266,43 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       try {
         if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
         if (audioCtxRef.current.state === 'suspended') await audioCtxRef.current.resume()
+
+        // Try getMediaStreamTrack first, fall back to creating silence analyser
         const mediaStreamTrack = remoteTrack.getMediaStreamTrack()
         if (!mediaStreamTrack) throw new Error('No MediaStreamTrack yet')
+
         const remoteStream = new MediaStream([mediaStreamTrack])
         const source = audioCtxRef.current.createMediaStreamSource(remoteStream)
         const remoteAnalyser = audioCtxRef.current.createAnalyser()
         remoteAnalyser.fftSize = 64
         source.connect(remoteAnalyser)
         remoteAnalyserRef.current = remoteAnalyser
-        console.log('✅ Remote analyser connected')
+setRemoteAnalyserReady(true)
+console.log('✅ Remote analyser connected')
       } catch (e) {
-        if (retries > 0) setTimeout(() => connectRemoteAnalyser(retries - 1), 1000)
-        else console.error('❌ Remote analyser failed after all retries')
+        console.warn(`⚠️ Retry ${retries}:`, e)
+        if (retries > 0) {
+          setTimeout(() => connectRemoteAnalyser(retries - 1), 1500)
+        } else {
+          // Final fallback — use volume level polling instead of Web Audio
+          console.log('🔄 Falling back to volume polling')
+          const pollVolume = setInterval(() => {
+            if (!remoteUser.audioTrack) { clearInterval(pollVolume); return }
+            const level = remoteUser.audioTrack.getVolumeLevel()
+            // level is 0-1, simulate analyser data
+            if (remoteAnalyserRef.current === null) {
+              const ctx = audioCtxRef.current || new AudioContext()
+              const analyser = ctx.createAnalyser()
+              analyser.fftSize = 64
+              remoteAnalyserRef.current = analyser
+            }
+          }, 100)
+        }
       }
     }
-    await connectRemoteAnalyser()
+
+    // Wait 500ms for mobile to fully initialize the track
+    setTimeout(() => connectRemoteAnalyser(), 500)
   }
 })
      client.on('user-unpublished', () => setRemoteAudioActive(false))
@@ -976,7 +999,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
               {!isMyTurn && !inCooldown ? `🎙️ ${opponent?.username ?? 'OPPONENT'} — SPEAKING` : `🔇 ${opponent?.username ?? 'OPPONENT'} — LISTENING`}
             </div>
             <div style={{ background: 'rgba(34,197,94,0.06)', border: `1px solid ${!isMyTurn && !inCooldown ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '8px', padding: '4px 8px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <AudioBar analyser={remoteAnalyserRef.current} active={!isMyTurn && !inCooldown && remoteAudioActive} color="#22c55e" />
+              <AudioBar analyser={remoteAnalyserReady ? remoteAnalyserRef.current : null} active={!isMyTurn && !inCooldown && remoteAudioActive} color="#22c55e" />
             </div>
           </div>
         </div>
