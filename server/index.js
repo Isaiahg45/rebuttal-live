@@ -1368,8 +1368,7 @@ io.on('connection', (socket) => {
       }
       socket.emit('join_as_spectator', { instanceId }); return
     }
-    if (elo < room.eloRequired) { socket.emit('error', { message: `You need ${room.eloRequired}+ ELO to join.` }); return }
-    if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Room is full.' }); return }
+if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { message: `You need ${room.eloRequired}+ ELO to join.` }); return }    if (Object.keys(room.players).length >= room.maxPlayers) { socket.emit('error', { message: 'Room is full.' }); return }
 
     // Password check for private rooms
     if (room.isPrivate && room.password) {
