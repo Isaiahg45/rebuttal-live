@@ -189,6 +189,7 @@ const [micGranted, setMicGranted] = useState(false)
   const turnTimerRef = useRef<any>(null)
   const cooldownTimerRef = useRef<any>(null)
   const myUsernameRef = useRef(myUsername)
+  const agoraUidRef = useRef<number>(0)
   const profileRef = useRef(profile)
   const userRef = useRef(user)
   const turnEndedRef = useRef(false)
@@ -236,10 +237,6 @@ const initAgora = useCallback(async (channelName: string, uid: string) => {
 } catch (e) {
   console.warn('⚠️ Proxy failed, connecting directly:', e)
 }
-// Init Agora once on mount
-  useEffect(() => {
-    initAgora(instanceId, '')
-  }, [])
 agoraClientRef.current = client
 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
@@ -259,7 +256,8 @@ const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: f
       localAudioTrackRef.current = localAudioTrack
 
       // Join Agora channel — use socket ID as uid (numeric hash)
-      const numericUid = Math.floor(Math.random() * 100000) + 1
+     if (!agoraUidRef.current) agoraUidRef.current = Math.floor(Math.random() * 100000) + 1
+const numericUid = agoraUidRef.current
      const tokenRes = await fetch(`${SERVER_URL}/api/agora-token?channelName=${channelName}&uid=${numericUid}`)
 const { token } = await tokenRes.json()
 await client.join(AGORA_APP_ID, channelName, token, numericUid)
