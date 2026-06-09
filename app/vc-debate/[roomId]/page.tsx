@@ -235,6 +235,13 @@ try {
 } catch (e) {
   console.warn('⚠️ Proxy failed, connecting directly:', e)
 }
+// Init Agora once when username is ready
+const agoraInitializedRef = useRef(false)
+useEffect(() => {
+  if (!myUsername || agoraInitializedRef.current) return
+  agoraInitializedRef.current = true
+  initAgora(instanceId, '')
+}, [myUsername, instanceId])
 agoraClientRef.current = client
 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
@@ -415,13 +422,8 @@ console.log('✅ Remote analyser connected')
     const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
-    socket.on('connect', async () => {
+   socket.on('connect', async () => {
   setConnected(true)
-  if (!agoraClientRef.current) {
-    await initAgora(instanceId, socket.id ?? '')
-  } else {
-    console.log('⚠️ Agora already initialized, skipping re-init')
-  }
   socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
 })
     socket.on('reconnect', () => {
