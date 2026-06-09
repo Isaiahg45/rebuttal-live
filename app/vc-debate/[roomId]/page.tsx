@@ -259,7 +259,8 @@ const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: f
 const { token } = await tokenRes.json()
 await client.join(AGORA_APP_ID, channelName, token, numericUid)
       console.log('✅ Agora joined, uid:', numericUid, 'channel:', channelName)
-      await client.publish([localAudioTrack])
+     localAudioTrack.setMuted(true) // start muted, unmute only when it's your turn
+await client.publish([localAudioTrack])
 
       // Handle remote user publishing audio
    client.on('user-published', async (remoteUser, mediaType) => {
@@ -704,8 +705,12 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       document.removeEventListener('click', unlockAudio)
       document.removeEventListener('touchstart', unlockAudio)
       // Clean up Agora
-      localAudioTrackRef.current?.close()
-      agoraClientRef.current?.leave().catch(() => {})
+     // Clean up Agora
+      if (agoraClientRef.current) {
+        localAudioTrackRef.current?.close()
+        agoraClientRef.current?.leave().catch(() => {})
+        agoraClientRef.current = null
+      }
       if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
       localStreamRef.current?.getTracks().forEach(t => t.stop())
     }
