@@ -496,7 +496,7 @@ console.log('✅ Remote analyser connected')
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
 localAudioTrackRef.current?.setEnabled(true)      } else {
-localAudioTrackRef.current?.setEnabled(false)      }
+      }
       startTurnTimer(turnDuration, isMine, socket)
     })
     socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
@@ -521,7 +521,7 @@ localAudioTrackRef.current?.setEnabled(false)      }
 localAudioTrackRef.current?.setEnabled(true)      } else {
         stopListening()
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
-localAudioTrackRef.current?.setEnabled(false)      }
+      }
       startTurnTimer(turnDuration, isMine, socket)
     })
     socket.on('vc_cooldown_start', ({ duration }: { duration: number }) => {
@@ -581,7 +581,7 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
                 if (SR) startListening()
                 if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
 localAudioTrackRef.current?.setEnabled(true)              } else {
-localAudioTrackRef.current?.setEnabled(false)              }
+              }
               startTurnTimer(turnDuration, isMine, socket)
             }
           }).catch(() => {})
@@ -592,7 +592,7 @@ localAudioTrackRef.current?.setEnabled(false)              }
             if (SR) startListening()
             if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
 localAudioTrackRef.current?.setEnabled(true)          } else {
-localAudioTrackRef.current?.setEnabled(false)          }
+          }
           startTurnTimer(turnDuration, isMine, socket)
         }
       } catch (e) {}
