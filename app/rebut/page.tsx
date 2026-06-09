@@ -199,8 +199,7 @@ const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
 
   const handleJoin = (room: RoomData) => {
     if (loading) return
-    if ((profile?.elo ?? 0) < room.eloRequired) { alert(`Need ${room.eloRequired}+ ELO. You have ${profile?.elo ?? 0}.`); return }
-    if (user) { room.requiresPassword ? (setPasswordModal(room), setPasswordInput('')) : routeRoom(room) }
+if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Need ${room.eloRequired}+ ELO. You have ${profile?.elo ?? 0}.`); return }    if (user) { room.requiresPassword ? (setPasswordModal(room), setPasswordInput('')) : routeRoom(room) }
     else setSelectedRoom(room)
   }
 
