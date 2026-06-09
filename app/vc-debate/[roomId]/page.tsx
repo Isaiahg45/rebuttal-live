@@ -236,6 +236,10 @@ const initAgora = useCallback(async (channelName: string, uid: string) => {
 } catch (e) {
   console.warn('⚠️ Proxy failed, connecting directly:', e)
 }
+// Init Agora once on mount
+  useEffect(() => {
+    initAgora(instanceId, '')
+  }, [])
 agoraClientRef.current = client
 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
@@ -421,10 +425,6 @@ console.log('✅ Remote analyser connected')
 
    socket.on('connect', async () => {
   setConnected(true)
-  if (!agoraInitializedRef.current) {
-    agoraInitializedRef.current = true
-    await initAgora(instanceId, socket.id ?? '')
-  }
   socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
 })
     socket.on('reconnect', () => {
