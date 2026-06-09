@@ -250,33 +250,38 @@ const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       // Join Agora channel — use socket ID as uid (numeric hash)
       const numericUid = Math.floor(Math.random() * 100000) + 1
       await client.join(AGORA_APP_ID, channelName, null, numericUid)
+      console.log('✅ Agora joined, uid:', numericUid, 'channel:', channelName)
       await client.publish([localAudioTrack])
 
       // Handle remote user publishing audio
-      client.on('user-published', async (remoteUser, mediaType) => {
-        if (mediaType === 'audio') {
-          await client.subscribe(remoteUser, 'audio')
-          const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
-          remoteTrack.play()
-          setRemoteAudioActive(true)
+     client.on('user-published', async (remoteUser, mediaType) => {
+  if (mediaType === 'audio') {
+    await client.subscribe(remoteUser, 'audio')
+    const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
+    remoteTrack.play()
+    setRemoteAudioActive(true)
 
-          // Set up remote analyser
-  
-if (audioCtxRef.current) {
-  try {
-    const remoteAnalyser = audioCtxRef.current.createAnalyser()
-    remoteAnalyser.fftSize = 64
-    // Get the actual audio element Agora created and pipe it into Web Audio
-    const remoteStream = new MediaStream()
-    remoteTrack.getMediaStreamTrack && remoteStream.addTrack(remoteTrack.getMediaStreamTrack())
-    const source = audioCtxRef.current.createMediaStreamSource(remoteStream)
-    source.connect(remoteAnalyser)
-    remoteAnalyserRef.current = remoteAnalyser
-  } catch (e) { console.error('Remote analyser error:', e) }
-}
-        }
-      })
-
+    const connectRemoteAnalyser = async (retries = 5) => {
+      try {
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
+        if (audioCtxRef.current.state === 'suspended') await audioCtxRef.current.resume()
+        const mediaStreamTrack = remoteTrack.getMediaStreamTrack()
+        if (!mediaStreamTrack) throw new Error('No MediaStreamTrack yet')
+        const remoteStream = new MediaStream([mediaStreamTrack])
+        const source = audioCtxRef.current.createMediaStreamSource(remoteStream)
+        const remoteAnalyser = audioCtxRef.current.createAnalyser()
+        remoteAnalyser.fftSize = 64
+        source.connect(remoteAnalyser)
+        remoteAnalyserRef.current = remoteAnalyser
+        console.log('✅ Remote analyser connected')
+      } catch (e) {
+        if (retries > 0) setTimeout(() => connectRemoteAnalyser(retries - 1), 1000)
+        else console.error('❌ Remote analyser failed after all retries')
+      }
+    }
+    await connectRemoteAnalyser()
+  }
+})
      client.on('user-unpublished', () => setRemoteAudioActive(false))
 
       client.on('exception', (evt: any) => {
@@ -1024,7 +1029,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
         )}
 
         {/* Live transcript */}
-        {(isMyTurn ? liveTranscript : opponentLiveTranscript) && !inCooldown && (
+        {isMyTurn && liveTranscript && !inCooldown && (
   <div style={{ background: isMyTurn ? 'rgba(230,57,70,0.04)' : 'rgba(34,197,94,0.04)', borderBottom: `1px solid ${isMyTurn ? 'rgba(230,57,70,0.2)' : 'rgba(34,197,94,0.2)'}`, padding: '10px 20px', flexShrink: 0 }}>
     <div style={{ fontSize: '11px', color: isMyTurn ? 'var(--accent)' : 'var(--green)', marginBottom: '4px', fontWeight: 600 }}>
       🎙️ {isMyTurn ? 'YOU' : (opponent?.username?.toUpperCase() ?? 'OPPONENT')} — LIVE
