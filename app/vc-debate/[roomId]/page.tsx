@@ -414,9 +414,10 @@ console.log('✅ Remote analyser connected')
 
     socket.on('connect', async () => {
   setConnected(true)
-  // Init Agora with instanceId as channel name
   if (!agoraClientRef.current) {
     await initAgora(instanceId, socket.id ?? '')
+  } else {
+    console.log('⚠️ Agora already initialized, skipping re-init')
   }
   socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
 })
@@ -619,15 +620,18 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
     })
 socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo, draw }: any) => {    
       try { lobbyAudioRef.current?.pause() } catch (e) {}
-     setStatus('ended')
+      setStatus('ended')
       setStandings(s)
       if (draw) setIsDraw(true)
-      // Clean up Agora
-      try {
-        await localAudioTrackRef.current?.close()
-        await agoraClientRef.current?.leave()
-      } catch (e) {}
-      if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
+      // Clean up Agora after a short delay to allow final audio
+      setTimeout(async () => {
+        try {
+          await localAudioTrackRef.current?.close()
+          await agoraClientRef.current?.leave()
+          agoraClientRef.current = null
+        } catch (e) {}
+        if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
+      }, 1000)
 
       const currentProfile = profileRef.current
       const currentUser = userRef.current
