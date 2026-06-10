@@ -1729,9 +1729,10 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     const room = rooms[instanceId]
     if (!room || room.type !== 'vc') return
     if (room.vcState.currentSpeaker !== socket.id) return
-    // Pause timer immediately
     room._pausedTimeMs = room.debateEndsAt ? room.debateEndsAt - Date.now() : null
     room.debateEndsAt = null
+    // Tell BOTH clients to stop the turn timer immediately
+    io.to(instanceId).emit('vc_turn_ended', { speakerSocketId: socket.id })
   })
   // ── VC turn complete ──────────────────────────────────────────
   socket.on('vc_turn_complete', async ({ instanceId, transcript }) => {

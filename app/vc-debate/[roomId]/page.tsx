@@ -573,9 +573,21 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
         }
       } catch (e) {}
     })
-socket.on('vc_scoring_start', ({ username }: { username: string }) => {
+socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) => {
+      // Stop turn timer on ALL clients instantly when any turn ends
+      clearInterval(turnTimerRef.current)
+      setTurnTimeLeft(0)
+      // Only mark turn as ended for the speaker, not the listener
+      if (speakerSocketId === socket.id) {
+        setTurnEnded(true)
+        turnEndedRef.current = true
+      }
+    })
+    socket.on('vc_scoring_start', ({ username }: { username: string }) => {
       setScoringUsername(username)
       clearInterval(timerRef.current)
+      clearInterval(turnTimerRef.current)
+      setTurnTimeLeft(0)
     })
     socket.on('vc_scoring_end', ({ username }: { username: string }) => {
       setScoringUsername(null)
@@ -780,12 +792,23 @@ agoraInitializedRef.current = false
     setTurnEnded(true)
     turnEndedRef.current = true
     stopListening()
-    setTimeout(async () => {
-      const transcript = await stopMediaRecorderAndTranscribe()
-      console.log('🏁 Whisper transcript:', transcript)
-      socket.emit('vc_turn_complete', { instanceId, transcript })
+    socket.emit('vc_turn_ended_early', { instanceId })
+    clearInterval(timerRef.current)
+    clearInterval(turnTimerRef.current)
+    setTurnTimeLeft(0)
+    // Use SR transcript immediately — don't wait for Whisper
+    const srTranscript = finalTranscriptRef.current.trim()
+    if (srTranscript) {
+      socket.emit('vc_turn_complete', { instanceId, transcript: srTranscript })
       setLiveTranscript('')
-    }, 600)
+    } else {
+      // Only fall back to Whisper if SR got nothing
+      setTimeout(async () => {
+        const transcript = await stopMediaRecorderAndTranscribe()
+        socket.emit('vc_turn_complete', { instanceId, transcript })
+        setLiveTranscript('')
+      }, 600)
+    }
   }
 
   const handleEndTurnEarly = () => {
