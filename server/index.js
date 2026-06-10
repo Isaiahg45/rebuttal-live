@@ -1724,7 +1724,14 @@ if (Object.keys(room.players).length >= 2) {
     })
     io.to(instanceId).emit('vc_system_message', { text: `${username} overrode ${prevPayer} — going first` })
   })
-
+socket.on('vc_turn_ended_early', ({ instanceId }) => {
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') return
+    if (room.vcState.currentSpeaker !== socket.id) return
+    // Pause timer immediately
+    room._pausedTimeMs = room.debateEndsAt ? room.debateEndsAt - Date.now() : null
+    room.debateEndsAt = null
+  })
   // ── VC turn complete ──────────────────────────────────────────
   socket.on('vc_turn_complete', async ({ instanceId, transcript }) => {
     const room = rooms[instanceId]
@@ -1734,8 +1741,9 @@ if (Object.keys(room.players).length >= 2) {
     const username = room.players[socket.id]?.username
     if (!username) return
 
-    // Pause the debate timer while AI scores
-    const timeRemainingMs = room.debateEndsAt ? room.debateEndsAt - Date.now() : null
+   // Use already-paused time if turn ended early, otherwise pause now
+    const timeRemainingMs = room._pausedTimeMs ?? (room.debateEndsAt ? room.debateEndsAt - Date.now() : null)
+    room._pausedTimeMs = null
     room.debateEndsAt = null
     io.to(instanceId).emit('vc_scoring_start', { username })
 
