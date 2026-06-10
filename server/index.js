@@ -1765,13 +1765,19 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       .filter(t => t.username === username)
       .map(t => t.text)
 
-    const { score, feedback } = await scoreArgument(
-      transcript || '[no speech detected]',
-      room.topic,
-      'vc',
-      priorVC
-    )
-
+    let score = 0, feedback = 'No argument detected.'
+    try {
+      const result = await Promise.race([
+        scoreArgument(transcript || '[no speech detected]', room.topic, 'vc', priorVC),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('vc_score_timeout')), 12000))
+      ])
+      score = result.score
+      feedback = result.feedback
+    } catch (e) {
+      const fb = fallbackScore(transcript || '')
+      score = fb.score
+      feedback = fb.feedback
+    }
    // Resume the debate timer
     if (timeRemainingMs !== null) room.debateEndsAt = Date.now() + timeRemainingMs
     io.to(instanceId).emit('vc_scoring_end', { username })
@@ -2372,7 +2378,7 @@ async function runBot(botName, personality) {
       }
 
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
-      const { score: rawScore, feedback } = await scoreArgument(botText, currentRoom.topic, currentRoom.type)
+      const { score: rawScore, feedback } = fallbackScore(botText)
       const score = Math.min(rawScore, 14)
 
       const msg = {
@@ -2405,8 +2411,8 @@ io.emit('room_message', { instanceId: currentRoom.instanceId, username: botName,
 }
 
 function startBots() {
-  console.log('🤖 Starting 8 debate bots...')
-  BOT_NAMES.forEach((name, i) => {
+  console.log('🤖 Starting 4 debate bots...')
+  BOT_NAMES.slice(0, 4).forEach((name, i) => {
     setTimeout(() => runBot(name, BOT_PERSONALITIES[i]), i * 8000)
   })
 }
