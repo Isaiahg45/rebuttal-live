@@ -918,6 +918,7 @@ setInterval(() => {
       }
 
       if (room.status === 'active') {
+        if (!room.debateEndsAt) return // timer paused — scoring in progress
         const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
         if (timeLeft <= 0) {
           const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
