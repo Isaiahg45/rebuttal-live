@@ -705,6 +705,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       document.removeEventListener('touchstart', unlockAudio)
       // Clean up Agora
      // Clean up Agora
+    agoraInitializedRef.current = false
     // Don't leave Agora here — only leave on debate end or forfeit
       if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
       localStreamRef.current?.getTracks().forEach(t => t.stop())
