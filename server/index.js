@@ -1297,11 +1297,12 @@ Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant
 
 function fallbackScore(text) {
   const wordCount = text.trim().split(/\s+/).length
-  let score = wordCount < 5 ? 1 : wordCount < 15 ? Math.floor(Math.random() * 4) + 3
-    : wordCount < 30 ? Math.floor(Math.random() * 6) + 7
-    : wordCount < 60 ? Math.floor(Math.random() * 7) + 12
-    : Math.floor(Math.random() * 8) + 18
-  if (/\b(study|research|statistics|data|evidence|example|proves|according|percent)\b/i.test(text)) score = Math.min(30, score + 3)
+  // Capped at 8 max — modest credit for effort, can't swing a debate
+  let score = wordCount < 5 ? 1
+    : wordCount < 15 ? 3
+    : wordCount < 30 ? 5
+    : wordCount < 60 ? 6
+    : 8
   const fallbackFeedbacks = [
     'Keep developing your argument.',
     'Try adding more evidence.',
@@ -1310,7 +1311,7 @@ function fallbackScore(text) {
     'Build on this with an example.',
   ]
   return {
-    score: Math.min(30, score),
+    score,
     feedback: fallbackFeedbacks[Math.floor(Math.random() * fallbackFeedbacks.length)]
   }
 }
