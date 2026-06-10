@@ -1264,10 +1264,12 @@ async function scoreArgument(text, topic, roomType, priorMessages = []) {
         max_tokens: 200,
         messages: [{
           role: 'system',
-          content: `You are a debate judge. Topic: "${topic}" (${roomType}).
+          content: `You are a strict debate judge. Topic: "${topic}" (${roomType}).
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
+
+OFF-TOPIC RULE: If the argument does not address the debate topic at all, score it 0-2 regardless of quality. "Blah blah", filler words, random sentences, or arguments about completely unrelated subjects = 0. Be strict — the argument must actually engage with the topic to earn points.
 
 REDUNDANCY RULE: Only penalize (score 0-2) if the argument is an almost word-for-word repeat with zero new information. If the player revisits a previous point but adds new reasoning, examples, counterarguments, or builds on it in any way, score it normally. Prior arguments from this player: "${priorContext || 'none yet'}"
 Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant": boolean}`

@@ -574,8 +574,9 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
       } catch (e) {}
     })
 socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) => {
-      // Stop turn timer on ALL clients instantly when any turn ends
+      // Stop BOTH the turn timer AND the overall debate timer instantly on all clients
       clearInterval(turnTimerRef.current)
+      clearInterval(timerRef.current)
       setTurnTimeLeft(0)
       // Only mark turn as ended for the speaker, not the listener
       if (speakerSocketId === socket.id) {
