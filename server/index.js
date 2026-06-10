@@ -1264,14 +1264,23 @@ async function scoreArgument(text, topic, roomType, priorMessages = []) {
         max_tokens: 200,
         messages: [{
           role: 'system',
-          content: `You are a strict debate judge. Topic: "${topic}" (${roomType}).
+          content: `You are a ruthless debate judge. Topic: "${topic}" (${roomType}).
+
+FIRST CHECK — IS THIS ON-TOPIC?
+Read the argument. Ask: does this directly address the debate topic above?
+- If NO → score 0-1, feedback must say "The argument is off-topic", do not evaluate quality at all.
+- Introducing yourself, stating your name, age, school, job, or personal background = OFF-TOPIC = 0.
+- Random filler, "blah blah", test words, gibberish = OFF-TOPIC = 0.
+- Talking about anything not directly related to the topic = OFF-TOPIC = 0-1.
+
+ONLY if the argument is clearly ON-TOPIC, score it:
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
-Casual profanity is fine if argument is strong. Hard slurs = penalty.
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
+Casual profanity is fine if argument is strong. Hard slurs = -10.
 
-OFF-TOPIC RULE: If the argument does not address the debate topic at all, score it 0-2 regardless of quality. "Blah blah", filler words, random sentences, or arguments about completely unrelated subjects = 0. Be strict — the argument must actually engage with the topic to earn points.
+REDUNDANCY: Word-for-word repeat with zero new info = 0. Adding new reasoning on a revisited point = score normally.
+Prior arguments from this player: "${priorContext || 'none yet'}"
 
-REDUNDANCY RULE: Only penalize (score 0-2) if the argument is an almost word-for-word repeat with zero new information. If the player revisits a previous point but adds new reasoning, examples, counterarguments, or builds on it in any way, score it normally. Prior arguments from this player: "${priorContext || 'none yet'}"
 Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant": boolean}`
         }, { role: 'user', content: text }]
       }),
