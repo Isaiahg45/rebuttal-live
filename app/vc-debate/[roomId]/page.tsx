@@ -177,8 +177,7 @@ const [micGranted, setMicGranted] = useState(false)
   const localStreamRef = useRef<MediaStream | null>(null)
   const localAnalyserRef = useRef<AnalyserNode | null>(null)
   const remoteAnalyserRef = useRef<AnalyserNode | null>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-
+  const audioCtxRef = useRef<AudioContext | null>(null)// Don't leave Agora here — only leave on debate end or forfeit
   // Other refs
   const socketRef = useRef<Socket | null>(null)
   const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -500,7 +499,18 @@ console.log('✅ Remote analyser connected')
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-localAudioTrackRef.current?.setEnabled(true)      } else {
+        localAudioTrackRef.current?.setEnabled(true)
+      } else {
+        // Manually subscribe to any already-publishing remote users
+        if (agoraClientRef.current) {
+          agoraClientRef.current.remoteUsers.forEach(async (remoteUser) => {
+            if (remoteUser.hasAudio) {
+              await agoraClientRef.current!.subscribe(remoteUser, 'audio')
+              remoteUser.audioTrack?.play()
+              setRemoteAudioActive(true)
+            }
+          })
+        }
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
@@ -523,9 +533,20 @@ localAudioTrackRef.current?.setEnabled(true)      } else {
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-localAudioTrackRef.current?.setEnabled(true)      } else {
+localAudioTrackRef.current?.setEnabled(true) 
+        } else {
         stopListening()
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
+        // Manually subscribe to any already-publishing remote users
+        if (agoraClientRef.current) {
+          agoraClientRef.current.remoteUsers.forEach(async (remoteUser) => {
+            if (remoteUser.hasAudio) {
+              await agoraClientRef.current!.subscribe(remoteUser, 'audio')
+              remoteUser.audioTrack?.play()
+              setRemoteAudioActive(true)
+            }
+          })
+        }
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
@@ -705,7 +726,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       document.removeEventListener('touchstart', unlockAudio)
       // Clean up Agora
      // Clean up Agora
-    agoraInitializedRef.current = false
+agoraInitializedRef.current = false
     // Don't leave Agora here — only leave on debate end or forfeit
       if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
       localStreamRef.current?.getTracks().forEach(t => t.stop())
