@@ -1734,6 +1734,11 @@ if (Object.keys(room.players).length >= 2) {
     const username = room.players[socket.id]?.username
     if (!username) return
 
+    // Pause the debate timer while AI scores
+    const timeRemainingMs = room.debateEndsAt ? room.debateEndsAt - Date.now() : null
+    room.debateEndsAt = null
+    io.to(instanceId).emit('vc_scoring_start', { username })
+
     // Collect this player's prior VC transcripts for redundancy checking
     const priorVC = room.vcState.transcripts
       .filter(t => t.username === username)
@@ -1746,7 +1751,10 @@ if (Object.keys(room.players).length >= 2) {
       priorVC
     )
 
-   room.vcState.scores[socket.id] = (room.vcState.scores[socket.id] || 0) + score
+   // Resume the debate timer
+    if (timeRemainingMs !== null) room.debateEndsAt = Date.now() + timeRemainingMs
+    io.to(instanceId).emit('vc_scoring_end', { username })
+    room.vcState.scores[socket.id] = (room.vcState.scores[socket.id] || 0) + score
     room.players[socket.id].score = room.vcState.scores[socket.id]
     if (room.inSuddenDeath && room.suddenDeathScores) {
       room.suddenDeathScores[username] = (room.suddenDeathScores[username] || 0) + score

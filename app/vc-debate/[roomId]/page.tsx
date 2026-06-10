@@ -197,6 +197,7 @@ const [micGranted, setMicGranted] = useState(false)
   const speakingIntervalRef = useRef<any>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [opponentSpeaking, setOpponentSpeaking] = useState(false)
+  const [scoringUsername, setScoringUsername] = useState<string | null>(null)
 
   useEffect(() => { myUsernameRef.current = myUsername }, [myUsername])
   useEffect(() => { profileRef.current = profile }, [profile])
@@ -572,7 +573,16 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
         }
       } catch (e) {}
     })
-
+socket.on('vc_scoring_start', ({ username }: { username: string }) => {
+      setScoringUsername(username)
+      clearInterval(timerRef.current)
+    })
+    socket.on('vc_scoring_end', ({ username }: { username: string }) => {
+      setScoringUsername(null)
+      timerRef.current = setInterval(() => {
+        setTimeLeft(prev => { if (prev <= 1) { clearInterval(timerRef.current); return 0 } return prev - 1 })
+      }, 1000)
+    })
     socket.on('vc_go_first_update', ({ paidUsername, socketId }: any) => {
       setPaidToGoFirst(paidUsername); setCanOverride(socketId !== socket.id)
     })
@@ -1038,8 +1048,13 @@ agoraInitializedRef.current = false
           </div>
         </div>
 
-        {/* Turn indicator */}
+       {/* Turn indicator */}
         <div style={{ background: isMyTurn ? 'rgba(230,57,70,0.08)' : 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0, textAlign: 'center' }}>
+          {scoringUsername && (
+            <div style={{ background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '8px', padding: '8px 16px', marginBottom: '8px', fontSize: '13px', color: '#ffd60a', animation: 'pulse 1s infinite' }}>
+              ⚖️ AI Judge is scoring {scoringUsername}'s argument...
+            </div>
+          )}
           {inCooldown ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Switching speakers in...</div>
