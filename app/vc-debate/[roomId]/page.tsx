@@ -938,7 +938,7 @@ agoraInitializedRef.current = false
                 <div style={{ fontSize: '13px', textAlign: 'left', lineHeight: 1.7, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
                   <div style={{ fontWeight: 700, marginBottom: '8px', textAlign: 'center' }}>⚠️ Before you speak — read this ⚠️</div>
                   <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <li style={{ fontSize: '15px', fontWeight: 800, color: '#ff3333', textShadow: '0 0 10px rgba(255,50,50,0.6)', animation: 'redPulse 1s ease-in-out infinite', listStyle: 'none', marginLeft: '-18px', textAlign: 'center', padding: '4px 0' }}> Speak clearly and at a normal volume — <b>no mumbling</b></li>
+                    <li style={{ fontSize: '15px', fontWeight: 800, color: '#ff3333', textShadow: '0 0 10px rgba(255,50,50,0.6)', animation: 'redPulse 1s ease-in-out infinite', listStyle: 'none', marginLeft: '-18px', textAlign: 'center', padding: '4px 0' }}> Speak clearly and at a normal volume — <b>no mumbling!</b></li>
                     <li>Articulate your words as best you can so the AI can properly hear what you're saying</li>
                     <li>Speak at a steady pace — don't rush through your argument</li>
                     <li>Stay close to your mic and minimize background noise</li>
