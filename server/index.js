@@ -1276,6 +1276,9 @@ async function scoreArgument(text, topic, roomType, priorMessages = [], side = n
           role: 'system',
           content: `You are a ruthless debate judge. Topic: "${topic}" (${roomType}).
 ${side ? `This player was assigned the ${side.toUpperCase()} side — they must argue ${side === 'pro' ? 'IN FAVOR OF' : 'AGAINST'} the topic.` : ''}
+
+TRANSCRIPTION NOTE: This argument was transcribed by a speech-to-text AI and may contain mishearing errors. A word or phrase may be garbled or substituted with something nonsensical (e.g. "intense tastes good" when they said "it tastes good"). Use context clues to interpret what the speaker most likely meant. Judge the overall argument and intent — do NOT penalize for a single garbled word if the surrounding context makes the meaning clear. Only penalize if the argument as a whole is incoherent or off-topic.
+
 FIRST CHECK — IS THIS ON-TOPIC?
 - If the argument does not address the debate topic = score 0, feedback "The argument is off-topic."
 - Self-introduction, name, age, school, job, personal background = 0, "The argument is off-topic."

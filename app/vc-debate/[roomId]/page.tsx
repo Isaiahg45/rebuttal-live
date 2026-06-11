@@ -935,8 +935,16 @@ agoraInitializedRef.current = false
                
               {micGranted && (
                 <>
-                <div style={{ fontSize: '14px', fontWeight: 700, textAlign: 'center', lineHeight: 1.6, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
-                  ⚠️ Speak clearly and at a normal volume so the AI can transcribe you accurately — no mumbling <span style={{ color: 'var(--red)' }}>!</span>
+                <div style={{ fontSize: '13px', textAlign: 'left', lineHeight: 1.7, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '8px', textAlign: 'center' }}>⚠️ Before you speak — read this</div>
+                  <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <li>Speak clearly and at a normal volume — <b>no mumbling</b></li>
+                    <li>Articulate your words as best you can so the AI can properly hear what you're saying</li>
+                    <li>Speak at a steady pace — don't rush through your argument</li>
+                    <li>Stay close to your mic and minimize background noise</li>
+                    <li>Don't trail off at the end of sentences — finish your point clearly</li>
+                    <li>The AI uses context clues if a word is misheard — focus on making your overall argument clear</li>
+                  </ul>
                 </div>
                 </>
               )}
