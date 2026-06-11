@@ -739,12 +739,12 @@ function createVCRoom() {
   const topic = getTopicForType('vc')
   const id = `vc_${++roomCounter}_${Date.now()}`
 
-  rooms[id] = {
+ rooms[id] = {
     instanceId: id,
     type: 'vc',
     emoji: '🎙️',
     topic: topic.topic,
-    duration: 4 * 60,
+    duration: 8 * 60,
     eloRequired: 0,
     maxPlayers: 2,
     players: {},
@@ -758,13 +758,14 @@ function createVCRoom() {
       currentSpeaker: null,
       turnNumber: 0,
       turnStartTime: null,
-      turnDuration: 30,
-      turnCooldown: 10,
+      turnDuration: 90,
+      turnCooldown: 5,
       inCooldown: false,
       scores: {},
       paidToGoFirst: null,
       firstSpeakerLocked: false,
       transcripts: [],
+      sides: {}, // { socketId: 'pro' | 'con' }
     }
   }
   console.log(`🎙️ Created VC room: "${topic.topic}"`)
@@ -912,6 +913,11 @@ setInterval(() => {
             firstSpeakerUsername: room.players[firstSpeakerId]?.username,
             duration: room.duration,
             turnDuration: room.vcState.turnDuration,
+            sides: Object.entries(room.vcState.sides || {}).reduce((acc, [sid, s]) => {
+              const username = room.players[sid]?.username
+              if (username) acc[username] = s
+              return acc
+            }, {})
           })
           console.log(`🎙️ VC Started: "${room.topic}"`)
         }
@@ -1432,8 +1438,7 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
       instanceId: id,
       emoji: isPrivate ? '🔒' : '⚔️',
       topic: topic.trim(),
-      duration: duration || (isVC ? 240 : 300),
-      eloRequired: 0,
+duration: duration || (isVC ? 480 : 300),      eloRequired: 0,
       eloStake: eloStake || 25,
       maxPlayers: 2,
       players: {},
@@ -1455,8 +1460,8 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
         type: 'vc',
         vcState: {
           currentSpeaker: null, turnNumber: 0, turnStartTime: null,
-          turnDuration: 30, turnCooldown: 10, inCooldown: false,
-          scores: {}, paidToGoFirst: null, firstSpeakerLocked: false, transcripts: [],
+          turnDuration: 90, turnCooldown: 5, inCooldown: false,
+          scores: {}, paidToGoFirst: null, firstSpeakerLocked: false, transcripts: [], sides: {},
         }
       }
     } else {
@@ -1678,6 +1683,13 @@ if (Object.keys(room.players).length >= 2) {
     })
 
     io.to(instanceId).emit('vc_players_update', Object.values(room.players))
+    io.to(instanceId).emit('vc_sides_update', {
+      sides: Object.entries(room.vcState.sides || {}).reduce((acc, [sid, s]) => {
+        const username = room.players[sid]?.username
+        if (username) acc[username] = s
+        return acc
+      }, {})
+    })
     io.to(instanceId).emit('vc_system_message', { text: `${username} joined` })
     io.emit('rooms_update', getRoomList())
 
@@ -1723,7 +1735,28 @@ if (Object.keys(room.players).length >= 2) {
     })
     io.to(instanceId).emit('vc_system_message', { text: `${username} chose to go first` })
   })
-
+// ── VC pick side ──────────────────────────────────────────────
+  socket.on('vc_pick_side', ({ instanceId, side }) => {
+    const room = rooms[instanceId]
+    if (!room || room.type !== 'vc') return
+    if (room.status !== 'waiting') return
+    if (!['pro', 'con'].includes(side)) return
+    const sides = room.vcState.sides
+    // Check if side is already taken by someone else
+    const takenBy = Object.entries(sides).find(([sid, s]) => s === side && sid !== socket.id)
+    if (takenBy) { socket.emit('vc_error', { message: 'That side is already taken.' }); return }
+    // Remove any previous side choice
+    delete sides[socket.id]
+    sides[socket.id] = side
+    io.to(instanceId).emit('vc_sides_update', {
+      sides: Object.entries(sides).reduce((acc, [sid, s]) => {
+        const username = room.players[sid]?.username
+        if (username) acc[username] = s
+        return acc
+      }, {})
+    })
+    console.log(`🎙️ ${room.players[socket.id]?.username} picked ${side} in "${room.topic}"`)
+  })
   // ── VC override go first ──────────────────────────────────────
   socket.on('vc_override_go_first', ({ instanceId }) => {
     const room = rooms[instanceId]

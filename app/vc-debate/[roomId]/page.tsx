@@ -198,7 +198,8 @@ const [micGranted, setMicGranted] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [opponentSpeaking, setOpponentSpeaking] = useState(false)
   const [scoringUsername, setScoringUsername] = useState<string | null>(null)
-
+const [sides, setSides] = useState<Record<string, 'pro' | 'con'>>({})
+const [mySide, setMySide] = useState<'pro' | 'con' | null>(null)
   useEffect(() => { myUsernameRef.current = myUsername }, [myUsername])
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { userRef.current = user }, [user])
@@ -489,6 +490,10 @@ console.log('✅ Remote analyser connected')
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
       setTurnNumber(1)
+      if (sides) {
+        setSides(sides)
+        if (sides[myUsername]) setMySide(sides[myUsername])
+      }
       setTurnTimeLeft(turnDuration)
 
       clearInterval(timerRef.current)
@@ -599,7 +604,10 @@ socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) =>
     socket.on('vc_go_first_update', ({ paidUsername, socketId }: any) => {
       setPaidToGoFirst(paidUsername); setCanOverride(socketId !== socket.id)
     })
-
+socket.on('vc_sides_update', ({ sides: s }: { sides: Record<string, 'pro' | 'con'> }) => {
+      setSides(s)
+      if (s[myUsername]) setMySide(s[myUsername])
+    })
     socket.on('vc_sudden_death_start', ({ round, firstSpeakerSocketId, firstSpeakerUsername, secondSpeakerUsername, turnDuration }: any) => {
       setSuddenDeath(true)
       setSuddenDeathRound(round)
@@ -962,6 +970,37 @@ agoraInitializedRef.current = false
               </div>
             )}
           </div>
+          {status === 'waiting' && players.length >= 1 && (
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Pick Your Side</div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {(['pro', 'con'] as const).map(side => {
+                  const takenBy = Object.entries(sides).find(([u, s]) => s === side)?.[0]
+                  const isMine = mySide === side
+                  const isTaken = !!takenBy && takenBy !== myUsername
+                  return (
+                    <button
+                      key={side}
+                      disabled={isTaken}
+                      onClick={() => socketRef.current?.emit('vc_pick_side', { instanceId, side })}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '8px', cursor: isTaken ? 'not-allowed' : 'pointer',
+                        fontFamily: 'DM Sans, sans-serif', fontSize: '13px', fontWeight: 700,
+                        border: `1px solid ${isMine ? (side === 'pro' ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)') : 'var(--border)'}`,
+                        background: isMine ? (side === 'pro' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)') : isTaken ? 'rgba(255,255,255,0.03)' : 'transparent',
+                        color: isMine ? (side === 'pro' ? 'var(--green)' : 'var(--red)') : isTaken ? 'var(--muted)' : 'var(--text2)',
+                        opacity: isTaken && !isMine ? 0.5 : 1,
+                      }}
+                    >
+                      {side === 'pro' ? '👍 PRO' : '👎 CON'}
+                      {takenBy && <div style={{ fontSize: '11px', fontWeight: 400, marginTop: '3px' }}>{takenBy}</div>}
+                      {!takenBy && <div style={{ fontSize: '11px', fontWeight: 400, marginTop: '3px', color: 'var(--muted)' }}>Available</div>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {status === 'starting' && players.length === 2 && (
             <div style={{ background: 'rgba(255,214,10,0.06)', border: '1px solid rgba(255,214,10,0.2)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>⚡ Go First?</div>
@@ -1029,8 +1068,12 @@ agoraInitializedRef.current = false
           </div>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{myUsername} (you) — {myScore} pts</span>
-              <span style={{ color: 'var(--text2)' }}>{opponent?.username} — {opponentScore} pts</span>
+             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                {myUsername} (you){mySide && <span style={{ fontSize: '10px', marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: mySide === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: mySide === 'pro' ? 'var(--green)' : 'var(--red)' }}>{mySide.toUpperCase()}</span>} — {myScore} pts
+              </span>
+              <span style={{ color: 'var(--text2)' }}>
+                {opponent?.username}{opponent && sides[opponent.username] && <span style={{ fontSize: '10px', marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: sides[opponent.username] === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: sides[opponent.username] === 'pro' ? 'var(--green)' : 'var(--red)' }}>{sides[opponent.username].toUpperCase()}</span>} — {opponentScore} pts
+              </span>
             </div>
             <div style={{ height: '6px', background: 'var(--surface2)', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
               {(myScore + opponentScore) > 0 && (
