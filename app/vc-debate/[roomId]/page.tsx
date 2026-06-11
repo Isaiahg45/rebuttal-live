@@ -471,8 +471,7 @@ console.log('✅ Remote analyser connected')
       }
     })
 
-    socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, duration, turnDuration }: any) => {
-      console.log('🎯 vc_debate_started — firstSpeakerSocketId:', firstSpeakerSocketId, 'socket.id:', socket.id)
+socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, duration, turnDuration, sides: incomingSides }: any) => {      console.log('🎯 vc_debate_started — firstSpeakerSocketId:', firstSpeakerSocketId, 'socket.id:', socket.id)
       try { lobbyAudioRef.current?.pause() } catch (e) {}
 
       // Fetch opponent avatar
@@ -490,9 +489,9 @@ console.log('✅ Remote analyser connected')
       setIsMyTurn(isMine)
       isMyTurnRef.current = isMine
       setTurnNumber(1)
-      if (sides) {
-        setSides(sides)
-        if (sides[myUsername]) setMySide(sides[myUsername])
+      if (incomingSides) {
+        setSides(incomingSides)
+        if (incomingSides[myUsername]) setMySide(incomingSides[myUsername])
       }
       setTurnTimeLeft(turnDuration)
 

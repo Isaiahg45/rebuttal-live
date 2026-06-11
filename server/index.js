@@ -643,10 +643,15 @@ const combined = [
     createdBy: r.createdBy || null,
     eloStake: r.eloStake || 0,
     requiresPassword: !!(r.isPrivate && r.password),
-    vcState: r.type === 'vc' && r.vcState ? {
+   vcState: r.type === 'vc' && r.vcState ? {
       currentSpeakerUsername: r.vcState.currentSpeaker ? r.players[r.vcState.currentSpeaker]?.username : null,
       turnNumber: r.vcState.turnNumber,
       inCooldown: r.vcState.inCooldown,
+      sides: Object.entries(r.vcState.sides || {}).reduce((acc, [sid, s]) => {
+        const username = r.players[sid]?.username
+        if (username) acc[username] = s
+        return acc
+      }, {}),
     } : null,
   }))
 }
@@ -1244,8 +1249,7 @@ return { isRedundant: maxSimilarity >= 0.85, similarity: maxSimilarity }}
 
 // ─── Argument scoring ──────────────────────────────────────────
 // priorMessages: array of strings (this player's previous argument texts in this room)
-async function scoreArgument(text, topic, roomType, priorMessages = []) {
-  const hardSlurs = /\b(nigger|nigga|faggot|chink|spic|kike|wetback|tranny)\b/i.test(text)
+async function scoreArgument(text, topic, roomType, priorMessages = [], side = null) {  const hardSlurs = /\b(nigger|nigga|faggot|chink|spic|kike|wetback|tranny)\b/i.test(text)
   if (hardSlurs) return { score: -10, feedback: 'Slur detected. Hard penalty applied.' }
   if (text.trim().length < 15) return { score: 0, feedback: 'Too brief to evaluate.' }
 
@@ -1271,15 +1275,18 @@ async function scoreArgument(text, topic, roomType, priorMessages = []) {
         messages: [{
           role: 'system',
           content: `You are a ruthless debate judge. Topic: "${topic}" (${roomType}).
-
+${side ? `This player was assigned the ${side.toUpperCase()} side — they must argue ${side === 'pro' ? 'IN FAVOR OF' : 'AGAINST'} the topic.` : ''}
 FIRST CHECK — IS THIS ON-TOPIC?
-Read the argument. Ask: does this directly address the debate topic above?
-- If NO → score 0-1, feedback must say "The argument is off-topic", do not evaluate quality at all.
-- Introducing yourself, stating your name, age, school, job, or personal background = OFF-TOPIC = 0.
-- Random filler, "blah blah", test words, gibberish = OFF-TOPIC = 0.
-- Talking about anything not directly related to the topic = OFF-TOPIC = 0-1.
+- If the argument does not address the debate topic = score 0, feedback "The argument is off-topic."
+- Self-introduction, name, age, school, job, personal background = 0, "The argument is off-topic."
+- Filler, gibberish, test words = 0, "The argument is off-topic."
 
-ONLY if the argument is clearly ON-TOPIC, score it:
+SECOND CHECK — IS THIS THE RIGHT SIDE? (only if on-topic)
+- If the player was assigned PRO but argues against the topic = score 0, feedback "Did not argue the pro side."
+- If the player was assigned CON but argues in favor of the topic = score 0, feedback "Did not argue the con side."
+- NOTE: Using a counterargument or acknowledging the other side to strengthen your own position is fine. Only penalize if they are genuinely arguing the WRONG side entirely.
+
+ONLY if on-topic AND correct side, score it:
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
 Casual profanity is fine if argument is strong. Hard slurs = -10.
@@ -1670,6 +1677,13 @@ if (Object.keys(room.players).length >= 2) {
     socket.join(instanceId)
     room.players[socket.id] = { username, score: 0, elo }
     room.vcState.scores[socket.id] = 0
+    // Auto-assign first player to pro, second to con
+    const existingSides = Object.values(room.vcState.sides || {})
+    if (!existingSides.includes('pro')) {
+      room.vcState.sides[socket.id] = 'pro'
+    } else if (!existingSides.includes('con')) {
+      room.vcState.sides[socket.id] = 'con'
+    }
     socket.emit('message_history', room.messages)
     socket.emit('vc_room_info', {
       instanceId: room.instanceId,

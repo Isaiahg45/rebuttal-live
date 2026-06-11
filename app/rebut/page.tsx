@@ -26,6 +26,12 @@ interface RoomData {
   createdBy?: string
   eloStake?: number
   requiresPassword?: boolean
+  vcState?: {
+    currentSpeakerUsername: string | null
+    turnNumber: number
+    inCooldown: boolean
+    sides: Record<string, 'pro' | 'con'>
+  } | null
 }
 
 interface ChatMsg { user: string; text: string }
@@ -562,9 +568,22 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
                               <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', marginBottom: '8px' }}>
                                 <div style={{ height: '100%', width: `${room.playerCount * 50}%`, background: 'linear-gradient(90deg,#00d4ff,#0077b6)', boxShadow: room.playerCount > 0 ? '0 0 8px #00d4ff' : 'none', transition: 'width 0.5s' }} />
                               </div>
-                              <div style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)', borderRadius: '10px', padding: '9px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#00d4ff', letterSpacing: '1.5px' }}>
-                                🎙 {room.playerCount === 0 ? 'JOIN VOICE BATTLE' : 'CHALLENGE ACCEPTED'}
-                              </div>
+                             {room.vcState?.sides && Object.keys(room.vcState.sides).length > 0 && (
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                  {(['pro', 'con'] as const).map(side => {
+                    const username = Object.entries(room.vcState!.sides).find(([, s]) => s === side)?.[0]
+                    return (
+                      <div key={side} style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: `1px solid ${username ? (side === 'pro' ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)') : 'rgba(255,255,255,0.08)'}`, background: username ? (side === 'pro' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)') : 'transparent', textAlign: 'center' }}>
+                        <div style={{ fontSize: '9px', fontWeight: 700, color: username ? (side === 'pro' ? '#22c55e' : '#e63946') : 'rgba(255,255,255,0.25)', letterSpacing: '1px' }}>{side === 'pro' ? '👍 PRO' : '👎 CON'}</div>
+                        <div style={{ fontSize: '10px', color: username ? '#fff' : 'rgba(255,255,255,0.2)', marginTop: '2px' }}>{username || 'Open'}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <div style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)', borderRadius: '10px', padding: '9px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#00d4ff', letterSpacing: '1.5px' }}>
+                🎙 {room.playerCount === 0 ? 'JOIN VOICE BATTLE' : 'CHALLENGE ACCEPTED'}
+              </div>
                             </div>
                           ) : (
                             <div>
