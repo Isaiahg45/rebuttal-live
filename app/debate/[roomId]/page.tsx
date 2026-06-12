@@ -901,7 +901,6 @@ export default function DebatePage() {
                 }}
                 onPaste={e => {
                   e.preventDefault()
-                  setMessages(prev => [...prev, { id: `paste-${Date.now()}`, username: '— system —', text: '🚫 NO COPY AND PASTING!', score: 0, aiFeedback: '', timestamp: Date.now() }])
                 }}
                 disabled={!connected || (suddenDeath && suddenDeathPhase === 'first' && suddenDeathFirst !== myUsername) || (suddenDeath && suddenDeathPhase === 'second' && suddenDeathSecond !== myUsername) || (suddenDeath && suddenDeathPhase === 'cooldown')}
                 placeholder={
