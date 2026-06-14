@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Nav from '../components/Nav'
@@ -27,6 +27,7 @@ function CreateChallengeContent() {
   }, [challengeTarget])
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const creatingRef = useRef(false)
 
   if (loading) return (
     <>
@@ -55,6 +56,7 @@ function CreateChallengeContent() {
   }
 
   const handleCreate = () => {
+    if (creatingRef.current) return // prevent double-fire
     if (!topic.trim() || topic.trim().length < 10) {
       setError('Topic must be at least 10 characters.')
       return
@@ -65,6 +67,7 @@ function CreateChallengeContent() {
     }
     setError('')
     setCreating(true)
+    creatingRef.current = true
 
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', {
       transports: ['websocket', 'polling']
