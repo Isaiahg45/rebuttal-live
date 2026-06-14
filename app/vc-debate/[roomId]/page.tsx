@@ -232,13 +232,7 @@ const { listening, startListening, stopListening, finalTranscriptRef } = useSpee
 const initAgora = useCallback(async (channelName: string, uid: string) => {
   try {
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
-    try {
-  await client.startProxyServer(3)
-  console.log('✅ Agora proxy enabled')
-} catch (e) {
-  console.warn('⚠️ Proxy failed, connecting directly:', e)
-}
-agoraClientRef.current = client
+    agoraClientRef.current = client
 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
       setMicGranted(true)
