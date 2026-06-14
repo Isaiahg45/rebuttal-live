@@ -1222,9 +1222,25 @@ io.to(room.instanceId).emit('debate_ended', {
     if (rooms[id].status === 'ended' && now - rooms[id].createdAt > 30000) delete rooms[id]
   })
 
+  // Deduplicate custom rooms — keep only the oldest waiting room per createdBy+topic
+  const seen = new Map()
+  Object.values(rooms)
+    .filter(r => r.isCustom && r.status === 'waiting')
+    .sort((a, b) => a.createdAt - b.createdAt) // oldest first
+    .forEach(r => {
+      const key = `${r.createdBy}::${r.topic}`
+      if (seen.has(key)) {
+        // duplicate — delete it
+        rooms[r.instanceId].status = 'ended'
+        io.to(r.instanceId).emit('vc_expired', { message: 'Duplicate room removed.' })
+        console.log(`🧹 Duplicate custom room removed: "${r.topic}" by ${r.createdBy}`)
+      } else {
+        seen.set(key, r.instanceId)
+      }
+    })
+
   if (Math.random() < 0.1) replenishRooms()
 }, 1000)
-
 // ─── Redundancy check ──────────────────────────────────────────
 // Returns similarity 0-1 between two strings using word overlap (Jaccard)
 function jaccardSimilarity(a, b) {
