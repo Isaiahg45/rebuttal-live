@@ -70,10 +70,11 @@ function CreateChallengeContent() {
     creatingRef.current = true
 
     const socket = io('https://rebuttal-live-production-3388.up.railway.app', {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnection: false, // don't reconnect — one shot only
     })
 
-    socket.on('connect', () => {
+    socket.once('connect', () => {
       socket.emit('create_custom_room', {
         username: profile.username,
         topic: topic.trim(),
