@@ -1434,10 +1434,22 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
   })
 
   // ── Create custom room ────────────────────────────────────────
-  socket.on('create_custom_room', ({ username, topic, duration, eloStake, isPrivate, password, debateType }) => {
+ socket.on('create_custom_room', ({ username, topic, duration, eloStake, isPrivate, password, debateType }) => {
     if (!username) { socket.emit('error', { message: 'Must be logged in.' }); return }
     if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
     if (isPrivate && !password) { socket.emit('error', { message: 'Private rooms need a password.' }); return }
+
+    // Deduplicate — if this user already has a waiting custom room with the same topic, return it
+    const existing = Object.values(rooms).find(r =>
+      r.isCustom &&
+      r.createdBy === username &&
+      r.topic === topic.trim() &&
+      r.status === 'waiting'
+    )
+    if (existing) {
+      socket.emit('custom_room_created', { instanceId: existing.instanceId, type: existing.type === 'vc' ? 'vc' : 'text' })
+      return
+    }
 
     const isVC = debateType === 'vc'
     const id = isVC
