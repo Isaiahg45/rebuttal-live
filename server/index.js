@@ -1298,18 +1298,14 @@ TRANSCRIPTION NOTE: This argument was transcribed by a speech-to-text AI and may
 FIRST CHECK — IS THIS ON-TOPIC?
 A message is ON-TOPIC if it states any position, claim, or reaction connected to the debate question — even a short, one-sided, or unsupported opinion. "Off-topic" means wrong SUBJECT, not weak argument. Do NOT use "off-topic" just because a claim is short or lacks evidence — that's a quality issue, score it in the 0-2 bucket below instead.
 - If the argument does not mention or relate to the debate topic at all = score 0, feedback "The argument is off-topic."
-- Self-introduction, name, age, school, job, personal background = 0, "The argument is off-topic."
-- Filler, gibberish, test words = 0, "The argument is off-topic."
+- Insults or aggressive tone directed at the opponent are NOT automatically off-topic. If the insult is clearly tied to the topic (e.g. mocking someone for disagreeing with the speaker's position on it), treat it as on-topic and score it for quality — insults with no evidence or reasoning usually land in the 0-2 bucket, same as a bare assertion.
 
-SECOND CHECK — IS THIS THE RIGHT SIDE? (only if on-topic)
-- If the player was assigned PRO but argues against the topic = score 0, feedback "Did not argue the pro side."
-- If the player was assigned CON but argues in favor of the topic = score 0, feedback "Did not argue the con side."
-- NOTE: Using a counterargument or acknowledging the other side to strengthen your own position is fine. Only penalize if they are genuinely arguing the WRONG side entirely.
+
+
 
 ONLY if on-topic AND correct side, score it:
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
-Casual profanity is fine if argument is strong. Hard slurs = -10.
 
 REDUNDANCY: Word-for-word repeat with zero new info = 0. Adding new reasoning on a revisited point = score normally.
 Prior arguments from this player: "${priorContext || 'none yet'}"
