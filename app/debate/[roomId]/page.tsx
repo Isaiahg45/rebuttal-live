@@ -296,8 +296,6 @@ export default function DebatePage() {
   if (count <= 4) setGameStarted(true)
       if (count === 4) {
         stopLobbyMusic()
-      }
-      if (count === 3) {
         try {
           if (sfxOn && countdownAudioRef.current) {
             countdownAudioRef.current.currentTime = 0
