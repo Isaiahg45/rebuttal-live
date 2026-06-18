@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 
-export function useBuddies(myUsername: string) {
+export function useBuddies(myUsername: string, isPro: boolean = false) {
   const [buddies, setBuddies] = useState<string[]>([])
   const [pendingReceived, setPendingReceived] = useState<string[]>([])
   const [pendingSent, setPendingSent] = useState<string[]>([])
+  const BUDDY_LIMIT = 25
 
   const refresh = useCallback(async () => {
     if (!myUsername) return
@@ -23,7 +24,10 @@ export function useBuddies(myUsername: string) {
 
   useEffect(() => { refresh() }, [refresh])
 
-  const sendRequest = async (toUsername: string) => {
+  const sendRequest = async (toUsername: string): Promise<{ error?: string }> => {
+    if (!isPro && buddies.length >= BUDDY_LIMIT) {
+      return { error: `You've reached the ${BUDDY_LIMIT} buddy limit. Upgrade to Rebuttal Pro for unlimited buddies.` }
+    }
     await supabase.from('buddies').insert({ requester_username: myUsername, recipient_username: toUsername })
     await supabase.from('notifications').insert({
       recipient_username: toUsername,
@@ -31,6 +35,7 @@ export function useBuddies(myUsername: string) {
       message: `🤝 ${myUsername} sent you a buddy request!`,
     })
     refresh()
+    return {}
   }
 
   const acceptRequest = async (fromUsername: string) => {
@@ -56,5 +61,5 @@ export function useBuddies(myUsername: string) {
     refresh()
   }
 
-  return { buddies, pendingReceived, pendingSent, sendRequest, acceptRequest, declineRequest, removeBuddy, refresh }
+  return { buddies, pendingReceived, pendingSent, sendRequest, acceptRequest, declineRequest, removeBuddy, refresh, buddyLimit: BUDDY_LIMIT, atLimit: !isPro && buddies.length >= BUDDY_LIMIT }
 }

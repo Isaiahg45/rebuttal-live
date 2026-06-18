@@ -226,6 +226,15 @@ input { font-family: inherit; }
   border-radius: 20px;
   padding: 4px 12px;
 }
+.nav-coin-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
 
 /* ─── Rebut page grid ─────────────────────────────────────────── */
 .rebut-grid {

@@ -31,6 +31,7 @@ const avatarUrl = profile?.avatar_url ?? null
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
     { id: 'topic', label: '🔥 Debate of the Day', href: '/topic', special: true },
     { id: 'rankings', label: 'Rankings', href: '/rankings' },
+    { id: 'shop', label: 'Shop', href: '/shop' },
     { id: 'help', label: 'Help', href: '/help' },
   ]
 
@@ -80,10 +81,15 @@ const avatarUrl = profile?.avatar_url ?? null
             <div style={{ width: '80px', height: '28px', background: 'var(--surface2)', borderRadius: '20px', opacity: 0.3, animation: 'pulse 1.5s infinite' }} />
           ) : user ? (
             <>
-              <div className="nav-elo-pill">
+             <div className="nav-elo-pill">
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 6px rgba(230,57,70,0.8)', flexShrink: 0 }} />
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{profile?.elo ?? 0}</span>
                 <span className="elo-label" style={{ fontSize: '11px', color: 'var(--muted)' }}>ELO</span>
+              </div>
+              {/* TODO: replace hardcoded 0 with profile.coins when 1.3 launches */}
+              <div className="nav-coin-pill">
+                <img src="/rebut-coin.png" alt="RC" style={{ width: '16px', height: '16px', objectFit: 'contain', flexShrink: 0 }} />
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>0</span>
               </div>
 
              {/* Notification bell */}
@@ -191,7 +197,13 @@ const avatarUrl = profile?.avatar_url ?? null
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{profile?.username}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>{profile?.elo ?? 0} ELO</div>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>{profile?.elo ?? 0} ELO</span>
+                    {/* TODO: replace hardcoded 0 with profile.coins when 1.3 launches */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>
+                      <img src="/rebut-coin.png" alt="" style={{ width: '12px', height: '12px', objectFit: 'contain' }} />0
+                    </span>
+                  </div>
                 </div>
               </div>
               <button onClick={handleSignOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>

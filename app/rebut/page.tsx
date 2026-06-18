@@ -92,6 +92,14 @@ const TYPE_CONFIG: Record<string, { gradient: string; glow: string; border: stri
     badgeBg: 'rgba(255,107,53,0.12)',
     label: '⚔ CUSTOM',
   },
+  worldcup: {
+    gradient: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)',
+    glow: '0 0 40px rgba(91,140,255,0.25), 0 0 80px rgba(255,77,104,0.1)',
+    border: 'rgba(91,140,255,0.55)',
+    badge: '#fff',
+    badgeBg: 'rgba(255,255,255,0.1)',
+    label: '⚽ WORLD CUP',
+  },
 }
 
 const ELO_LABELS: Record<string, string> = {
@@ -100,9 +108,10 @@ const ELO_LABELS: Record<string, string> = {
   serious: '+20-30 ELO',
   competitive: '+25–35 ELO',
   vc: '+10–30 ELO',
+  worldcup: '+80 ELO to winner',
 }
 
-const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
+const FILTERS = ['All', 'World Cup', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
 
 export default function RebutPage() {
   const router = useRouter()
@@ -181,6 +190,7 @@ export default function RebutPage() {
     if (filter === 'All') return true
     if (filter === 'Voice') return r.type === 'vc'
     if (filter === 'Custom') return !!r.isCustom
+    if (filter === 'World Cup') return r.type === 'worldcup'
     return r.type.toLowerCase() === filter.toLowerCase()
   }
 
@@ -223,7 +233,13 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
 
   return (
     <>
-      <Nav active="rebut" />
+     <Nav active="rebut" />
+      <div style={{ background: 'linear-gradient(100deg, #7a1726 0%, #5a1740 28%, #15275e 55%, #0f3d52 75%, #0c4a30 100%)', borderBottom: '1px solid #2a2230' }}>
+        <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
+          <span style={{ width: '28px', height: '8px', borderRadius: '4px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)', flexShrink: 0, display: 'inline-block' }} />
+          ⚽ <b style={{ color: '#fff' }}>World Cup Room</b> is live in the lobby — win it for <b style={{ color: '#fff' }}>+80 ELO</b>.
+        </div>
+      </div>
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
         @keyframes vcPulse { 0%,100%{box-shadow:0 0 0 1px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.08)} 50%{box-shadow:0 0 0 1px rgba(0,212,255,0.3), 0 0 24px rgba(0,212,255,0.15)} }
@@ -319,7 +335,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
           <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none' }}>
             {FILTERS.map(f => {
               const isActive = filter === f
-              const accentMap: Record<string, string> = { Voice: '#00d4ff', Custom: '#ff6b35', Serious: '#e63946', Competitive: '#ffd60a', Random: '#a855f7', Casual: '#22c55e' }
+              const accentMap: Record<string, string> = { 'World Cup': '#5b8cff', Voice: '#00d4ff', Custom: '#ff6b35', Serious: '#e63946', Competitive: '#ffd60a', Random: '#a855f7', Casual: '#22c55e' }
               const accent = accentMap[f] || '#e63946'
               return (
                 <button key={f} onClick={() => setFilter(f)} style={{ background: isActive ? `${accent}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${isActive ? accent : 'rgba(255,255,255,0.08)'}`, borderRadius: '20px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', color: isActive ? accent : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s', boxShadow: isActive ? `0 0 12px ${accent}40` : 'none' }}>

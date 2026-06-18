@@ -22,9 +22,30 @@ export default function ProfilePage() {
  const [uploading, setUploading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-const { buddies, pendingReceived, pendingSent, acceptRequest, declineRequest, removeBuddy } = useBuddies(profile?.username ?? '')
-  const [soundEnabled, setSoundEnabled] = useState(true)
+const { buddies, pendingReceived, pendingSent, acceptRequest, declineRequest, removeBuddy } = useBuddies(profile?.username ?? '', profile?.is_pro ?? false)
+const [soundEnabled, setSoundEnabled] = useState(true)
   const [musicEnabled, setMusicEnabled] = useState(true)
+const [bio, setBio] = useState('')
+  const [bioSaving, setBioSaving] = useState(false)
+  const [badges, setBadges] = useState<string[]>([])
+  const [badgeSaving, setBadgeSaving] = useState(false)
+  const [proLoading, setProLoading] = useState(false)
+  const BADGE_OPTIONS = [
+    // Politics
+    'Conservative', 'Liberal', 'Libertarian', 'Socialist', 'Progressive', 'Moderate', 'Apolitical',
+    // Religion
+    'Christian', 'Muslim', 'Jewish', 'Hindu', 'Buddhist', 'Atheist', 'Agnostic', 'Spiritual',
+    // Ideology
+    'Capitalist', 'Marxist', 'Feminist', 'Environmentalist', 'Nationalist', 'Globalist',
+    // Race/Ethnicity
+    'Black', 'White', 'Hispanic', 'Asian', 'Middle Eastern', 'Mixed',
+    // World Cup teams
+    '🇧🇷 Brazil', '🇦🇷 Argentina', '🇫🇷 France', '🇩🇪 Germany', '🇪🇸 Spain',
+    '🇵🇹 Portugal', '🇬🇧 England', '🇳🇱 Netherlands', '🇮🇹 Italy', '🇺🇸 USA',
+    '🇲🇽 Mexico', '🇯🇵 Japan', '🇰🇷 South Korea', '🇲🇦 Morocco', '🇸🇳 Senegal',
+    '🇳🇴 Norway',
+  ]
+
 
   useEffect(() => {
     const prefs = localStorage.getItem('rebuttal_sound_prefs')
@@ -44,8 +65,10 @@ const { buddies, pendingReceived, pendingSent, acceptRequest, declineRequest, re
     if (loading) return
     if (!user) { router.push('/signup'); return }
     if (!profile?.username) { router.push('/username'); return }
-    setNewUsername(profile.username)
+   setNewUsername(profile.username)
     setAvatarUrl(profile.avatar_url ?? null)
+    setBio(profile.bio ?? '')
+    setBadges(profile.badges ?? [])
   }, [user, profile, loading])
 
   useEffect(() => {
@@ -107,6 +130,38 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     await supabase.from('profiles').delete().eq('id', user.id)
     await supabase.auth.signOut()
     window.location.href = '/'
+  }
+
+ const saveBio = async () => {
+    if (bio.length > 400) return
+    setBioSaving(true)
+    await supabase.from('profiles').update({ bio }).eq('id', user.id)
+    setBioSaving(false)
+  }
+
+  const toggleBadge = async (badge: string) => {
+    const next = badges.includes(badge) ? badges.filter(b => b !== badge) : [...badges, badge]
+    setBadges(next)
+    setBadgeSaving(true)
+    await supabase.from('profiles').update({ badges: next }).eq('id', user.id)
+    setBadgeSaving(false)
+  }
+
+  const handleGetPro = async () => {
+    setProLoading(true)
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, username: profile.username }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch (e) {
+      alert('Something went wrong. Please try again.')
+    } finally {
+      setProLoading(false)
+    }
   }
 
   if (loading || !user || !profile?.username) {
@@ -234,6 +289,79 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '2px', marginTop: '6px' }}>{s.label}</div>
               </div>
             ))}
+          </div>
+
+         {/* Rebuttal Pro card */}
+          {profile?.is_pro ? (
+            <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(40,12,20,0.92), rgba(10,18,40,0.92))', border: '1px solid #4a2a3a', borderRadius: '16px', padding: '20px 22px', boxShadow: '0 0 40px rgba(46,108,246,0.08)' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #ff5d76, #6f9bff, #2e6cf6)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', background: 'linear-gradient(90deg, #ff5d76, #6f9bff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '4px' }}>REBUTTAL PRO — ACTIVE</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Unlimited buddies · Badges · Bio · 600 coins/mo coming in 1.3</div>
+                </div>
+                <div style={{ fontSize: '22px' }}>👑</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(30,10,18,0.95), rgba(8,14,32,0.95))', border: '1px solid #3a2030', borderRadius: '16px', padding: '20px 22px' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #ff5d76, #6f9bff, #2e6cf6)' }} />
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '18px', letterSpacing: '2px', background: 'linear-gradient(90deg, #ff5d76, #6f9bff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '6px' }}>REBUTTAL PRO</div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px', lineHeight: 1.6 }}>$9.99/mo · Badges · Bio · Unlimited buddies · 600 coins/mo in 1.3</div>
+              <ul style={{ listStyle: 'none', fontSize: '12.5px', color: 'rgba(255,255,255,0.45)', lineHeight: 2, marginBottom: '16px' }}>
+                {['Self-ID profile badges (politics, religion, ideology, race, sports)', 'World Cup team fandom badge', '400-word bio on your public profile', 'Unlimited buddies'].map(p => (
+                  <li key={p} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><span style={{ color: '#22c55e', flexShrink: 0, marginTop: '2px' }}>✓</span>{p}</li>
+                ))}
+              </ul>
+              <button onClick={handleGetPro} disabled={proLoading} style={{ background: 'linear-gradient(100deg, #ef3b56, #6f6bff, #2e6cf6)', border: 'none', borderRadius: '10px', padding: '12px 24px', color: '#fff', fontSize: '14px', fontWeight: 800, cursor: proLoading ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 22px rgba(111,107,255,0.35)', opacity: proLoading ? 0.7 : 1 }}>
+                {proLoading ? 'Redirecting...' : '👑 Get Rebuttal Pro — $9.99/mo'}
+              </button>
+            </div>
+          )}
+
+          {/* Bio */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>BIO {!profile?.is_pro && <span style={{ color: '#6f9bff', marginLeft: '6px' }}>PRO</span>}</span>
+              <span style={{ fontSize: '11px', color: bio.length > 360 ? (bio.length > 400 ? '#ef4444' : '#ff9500') : 'rgba(255,255,255,0.2)' }}>{bio.length}/400</span>
+            </div>
+            {profile?.is_pro ? (
+              <div style={{ padding: '14px 20px' }}>
+                <textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={420} placeholder="Tell other debaters who you are..." rows={4} style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${bio.length > 400 ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: '10px', padding: '12px', color: 'var(--text)', fontSize: '13.5px', outline: 'none', resize: 'vertical', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6, boxSizing: 'border-box' }} />
+                <button onClick={saveBio} disabled={bioSaving || bio.length > 400} style={{ marginTop: '10px', background: bio.length > 400 ? 'rgba(255,255,255,0.05)' : 'rgba(230,57,70,0.15)', border: `1px solid ${bio.length > 400 ? 'rgba(255,255,255,0.08)' : 'rgba(230,57,70,0.3)'}`, borderRadius: '8px', padding: '9px 20px', color: bio.length > 400 ? 'rgba(255,255,255,0.2)' : 'var(--accent)', fontSize: '13px', fontWeight: 700, cursor: bio.length > 400 ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                  {bioSaving ? 'Saving...' : 'Save Bio'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ padding: '18px 20px', fontSize: '13px', color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
+                Upgrade to <span style={{ color: '#6f9bff', fontWeight: 700 }}>Rebuttal Pro</span> to add a bio to your public profile.
+              </div>
+            )}
+          </div>
+
+          {/* Badges */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>SELF-ID BADGES</span>
+              {!profile?.is_pro && <span style={{ color: '#6f9bff' }}>PRO</span>}
+              {badgeSaving && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', marginLeft: 'auto' }}>Saving...</span>}
+            </div>
+            {profile?.is_pro ? (
+              <div style={{ padding: '14px 20px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {BADGE_OPTIONS.map(badge => {
+                  const selected = badges.includes(badge)
+                  return (
+                    <button key={badge} onClick={() => toggleBadge(badge)} style={{ fontSize: '12px', fontWeight: 700, padding: '6px 12px', borderRadius: '20px', border: `1px solid ${selected ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.1)'}`, background: selected ? 'rgba(168,85,247,0.15)' : 'transparent', color: selected ? '#c084fc' : 'rgba(255,255,255,0.35)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
+                      {badge}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{ padding: '18px 20px', fontSize: '13px', color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
+                Upgrade to <span style={{ color: '#6f9bff', fontWeight: 700 }}>Rebuttal Pro</span> to add self-identifying badges to your profile — political affiliation, religion, ideology, race, World Cup team, and more.
+              </div>
+            )}
           </div>
 
           {/* Tier list */}

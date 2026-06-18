@@ -50,7 +50,21 @@ async function supabaseRest(path, method = 'GET', body = null) {
 // ─── Constants ─────────────────────────────────────────────────
 const TARGET_AVAILABLE = 4
 const TARGET_VC_AVAILABLE = 2
+const TARGET_WC_AVAILABLE = 1
 const DISTRIBUTION = { casual: 0.25, serious: 0.45, competitive: 0.15, random: 0.15 }
+
+const WC_TOPICS = [
+  'Who is better: Messi or Ronaldo?',
+  'Who will win the World Cup — Brazil or Spain?',
+  'Is Mbappé or Haaland the best player of this generation?',
+  'Should the World Cup be expanded beyond 48 teams?',
+  'Who had the better World Cup career — Messi or Ronaldo?',
+  'Is Brazil or Argentina the greatest footballing nation ever?',
+  'Is Vinícius Jr. already in the top 5 players in the world?',
+  'Would Messi be as good without Ronaldo pushing him?',
+  'Is the World Cup still the most important trophy in football?',
+  'Who deserves to win the Golden Ball at this World Cup?',
+]
 
 // ─── Topic pools ───────────────────────────────────────────────
 const PREWRITTEN = {
@@ -690,6 +704,8 @@ function createRoom(type) {
   return id
 }
 function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, loserEloVal = null) {
+  // World Cup rooms have a fixed +80 winner bonus, regular loss for loser
+  if (type === 'worldcup') return { winnerElo: 80, secondElo: 0, thirdElo: 0, loserBase: 22 }
  const ranges = {
   casual:      { min: 15, max: 25 },
   random:      { min: 10, max: 20 },
@@ -777,7 +793,23 @@ function createVCRoom() {
   return id
 }
 
+function createWorldCupRoom() {
+  const topic = WC_TOPICS[Math.floor(Math.random() * WC_TOPICS.length)]
+  const id = `wc_${++roomCounter}_${Date.now()}`
+  rooms[id] = {
+    instanceId: id, type: 'worldcup',
+    emoji: '⚽', topic,
+    duration: 180, eloRequired: 0,
+    maxPlayers: 10, players: {}, spectators: {}, messages: [],
+    status: 'waiting', countdown: 1200, startCountdown: null,
+    createdAt: Date.now(),
+  }
+  console.log(`⚽ Created World Cup room: "${topic}"`)
+  return id
+}
+
 function scheduleRoom(type, immediate = false) {
+  if (type === 'worldcup') return // WC rooms managed by createWorldCupRoom + replenishRooms
   const delay = immediate ? 0 : (5 + Math.random() * 20) * 1000
   pendingRoomCreations++
   setTimeout(() => {
@@ -810,7 +842,17 @@ function getVCWaitingCount() {
   return Object.values(rooms).filter(r => r.type === 'vc' && r.status === 'waiting' && !r.isCustom).length
 }
 
+function getWCWaitingCount() {
+  return Object.values(rooms).filter(r => r.type === 'worldcup' && r.status === 'waiting').length
+}
+
 function replenishRooms(immediate = false) {
+  // WC room
+  if (getWCWaitingCount() < TARGET_WC_AVAILABLE) {
+    createWorldCupRoom()
+    io.emit('rooms_update', getRoomList())
+  }
+
   const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
   for (let i = 0; i < vcNeeded; i++) {
     scheduleVCRoom(immediate)

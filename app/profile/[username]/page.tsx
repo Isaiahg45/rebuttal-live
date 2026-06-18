@@ -15,8 +15,8 @@ export default function PublicProfilePage() {
   const [rank, setRank] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const viewedUsername = decodeURIComponent(username as string)
-  const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, declineRequest, removeBuddy, refresh } = useBuddies(myProfile?.username ?? '')
-
+const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, declineRequest, removeBuddy, refresh, atLimit } = useBuddies(myProfile?.username ?? '', myProfile?.is_pro ?? false)
+  const [buddyError, setBuddyError] = useState('')
   const isBuddy = buddies.includes(viewedUsername)
   const sentPending = pendingSent.includes(viewedUsername)
   const receivedPending = pendingReceived.includes(viewedUsername)
@@ -152,7 +152,27 @@ export default function PublicProfilePage() {
             </div>
           </div>
 
-       {/* Buddy status + action */}
+      {/* Bio */}
+          {player.bio && player.bio.trim().length > 0 && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '18px 20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '10px' }}>About</div>
+              <p style={{ fontSize: '13.5px', color: 'var(--text2)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{player.bio}</p>
+            </div>
+          )}
+
+          {/* Badges */}
+          {Array.isArray(player.badges) && player.badges.length > 0 && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '18px 20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Badges</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {player.badges.map((badge: string) => (
+                  <span key={badge} style={{ fontSize: '12px', fontWeight: 700, padding: '5px 12px', borderRadius: '20px', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)', color: '#c084fc' }}>{badge}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Buddy status + action */}
           {myProfile?.username && (
             <div style={{ background: isBuddy ? 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(16,185,129,0.08))' : sentPending ? 'rgba(255,255,255,0.02)' : 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.08))', border: `1px solid ${isBuddy ? 'rgba(34,197,94,0.35)' : sentPending ? 'rgba(255,255,255,0.08)' : 'rgba(168,85,247,0.35)'}`, borderRadius: '16px', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', boxShadow: isBuddy ? '0 0 20px rgba(34,197,94,0.1)' : sentPending ? 'none' : '0 0 20px rgba(168,85,247,0.08)' }}>
               <div>
@@ -203,8 +223,23 @@ export default function PublicProfilePage() {
                 </div>
               ) : sentPending ? (
                 <button disabled style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px', color: 'var(--muted)', fontSize: '13px', fontFamily: 'DM Sans, sans-serif', cursor: 'not-allowed' }}>⏳ Pending</button>
-              ) : (
-                <button onClick={() => sendRequest(viewedUsername)} style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', border: 'none', borderRadius: '10px', padding: '10px 20px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 20px rgba(168,85,247,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>🤝 Add Buddy</button>
+             ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                  {atLimit ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                      <div style={{ fontSize: '11px', color: 'rgba(239,68,68,0.8)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '6px 10px', maxWidth: '220px', textAlign: 'right', lineHeight: 1.4 }}>
+                        Buddy limit reached (25/25).<br />Upgrade to Pro for unlimited.
+                      </div>
+                      <Link href="/shop" style={{ background: 'linear-gradient(100deg, #ef3b56, #6f6bff, #2e6cf6)', border: 'none', borderRadius: '10px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 22px rgba(111,107,255,0.35)', display: 'inline-block' }}>👑 Get Pro</Link>
+                    </div>
+                  ) : (
+                    <button onClick={async () => {
+                      const result = await sendRequest(viewedUsername)
+                      if (result?.error) setBuddyError(result.error)
+                    }} style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', border: 'none', borderRadius: '10px', padding: '10px 20px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 20px rgba(168,85,247,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>🤝 Add Buddy</button>
+                  )}
+                  {buddyError && <div style={{ fontSize: '11px', color: 'rgba(239,68,68,0.8)', textAlign: 'right' }}>{buddyError}</div>}
+                </div>
               )}
             </div>
           )}

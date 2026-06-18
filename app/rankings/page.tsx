@@ -60,7 +60,13 @@ export default function RankingsPage() {
 
   return (
     <>
-      <Nav active="rankings" />
+     <Nav active="rankings" />
+      <div style={{ background: 'linear-gradient(100deg, #7a1726 0%, #5a1740 28%, #15275e 55%, #0f3d52 75%, #0c4a30 100%)', borderBottom: '1px solid #2a2230' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
+          <span style={{ width: '28px', height: '8px', borderRadius: '4px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)', flexShrink: 0, display: 'inline-block' }} />
+          ⚽ <b style={{ color: '#fff' }}>World Cup Event</b> is live — climb the leaderboard through July 19.
+        </div>
+      </div>
       <style>{`
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
         @keyframes spin{to{transform:rotate(360deg)}}

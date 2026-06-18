@@ -121,7 +121,13 @@ export default function TopicPage() {
         }
       `}</style>
 
-      <Nav active="topic" />
+     <Nav active="topic" />
+      <div style={{ background: 'linear-gradient(100deg, #7a1726 0%, #5a1740 28%, #15275e 55%, #0f3d52 75%, #0c4a30 100%)', borderBottom: '1px solid #2a2230' }}>
+        <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
+          <span style={{ width: '28px', height: '8px', borderRadius: '4px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)', flexShrink: 0, display: 'inline-block' }} />
+          ⚽ <b style={{ color: '#fff' }}>World Cup Event</b> — every Debate of the Day is WC themed through July 19.
+        </div>
+      </div>
       <div className="topic-layout">
 
         {/* Header */}
