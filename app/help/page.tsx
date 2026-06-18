@@ -126,7 +126,7 @@ export default function HelpPage() {
                   WHO IS THE REBUT MAN?
                 </div>
                 <p style={{ fontSize: '13.5px', color: 'var(--text2)', lineHeight: 1.8, margin: 0 }}>
-                  The Rebut Man is Rebuttal live's immortal mascot and the face of the Rebut Shop. Legend has it he won every debate competition he entered through the 70s and 80s — undefeated, untouchable. His reputation finally caught up with him in a bar fight after one debate too many, where he lost an eye defending his unbeaten record. Now he wears the eye patch as a badge of honor, still dressed sharp, still ready to argue anyone under the table from his post in the Rebut Shop.
+                  The Rebut Man is Rebuttal live's immortal mascot and the face of the Rebut Shop. Legend has it he won every debate competition he entered throughout history, whether it was with Plato during 400 BC, the early 1800s or the 90s — undefeated, untouchable, never once on the losing side of an argument. His reputation finally caught up with him in a bar fight after one debate too many, where he lost an eye defending his unbeaten record. Now he wears the eye patch as a badge of honor, still dressed sharp, still ready to argue anyone under the table. He watches over the Rebut Shop today, dealing in Rebut coins and Pro memberships from his dungeon.
                 </p>
               </div>
             </div>
