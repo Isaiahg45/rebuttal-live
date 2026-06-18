@@ -1326,12 +1326,12 @@ Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant
 
 function fallbackScore(text) {
   const wordCount = text.trim().split(/\s+/).length
-  // Capped at 8 max — modest credit for effort, can't swing a debate
   let score = wordCount < 5 ? 1
-    : wordCount < 15 ? 3
-    : wordCount < 30 ? 5
-    : wordCount < 60 ? 6
-    : 8
+    : wordCount < 10 ? 4
+    : wordCount < 20 ? 8
+    : wordCount < 35 ? 12
+    : wordCount < 50 ? 16
+    : 20
   const fallbackFeedbacks = [
     'Keep developing your argument.',
     'Try adding more evidence.',
@@ -2232,32 +2232,33 @@ async function getBotArgument(topic, personality, recentMessages) {
     let qualityInstruction = ''
 
     if (qualityRoll < 0.2) {
-      qualityInstruction = 'You have a strong opinion. Make a sharp, direct point. One or two sentences max. No hedging.'
+      qualityInstruction = 'Make a sharp 1-2 sentence point. You have a strong take, own it. No hedging.'
     } else if (qualityRoll < 0.5) {
-      qualityInstruction = 'Make a solid point with a quick real-world example or comparison. Keep it conversational. One or two sentences.'
+      qualityInstruction = 'Make a solid 2-3 sentence point with a real example or comparison. Keep it conversational and casual.'
     } else if (qualityRoll < 0.75) {
-      qualityInstruction = 'Push back on the last thing said. Be direct but not aggressive. Sound like a real person in a heated conversation.'
+      qualityInstruction = 'Push back hard on the last thing said in 2-4 sentences. Be real and direct, like you\'re genuinely annoyed.'
     } else {
-      qualityInstruction = 'Make a short punchy point. Sound passionate about it. One or two sentences.'
+      qualityInstruction = 'Go in on your take — 3-5 sentences like you\'re actually heated about this topic.'
     }
 
     const result = await Promise.race([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 80,
+        max_tokens: 150,
         messages: [{
           role: 'system',
           content: `You are a real person texting in a debate about: "${topic}". ${qualityInstruction}
 
 Rules:
-- Sound exactly like a human texting — casual, natural, imperfect
+- Sound EXACTLY like a human texting — casual, messy, real
+- Use modern slang naturally where it fits: "nah", "bro", "buddy", "idk", "lowkey", "cooked", "fr", "no cap", "deadass", "wild", "honestly", "literally", "ain't", "gonna", "kinda", "tbh", "lmao", "bruh" — don't force all of them, just what feels natural
 - No formal language, no "Furthermore", no bullet points, no lists
-- Don't start with "I think" every time — vary your openers
-- Occasional lowercase, contractions, real slang is fine
-- Max 2 sentences. Never more.
-- Don't sound like an AI. Sound like a 22 year old with opinions.
-- No compliments to the other person, no "great point", no "you make a fair argument"
-- Just say your take directly`
+- Vary your openers — don't always start with "I"
+- 1 to 5 sentences. Short when making a quick point, longer when you're fired up.
+- Don't sound like an AI. Sound like a 22 year old in a heated group chat.
+- No compliments, no "great point", no "you make a fair argument"
+- Occasional contractions and lowercase are fine
+- Just say your take — raw and real`
         }, {
           role: 'user',
           content: recentMessages.length === 0
@@ -2441,42 +2442,55 @@ async function runBot(botName, personality) {
         return
       }
 
-      const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
-      const timeSinceLast = Date.now() - lastSpoke
-      const minWait = 20000
-      const maxWait = 70000
-      const randomWait = minWait + Math.random() * (maxWait - minWait)
-
-      if (timeSinceLast < minWait) {
-        const waitTime = (minWait - timeSinceLast) + Math.random() * 10000
-        setTimeout(sendBotMessage, waitTime)
-        return
-      }
-
+      // Generate the message first so we can calculate realistic typing delay
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
-      const { score: rawScore, feedback } = fallbackScore(botText)
-      const score = Math.min(rawScore, 14)
 
-      const msg = {
-        id: `${Date.now()}-bot-${Math.random()}`,
-        username: botName,
-        text: botText, score, aiFeedback: feedback,
-        timestamp: Date.now(),
-      }
+      // Typing speed: 50-60 WPM — delay scales with actual word count
+      const wordCount = botText.trim().split(/\s+/).length
+      const wpm = 50 + Math.random() * 10
+      const typingMs = (wordCount / wpm) * 60 * 1000
+      const thinkingMs = (2 + Math.random() * 4) * 1000 // 2–6s thinking before typing starts
 
-      currentRoom.messages.push(msg)
-      roomLastBotMessage[currentRoom.instanceId] = Date.now()
-      totalArgumentsMade++
-      supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
+      // Enforce a 4s minimum gap per room so two bots don't post simultaneously
+      const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
+      const elapsed = Date.now() - lastSpoke
+      const roomCooldown = Math.max(0, 4000 - elapsed)
+      const totalDelay = typingMs + thinkingMs + roomCooldown
 
-      const player = currentRoom.players[`bot_${botName}`]
-      if (player) player.score += score
+      setTimeout(() => {
+        if (!state.active) return
+        const room = rooms[state.roomId]
+        if (!room || room.status !== 'active') {
+          if (room) delete room.players[`bot_${botName}`]
+          state.roomId = null
+          if (state.active) setTimeout(joinRoom, 8000 + Math.random() * 15000)
+          return
+        }
 
-     io.to(currentRoom.instanceId).emit('new_message', msg)
-io.to(currentRoom.instanceId).emit('players_update', Object.values(currentRoom.players))
-io.emit('room_message', { instanceId: currentRoom.instanceId, username: botName, text: botText })
+        const { score: rawScore, feedback } = fallbackScore(botText)
+        const score = Math.min(rawScore, 17)
 
-      setTimeout(sendBotMessage, randomWait)
+        const msg = {
+          id: `${Date.now()}-bot-${Math.random()}`,
+          username: botName,
+          text: botText, score, aiFeedback: feedback,
+          timestamp: Date.now(),
+        }
+
+        room.messages.push(msg)
+        roomLastBotMessage[room.instanceId] = Date.now()
+        totalArgumentsMade++
+        supabaseRest('rpc/increment_arguments', 'POST').catch(() => {})
+
+        const player = room.players[`bot_${botName}`]
+        if (player) player.score += score
+
+        io.to(room.instanceId).emit('new_message', msg)
+        io.to(room.instanceId).emit('players_update', Object.values(room.players))
+        io.emit('room_message', { instanceId: room.instanceId, username: botName, text: botText })
+
+        sendBotMessage()
+      }, totalDelay)
     }
 
     sendBotMessage()
@@ -2487,9 +2501,9 @@ io.emit('room_message', { instanceId: currentRoom.instanceId, username: botName,
 }
 
 function startBots() {
-  console.log('🤖 Starting 4 debate bots...')
-  BOT_NAMES.slice(0, 4).forEach((name, i) => {
-    setTimeout(() => runBot(name, BOT_PERSONALITIES[i]), i * 8000)
+  console.log('🤖 Starting 7 debate bots...')
+  BOT_NAMES.slice(0, 7).forEach((name, i) => {
+    setTimeout(() => runBot(name, BOT_PERSONALITIES[i % BOT_PERSONALITIES.length]), i * 8000)
   })
 }
 
