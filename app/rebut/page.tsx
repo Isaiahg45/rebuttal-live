@@ -111,8 +111,7 @@ const ELO_LABELS: Record<string, string> = {
   worldcup: '+80 ELO to winner',
 }
 
-const FILTERS = ['All', 'World Cup', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
-
+const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
 export default function RebutPage() {
   const router = useRouter()
   const { user, profile, loading } = useAuth()
@@ -190,7 +189,6 @@ export default function RebutPage() {
     if (filter === 'All') return true
     if (filter === 'Voice') return r.type === 'vc'
     if (filter === 'Custom') return !!r.isCustom
-    if (filter === 'World Cup') return r.type === 'worldcup'
     return r.type.toLowerCase() === filter.toLowerCase()
   }
 
@@ -332,18 +330,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
               <span style={{ fontSize: '11px', color: connected ? '#22c55e' : 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '0.5px' }}>{connected ? `${rooms.length} LIVE` : 'CONNECTING...'}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-            {FILTERS.map(f => {
-              const isActive = filter === f
-              const accentMap: Record<string, string> = { 'World Cup': '#5b8cff', Voice: '#00d4ff', Custom: '#ff6b35', Serious: '#e63946', Competitive: '#ffd60a', Random: '#a855f7', Casual: '#22c55e' }
-              const accent = accentMap[f] || '#e63946'
-              return (
-                <button key={f} onClick={() => setFilter(f)} style={{ background: isActive ? `${accent}18` : 'rgba(255,255,255,0.04)', border: `1px solid ${isActive ? accent : 'rgba(255,255,255,0.08)'}`, borderRadius: '20px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', color: isActive ? accent : 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s', boxShadow: isActive ? `0 0 12px ${accent}40` : 'none' }}>
-                  {f === 'Voice' ? '🎙 VOICE' : f.toUpperCase()}
-                </button>
-              )
-            })}
-          </div>
+        
         </div>
 
         {/* Rooms */}
