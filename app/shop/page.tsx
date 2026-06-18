@@ -53,14 +53,12 @@ export default function ShopPage() {
         minHeight: 'calc(100vh - 56px)',
         overflowY: 'auto',
         backgroundImage: `
-          radial-gradient(ellipse 600px 380px at 80% 15%, rgba(255,150,60,0.14), transparent 65%),
-          radial-gradient(ellipse 400px 300px at 10% 60%, rgba(120,60,20,0.10), transparent 60%),
-          linear-gradient(rgba(6,4,6,0.80), rgba(6,4,6,0.86)),
-          url('/shop/rebutman.jpg')
+          linear-gradient(rgba(4,3,4,0.72), rgba(4,3,4,0.78)),
+          url('/shop/dungeon-bg.jpg')
         `,
         backgroundColor: '#080608',
-        backgroundSize: 'cover, cover, cover, cover',
-        backgroundPosition: 'center, center, center, center top',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
         backgroundRepeat: 'no-repeat',
         backgroundAttachment: 'fixed',
       }}>
@@ -70,16 +68,16 @@ export default function ShopPage() {
           <div style={{ textAlign: 'center', marginBottom: '44px' }}>
             <div className="torch-icon" style={{ fontSize: '32px', marginBottom: '10px' }}>🔥</div>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(28px,5vw,40px)', letterSpacing: '4px', color: '#fff' }}>REBUT SHOP</div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', marginTop: '8px' }}>Home of Rebut Coins and Rebuttal Pro</div>
-          </div>
+<div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)', marginTop: '8px', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>Home of Rebut Coins and Rebuttal Pro</div>          </div>
 
           {/* Coin deals */}
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: '16px' }}>
+         <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', marginBottom: '16px', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
             🪙 Rebut Coins
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '48px' }}>
             {coinDeals.map(deal => (
-<div key={deal.amount} style={{ background: 'rgba(38,38,42,0.92)', border: '1px solid rgba(80,80,90,0.5)', borderRadius: '16px', padding: '20px 16px 22px', textAlign: 'center', display: 'flex', flexDirection: 'column', backdropFilter: 'blur(8px)' }}>                <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
+<div key={deal.amount} style={{ background: 'rgba(20,17,22,0.92)', border: '1px solid rgba(80,50,100,0.5)', borderRadius: '16px', padding: '20px 16px 22px', textAlign: 'center', display: 'flex', flexDirection: 'column', backdropFilter: 'blur(8px)' }}>
+                <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
                   <img src={deal.img} alt={deal.label} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }} />
                 </div>
                 <div style={{ fontWeight: 800, fontSize: '15px', color: '#fff', marginBottom: '4px' }}>{deal.amount} Rebut Coins</div>
@@ -94,7 +92,7 @@ export default function ShopPage() {
           </div>
 
           {/* Pro card */}
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: '16px' }}>
+         <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '3px', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', marginBottom: '16px', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
             👑 Rebuttal Pro
           </div>
           <div className="pro-card-glow" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(40,12,20,0.95), rgba(10,18,40,0.95))', border: '1px solid rgba(74,42,58,0.8)', borderRadius: '18px', padding: '28px 32px', marginBottom: '56px' }}>
@@ -108,8 +106,12 @@ export default function ShopPage() {
                   </div>
                   <span style={{ fontSize: '10px', fontWeight: 800, background: '#1fae5e', color: '#fff', padding: '3px 8px', borderRadius: '6px', letterSpacing: '1px' }}>LIVE IN 1.2</span>
                 </div>
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '18px' }}>
-$9.99/mo · <span style={{ color: '#fff', fontWeight: 700 }}>+600</span>                </div>
+               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span>$9.99/mo</span>
+                  <span>·</span>
+                  <span style={{ color: '#ffd60a', fontWeight: 700 }}>+600 Rebut Coins/mo</span>
+                  <span style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '6px', padding: '2px 8px', fontSize: '10px', color: '#ffd60a', fontWeight: 800 }}>COMING IN 1.3</span>
+                </div>
                 <ul style={{ listStyle: 'none', fontSize: '13.5px', lineHeight: 2, color: 'rgba(255,255,255,0.55)' }}>
                   {[
                     'Self-ID profile badges — politics, religion, ideology, race',
