@@ -72,73 +72,124 @@ export default function Home() {
             ⚽ <b style={{ color: '#fff' }}>World Cup Event</b> is live — June 21 through July 19. Special rooms, WC Debate of the Day, and exclusive themes.
           </div>
         </div>
-        {/* Hero */}
-        <div style={{ position: 'relative', padding: 'clamp(48px, 8vw, 90px) clamp(16px, 5vw, 48px) clamp(40px, 6vw, 64px)', overflow: 'hidden', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(230,57,70,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(230,57,70,0.04) 1px, transparent 1px)', backgroundSize: '40px 40px', zIndex: 0 }} />
-          <div style={{ position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)', width: 'min(700px, 100vw)', height: '400px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.15) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
+      {/* Hero — FIFA World Cup 2026 Edition */}
+        <div style={{ position: 'relative', overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
 
-          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          {/* Animated tri-color background */}
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(255,77,104,0.22) 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 20% 50%, rgba(91,140,255,0.14) 0%, transparent 50%), radial-gradient(ellipse 60% 40% at 80% 50%, rgba(63,224,127,0.12) 0%, transparent 50%), #080808', zIndex: 0 }} />
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,77,104,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(91,140,255,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px', zIndex: 0 }} />
+
+          {/* Floating orbs */}
+          <div style={{ position: 'absolute', top: '10%', left: '5%', width: '300px', height: '300px', background: 'radial-gradient(ellipse, rgba(255,77,104,0.12) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '20%', right: '5%', width: '250px', height: '250px', background: 'radial-gradient(ellipse, rgba(63,224,127,0.10) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '10%', left: '30%', width: '400px', height: '200px', background: 'radial-gradient(ellipse, rgba(91,140,255,0.10) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
+
+          <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(40px, 6vw, 72px) clamp(16px, 5vw, 48px) 0', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
 
             {/* Live badge */}
-            <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: '20px', padding: '5px 14px', marginBottom: '28px', boxShadow: '0 0 20px rgba(230,57,70,0.1)' }}>
-              <div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 6px var(--accent)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 500, letterSpacing: '0.5px' }}>{stats?.debatersOnline ?? 0} debaters online</span>
+            <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '6px 16px', marginBottom: '20px', backdropFilter: 'blur(8px)' }}>
+              <div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff4d68', boxShadow: '0 0 8px #ff4d68' }} />
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 600, letterSpacing: '0.5px' }}>{stats?.debatersOnline ?? 0} debaters online</span>
             </div>
 
-            {/* Title */}
-            <div className="animate-fade-up" style={{ animationDelay: '0.1s', opacity: 0 }}>
-              <h1 style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(56px, 12vw, 120px)', letterSpacing: '4px', lineHeight: 0.9, marginBottom: '24px' }}>
-                <span style={{ display: 'block', color: 'var(--text)' }}>ARGUE.</span>
-                <span style={{ display: 'block', color: 'var(--accent)' }}>DEBATE.</span>
-                <span style={{ display: 'block', color: 'var(--text)' }}>RANK UP.</span>
+            {/* WC Event pill */}
+            <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'linear-gradient(100deg, rgba(255,77,104,0.2), rgba(91,140,255,0.2), rgba(63,224,127,0.2))', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '20px', padding: '8px 20px', marginBottom: '32px', backdropFilter: 'blur(8px)', boxShadow: '0 4px 24px rgba(91,140,255,0.2)' }}>
+              <span style={{ fontSize: '16px' }}>🏆</span>
+              <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '2px', color: '#fff', textTransform: 'uppercase' }}>FIFA World Cup 2026 Event — June 18 to July 19</span>
+              <span style={{ fontSize: '16px' }}>⚽</span>
+            </div>
+
+            {/* 3D ARGUE DEBATE RANK UP */}
+            <div className="animate-fade-up" style={{ animationDelay: '0.1s', opacity: 0, marginBottom: '8px' }}>
+              <h1 style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(72px, 14vw, 140px)', letterSpacing: '4px', lineHeight: 0.92, margin: 0 }}>
+                <span style={{
+                  display: 'block', color: '#fff',
+                  textShadow: '0 4px 0 rgba(255,77,104,0.4), 0 8px 0 rgba(255,77,104,0.2), 0 12px 20px rgba(0,0,0,0.8), 4px 4px 0 rgba(255,255,255,0.05)',
+                  transform: 'perspective(600px) rotateX(8deg)',
+                  transformOrigin: 'center bottom',
+                }}>ARGUE.</span>
+                <span style={{
+                  display: 'block',
+                  background: 'linear-gradient(90deg, #ff4d68 0%, #a855f7 40%, #3fe07f 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  filter: 'drop-shadow(0 0 30px rgba(255,77,104,0.5)) drop-shadow(0 6px 0 rgba(0,0,0,0.4))',
+                  textShadow: 'none',
+                  transform: 'perspective(600px) rotateX(8deg) scale(1.05)',
+                  transformOrigin: 'center bottom',
+                }}>DEBATE.</span>
+                
+                <span style={{
+                  display: 'block', color: '#fff',
+                  textShadow: '0 4px 0 rgba(63,224,127,0.4), 0 8px 0 rgba(63,224,127,0.2), 0 12px 20px rgba(0,0,0,0.8), 4px 4px 0 rgba(255,255,255,0.05)',
+                  transform: 'perspective(600px) rotateX(8deg)',
+                  transformOrigin: 'center bottom',
+                }}>RANK UP.</span>
               </h1>
             </div>
 
             {/* Subtitle */}
-            <p className="animate-fade-up" style={{ fontSize: 'clamp(14px, 2vw, 16px)', color: 'var(--text2)', marginBottom: '36px', lineHeight: 1.7, maxWidth: '480px', animationDelay: '0.2s', opacity: 0 }}>
+            <p className="animate-fade-up" style={{ fontSize: 'clamp(14px, 2vw, 17px)', color: 'rgba(255,255,255,0.55)', marginBottom: '32px', lineHeight: 1.7, maxWidth: '520px', animationDelay: '0.2s', opacity: 0 }}>
               Real-time debate battles scored by AI. Make your case, destroy the opposition, climb the global leaderboard.
             </p>
 
             {/* Buttons */}
-            <div className="animate-fade-up home-hero-buttons" style={{ animationDelay: '0.3s', opacity: 0 }}>
-              <a
-                href="https://discord.gg/v6csM2v2r"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '10px', padding: '14px 28px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', animation: 'pulseDiscord 2.5s ease-in-out infinite', border: '1px solid rgba(88,101,242,0.5)' }}
-              >
+            <div className="animate-fade-up home-hero-buttons" style={{ animationDelay: '0.3s', opacity: 0, marginBottom: '48px' }}>
+              <a href="https://discord.gg/v6csM2v2r" target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#5865F2', borderRadius: '12px', padding: '14px 28px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', animation: 'pulseDiscord 2.5s ease-in-out infinite', border: '1px solid rgba(88,101,242,0.5)' }}>
                 💬 JOIN DISCORD
               </a>
-              <Link
-                href="/rebut"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'var(--accent)', borderRadius: '10px', padding: '14px 28px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', animation: 'pulseRebut 2.5s ease-in-out infinite', border: '1px solid rgba(230,57,70,0.5)', boxShadow: '0 0 30px rgba(230,57,70,0.4)' }}
-              >
+              <Link href="/rebut"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'linear-gradient(135deg, #ff4d68, #e63946)', borderRadius: '12px', padding: '14px 28px', color: '#fff', fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', border: '1px solid rgba(255,77,104,0.5)', boxShadow: '0 0 40px rgba(255,77,104,0.5)', animation: 'pulseRebut 2.5s ease-in-out infinite' }}>
                 ⚔️ DEBATE NOW
               </Link>
-              <Link
-                href="/rankings"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'transparent', borderRadius: '10px', padding: '14px 22px', color: 'var(--text2)', fontSize: '14px', fontWeight: 500, border: '1px solid var(--border2)', transition: 'all 0.2s' }}
-              >
+              <Link href="/rankings"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'transparent', borderRadius: '12px', padding: '14px 22px', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: 500, border: '1px solid rgba(255,255,255,0.15)', transition: 'all 0.2s' }}>
                 Rankings →
               </Link>
             </div>
 
-            {/* Stats row */}
-            <div className="animate-fade-up home-stats-row" style={{ animationDelay: '0.4s', opacity: 0 }}>
-              {[
-                [stats.liveDebates.toLocaleString(), 'Live Debates'],
-                [formatArgs(stats.argumentsMade), 'Arguments Made'],
-                ['100', 'Global Rankings'],
-              ].map(([val, label]) => (
-                <div key={label as string} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(24px, 4vw, 34px)', letterSpacing: '2px', color: 'var(--text)' }}>{val}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', letterSpacing: '0.5px' }}>{label}</div>
-                </div>
-              ))}
+            {/* Trophy + stats row */}
+            <div className="animate-fade-up" style={{ animationDelay: '0.35s', opacity: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '32px', marginBottom: '40px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '52px', filter: 'drop-shadow(0 0 20px rgba(255,214,10,0.7))', animation: 'trophySpin 4s ease-in-out infinite' }}>🏆</div>
+              <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {[
+                  [stats.liveDebates.toLocaleString(), 'Live Debates'],
+                  [formatArgs(stats.argumentsMade), 'Arguments Made'],
+                  ['100', 'Global Rankings'],
+                ].map(([val, label]) => (
+                  <div key={label as string} style={{ textAlign: 'center' }}>
+                    <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(24px, 4vw, 36px)', letterSpacing: '2px', color: '#fff', textShadow: '0 0 20px rgba(255,77,104,0.4)' }}>{val}</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '2px', letterSpacing: '1px' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '52px', filter: 'drop-shadow(0 0 20px rgba(63,224,127,0.5))', animation: 'ballBounce 1.2s ease-in-out infinite' }}>⚽</div>
             </div>
+
+            {/* Football players banner — full bleed, no box */}
+            <div className="animate-fade-up" style={{ animationDelay: '0.4s', opacity: 0, width: '100vw', marginLeft: 'calc(50% - 50vw)', position: 'relative' }}>
+              {/* Fade top edge so it blends into the page */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '60px', background: 'linear-gradient(180deg, #080808, transparent)', zIndex: 1, pointerEvents: 'none' }} />
+              <img
+                src="/footballplayers.png"
+                alt="World Cup Stars — Ronaldo, Messi, Mbappé, Haaland, Yamal, Vinícius, Kane"
+                style={{ width: '100%', display: 'block', maxHeight: '480px', objectFit: 'cover', objectPosition: 'center top' }}
+              />
+              {/* Fade bottom edge */}
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '120px', background: 'linear-gradient(0deg, #080808, transparent)', zIndex: 1, pointerEvents: 'none' }} />
+              {/* Name strip */}
+              <div style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, textAlign: 'center', zIndex: 2 }}>
+                <div style={{ display: 'inline-block', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '12px', padding: '8px 20px', fontFamily: 'var(--font-bebas)', fontSize: 'clamp(11px,2vw,14px)', letterSpacing: '3px', color: 'rgba(255,214,10,0.9)' }}>
+                  ⚽ DEBATE THEIR LEGACY IN THE WORLD CUP ROOM
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
-
+      
         {/* TOTD Winner banner */}
         {totdWinner && (
           <div style={{ padding: 'clamp(24px, 4vw, 40px) clamp(16px, 4vw, 48px) 0' }}>
@@ -389,6 +440,14 @@ export default function Home() {
         </div>
       </div>
       <style>{`
+       @keyframes trophySpin {
+          0%,100%{transform:translateY(0) rotate(-3deg);filter:drop-shadow(0 0 20px rgba(255,214,10,0.7))}
+          50%{transform:translateY(-8px) rotate(3deg);filter:drop-shadow(0 0 32px rgba(255,214,10,1))}
+        }
+        @keyframes ballBounce {
+          0%,100%{transform:translateY(0);filter:drop-shadow(0 0 20px rgba(63,224,127,0.5))}
+          50%{transform:translateY(-10px);filter:drop-shadow(0 0 28px rgba(63,224,127,0.8))}
+        }
         @keyframes pulseDiscord {
           0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.7); }
           50% { box-shadow: 0 0 20px 8px rgba(88,101,242,0.3); }
