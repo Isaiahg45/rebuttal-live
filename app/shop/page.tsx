@@ -53,12 +53,16 @@ export default function ShopPage() {
         minHeight: 'calc(100vh - 56px)',
         overflowY: 'auto',
         backgroundImage: `
-          radial-gradient(ellipse 600px 380px at 80% 15%, rgba(255,150,60,0.12), transparent 65%),
-          radial-gradient(ellipse 400px 300px at 10% 60%, rgba(120,60,20,0.08), transparent 60%),
-          linear-gradient(rgba(8,6,8,0.82), rgba(8,6,8,0.88))
+          radial-gradient(ellipse 600px 380px at 80% 15%, rgba(255,150,60,0.14), transparent 65%),
+          radial-gradient(ellipse 400px 300px at 10% 60%, rgba(120,60,20,0.10), transparent 60%),
+          linear-gradient(rgba(6,4,6,0.80), rgba(6,4,6,0.86)),
+          url('/shop/rebutman.jpg')
         `,
-        backgroundColor: '#0c0a0e',
-        backgroundSize: 'cover',
+        backgroundColor: '#080608',
+        backgroundSize: 'cover, cover, cover, cover',
+        backgroundPosition: 'center, center, center, center top',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
       }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '52px 24px 90px' }}>
 
@@ -75,8 +79,7 @@ export default function ShopPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '48px' }}>
             {coinDeals.map(deal => (
-              <div key={deal.amount} style={{ background: 'rgba(20,17,22,0.88)', border: '1px solid rgba(80,50,100,0.4)', borderRadius: '16px', padding: '20px 16px 22px', textAlign: 'center', display: 'flex', flexDirection: 'column', backdropFilter: 'blur(4px)' }}>
-                <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
+<div key={deal.amount} style={{ background: 'rgba(38,38,42,0.92)', border: '1px solid rgba(80,80,90,0.5)', borderRadius: '16px', padding: '20px 16px 22px', textAlign: 'center', display: 'flex', flexDirection: 'column', backdropFilter: 'blur(8px)' }}>                <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
                   <img src={deal.img} alt={deal.label} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }} />
                 </div>
                 <div style={{ fontWeight: 800, fontSize: '15px', color: '#fff', marginBottom: '4px' }}>{deal.amount} Rebut Coins</div>
