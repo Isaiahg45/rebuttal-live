@@ -13,6 +13,9 @@ interface RankedUser {
   wins: number
   debates: number
   avatar_url?: string
+  bio?: string
+  badges?: string[]
+  is_pro?: boolean
 }
 
 const RANK_COLORS = ['#ffd60a', '#c0c0c0', '#cd7f32']
@@ -34,8 +37,8 @@ export default function RankingsPage() {
   const prevRef = useRef<RankedUser[]>([])
 
   const fetchRankings = async () => {
-    const { data, error } = await supabase.from('profiles').select('id, username, elo, wins, debates, avatar_url').not('username', 'is', null).order('elo', { ascending: false }).limit(100)
-    if (error) { console.error(error); return }
+const { data, error } = await supabase.from('profiles').select('id, username, elo, wins, debates, avatar_url, bio, badges, is_pro').not('username', 'is', null).order('elo', { ascending: false }).limit(100)    
+if (error) { console.error(error); return }
     const newPlayers = data ?? []
     const changed = new Set<string>()
     newPlayers.forEach(p => { const old = prevRef.current.find(o => o.id === p.id); if (old && old.elo !== p.elo) changed.add(p.id) })
@@ -84,7 +87,7 @@ export default function RankingsPage() {
         {/* Hero */}
         <div style={{ position: 'relative', overflow: 'hidden', padding: '36px 24px 28px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'linear-gradient(180deg, rgba(255,214,10,0.04) 0%, transparent 100%)' }}>
           <div style={{ position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '400px', background: 'radial-gradient(ellipse, rgba(255,214,10,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
-          <div style={{ maxWidth: '1000px', margin: '0 auto', position: 'relative' }}>
+          <div style={{ maxWidth: '1180px', margin: '0 auto', position: 'relative' }}>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(32px,6vw,52px)', letterSpacing: '4px', lineHeight: 1, marginBottom: '6px', background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GLOBAL RANKINGS</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -97,10 +100,10 @@ export default function RankingsPage() {
           </div>
         </div>
 
-        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: 'clamp(20px,4vw,32px) clamp(16px,4vw,24px)' }}>
+       <div style={{ maxWidth: '1180px', margin: '0 auto', padding: 'clamp(20px,4vw,32px) clamp(16px,4vw,24px)' }}>
 
           {/* TOTD Winner */}
-          {totdWinner && (
+         {totdWinner && (
             <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,214,10,0.08) 0%, rgba(255,149,0,0.04) 50%, transparent 100%)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '20px', padding: '24px 28px', marginBottom: '28px', animation: 'goldPulse 4s ease infinite' }}>
               <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(ellipse, rgba(255,214,10,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
@@ -196,14 +199,27 @@ export default function RankingsPage() {
                         <div style={{ width: 'clamp(30px,5vw,38px)', height: 'clamp(30px,5vw,38px)', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: i < 3 ? `2px solid ${RANK_COLORS[i]}` : isMe ? '2px solid rgba(230,57,70,0.4)' : 'none', boxShadow: i < 3 ? `0 0 10px ${RANK_GLOWS[i]}` : isMe ? '0 0 8px rgba(230,57,70,0.25)' : 'none' }}>
                           {p.avatar_url ? <img src={p.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: isMe ? 'linear-gradient(135deg,#e63946,#ff8c69)' : getAvatarGrad(i), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'clamp(9px,1.5vw,12px)', fontWeight: 700, color: i === 0 ? '#000' : '#fff' }}>{p.username.slice(0,2).toUpperCase()}</div>}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                       <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 'clamp(12px,2vw,14px)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#fff', ...(tier.special ? { animation: 'rebutterDiamond 2s ease infinite' } : {}) }}>{p.username}</span>
                             {isMe && <span style={{ fontSize: '10px', color: '#e63946', fontWeight: 700, background: 'rgba(230,57,70,0.12)', padding: '1px 8px', borderRadius: '4px', flexShrink: 0, letterSpacing: '1px' }}>YOU</span>}
                             <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', color: tier.color, flexShrink: 0 }}>{tier.special ? '💎 ' : ''}{tier.short}</span>
+                            {p.is_pro && Array.isArray(p.badges) && p.badges.length > 0 && (
+                              <>
+                                {p.badges.slice(0, 2).map(badge => (
+                                  <span key={badge} style={{ fontSize: '9px', fontWeight: 700, padding: '1px 8px', borderRadius: '10px', background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)', color: '#c084fc', flexShrink: 0, whiteSpace: 'nowrap' }}>{badge}</span>
+                                ))}
+                                {p.badges.length > 2 && (
+                                  <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)', flexShrink: 0 }}>+{p.badges.length - 2}</span>
+                                )}
+                              </>
+                            )}
                           </div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '2px' }}>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {p.wins ?? 0} wins · {p.debates ?? 0} debates{p.debates > 0 ? ` · ${Math.round(((p.wins ?? 0) / p.debates) * 100)}% win rate` : ''}
+                            {p.is_pro && p.bio && p.bio.trim().length > 0 && (
+                              <span style={{ color: 'rgba(255,255,255,0.35)' }}> · "{p.bio}"</span>
+                            )}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
