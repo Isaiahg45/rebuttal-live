@@ -2505,7 +2505,7 @@ async function runBot(botName, personality) {
         }
 
         const { score: rawScore, feedback } = fallbackScore(botText)
-        const score = Math.min(rawScore, 17)
+        const score = Math.min(rawScore, 12)
 
         const msg = {
           id: `${Date.now()}-bot-${Math.random()}`,
