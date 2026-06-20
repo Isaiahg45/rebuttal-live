@@ -1333,19 +1333,16 @@ async function scoreArgument(text, topic, roomType, priorMessages = [], side = n
         messages: [{
           role: 'system',
           content: `You are a ruthless debate judge. Topic: "${topic}" (${roomType}).
-${side ? `This player was assigned the ${side.toUpperCase()} side — they must argue ${side === 'pro' ? 'IN FAVOR OF' : 'AGAINST'} the topic.` : ''}
 
 TRANSCRIPTION NOTE: This argument was transcribed by a speech-to-text AI and may contain mishearing errors. A word or phrase may be garbled or substituted with something nonsensical (e.g. "intense tastes good" when they said "it tastes good"). Use context clues to interpret what the speaker most likely meant. Judge the overall argument and intent — do NOT penalize for a single garbled word if the surrounding context makes the meaning clear. Only penalize if the argument as a whole is incoherent or off-topic.
 
 FIRST CHECK — IS THIS ON-TOPIC?
-A message is ON-TOPIC if it states any position, claim, or reaction connected to the debate question — even a short, one-sided, or unsupported opinion. "Off-topic" means wrong SUBJECT, not weak argument. Do NOT use "off-topic" just because a claim is short or lacks evidence — that's a quality issue, score it in the 0-2 bucket below instead.
+A message is ON-TOPIC if anything to do with the debate question — even a short, one-sided, or unsupported opinion. "Off-topic" does not weak argument. Do NOT use "off-topic" just because a claim is short or lacks evidence — that's a quality issue, score it in the 0-2 bucket below instead.
 - If the argument does not mention or relate to the debate topic at all = score 0, feedback "The argument is off-topic."
 - Insults or aggressive tone directed at the opponent are NOT automatically off-topic. If the insult is clearly tied to the topic (e.g. mocking someone for disagreeing with the speaker's position on it), treat it as on-topic and score it for quality — insults with no evidence or reasoning usually land in the 0-2 bucket, same as a bare assertion.
 
 
-
-
-ONLY if on-topic AND correct side, score it:
+then, score it:
 Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
 3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
 
