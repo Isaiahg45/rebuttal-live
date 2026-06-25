@@ -2766,7 +2766,12 @@ async function runBot(botName, personality) {
   room.type,
   priorBotMessages
 )
-const score = Math.min(Math.round(botRawScore * 0.6), 12)
+const baseCap = 15
+const bonusCap = 20
+const randomCap = Math.floor(Math.random() * baseCap) + 1
+const score = botRawScore >= 25
+  ? Math.min(Math.round(botRawScore * 0.8), bonusCap)
+  : Math.min(Math.round(botRawScore * 0.6), randomCap)
         const msg = {
           id: `${Date.now()}-${Math.random()}`,
           username: botName,
