@@ -1413,24 +1413,44 @@ async function scoreArgument(text, topic, roomType, priorMessages = [], side = n
         max_tokens: 200,
         messages: [{
           role: 'system',
-          content: `You are a ruthless debate judge. Topic: "${topic}" (${roomType}).
-
-TRANSCRIPTION NOTE: This argument was transcribed by a speech-to-text AI and may contain mishearing errors. A word or phrase may be garbled or substituted with something nonsensical (e.g. "intense tastes good" when they said "it tastes good"). Use context clues to interpret what the speaker most likely meant. Judge the overall argument and intent — do NOT penalize for a garbled word or two if the surrounding context makes the meaning clear. Only penalize if the argument as a whole is incoherent or off-topic.
-
-FIRST CHECK — IS THIS ON-TOPIC?
-A message is ON-TOPIC if anything to do with the debate question — even a short, one-sided, or unsupported opinion. "Off-topic" does not mean weak argument. Do NOT use "off-topic" just because a claim is short or lacks evidence — that's a quality issue, score it in the 0-2 bucket below instead.
-- If the argument does not mention or relate to the debate topic at all = score 0, feedback "The argument is off-topic."
-- Insults or aggressive tone directed at the opponent are NOT automatically off-topic. If the insult is clearly tied to the topic (e.g. mocking someone for disagreeing with the speaker's position on it), treat it as on-topic and score it for quality.
-
-
-then, score it:
-Score 0-30: logic/clarity (0-8), evidence (0-8), depth (0-7), vocabulary (0-7).
-3-word = 0-2, mediocre = 3-8, decent = 9-15, good = 16-22, excellent = 23-27, exceptional = 28-30.
-
-REDUNDANCY: Word-for-word repeat with zero new info = 0-5. Adding new reasoning on a revisited point = score normally.
+            content: `You are a ruthless but fair debate judge. Topic: "${topic}" (${roomType}).
+ 
+TRANSCRIPTION NOTE: Arguments may have been typed OR captured by speech-to-text (Whisper).
+Whisper sometimes mishears individual words (e.g. "time gravel" instead of "time travel").
+RULE: If surrounding sentences make the speaker's point clear, judge the INTENT — not the garbled word.
+Only mark incoherent if the whole argument is impossible to interpret.
+ 
+STEP 1 — IS IT ON-TOPIC?
+ON-TOPIC = relates to the debate question in any way, even loosely.
+A short or unsupported argument is NOT off-topic — it's just low quality.
+OFF-TOPIC = has nothing to do with the debate question whatsoever.
+If off-topic → score 0, feedback "Off-topic."
+Insults tied to the debate position = still on-topic.
+ 
+STEP 2 — SCORE IT (0-30)
+Four sub-scores:
+  Logic/clarity:   0-8  (Does the reasoning hold together?)
+  Evidence:        0-8  (Specific facts, examples, statistics, analogies?)
+  Depth:           0-7  (Goes beyond the obvious?)
+  Vocab/precision: 0-7  (Articulate, specific, not vague?)
+ 
+SCORE BANDS — use as strict anchors:
+  0-2:   Off-topic OR literally nothing there (2-3 words, pure gibberish)
+  3-5:   A bare claim with absolutely zero reasoning ("it just is", "you're wrong")
+  6-10:  A claim WITH any supporting reason — even one thin "because" clause or vague example.
+         IMPORTANT: Never score below 6 if the person made a claim AND gave any reason for it.
+  11-16: Decent — clear point, some reasoning, a real-ish example
+  17-22: Good — solid logic, specific evidence or analogy, clear implication
+  23-27: Excellent — layered argument, strong evidence, well-structured
+  28-30: Exceptional — airtight logic, data/examples, anticipates counterarguments
+ 
+STEP 3 — REDUNDANCY
 Prior arguments from this player: "${priorContext || 'none yet'}"
-
-Return ONLY JSON: {"score": number, "feedback": "one short sentence", "redundant": boolean}`
+Word-for-word repeat with zero new info → score 0-3, redundant: true
+Same point with genuinely new reasoning → score normally, redundant: false
+ 
+Return ONLY valid JSON, no markdown, no preamble:
+{"score": number, "feedback": "one punchy sentence, 10 words max", "redundant": boolean}`
         }, { role: 'user', content: text }]
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
@@ -2476,62 +2496,85 @@ const BOT_PERSONALITIES = [
 async function getBotArgument(topic, personality, recentMessages) {
   try {
     const context = recentMessages.slice(-3).map(m => `${m.username}: ${m.text}`).join('\n')
-    const qualityRoll = Math.random()
-    let qualityInstruction = ''
-
-    if (qualityRoll < 0.2) {
-      qualityInstruction = 'Make a sharp 1-2 sentence point. You have a strong take, own it. No hedging.'
-    } else if (qualityRoll < 0.5) {
-      qualityInstruction = 'Make a solid 2-3 sentence point with a real example or comparison. Keep it conversational and casual.'
-    } else if (qualityRoll < 0.75) {
-      qualityInstruction = 'Push back hard on the last thing said in 2-4 sentences. Be real and direct, like you\'re genuinely annoyed.'
+ 
+    const roll = Math.random()
+    let lengthInstruction
+ 
+    if (roll < 0.15) {
+      lengthInstruction = 'ONE sentence only. Make it a punch.'
+    } else if (roll < 0.35) {
+      lengthInstruction = 'TWO sentences max. Sharp, direct, no fluff.'
+    } else if (roll < 0.60) {
+      lengthInstruction = '2-3 sentences. Real point with a concrete example or comparison.'
+    } else if (roll < 0.80) {
+      lengthInstruction = '3-4 sentences. Claim, reasoning, implication.'
     } else {
-      qualityInstruction = 'Go in on your take — 3-5 sentences like you\'re actually heated about this topic.'
+      lengthInstruction = '4-5 sentences. You\'re genuinely fired up. Go in hard.'
     }
-
+ 
+    const angles = [
+      'Make a totally fresh point nobody has raised yet.',
+      'Directly challenge the most recent argument above.',
+      'Bring in a real-world consequence or example that reframes the whole thing.',
+      'Point out a contradiction in how people usually think about this.',
+      'Flip the argument — come from the angle most people ignore.',
+      'Ground it in something specific: a country, event, or comparison.',
+    ]
+    const angle = angles[Math.floor(Math.random() * angles.length)]
+ 
     const result = await Promise.race([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 150,
-        messages: [{
-          role: 'system',
-          content: `You are a real person texting in a debate about: "${topic}". ${qualityInstruction}
-
-Rules:
-- Sound EXACTLY like a human texting — casual, messy, real
-- Vary your openers — don't always start with "I"
-- 1 to 5 sentences. Short when making a quick point, longer when you're fired up.
-- Don't sound like an AI. Sound like a 22 year old in a heated group chat.
-- No compliments, no "great point", no "you make a fair argument"
-- Occasional contractions and lowercase are fine
-- Just say your take — raw and real`
-        }, {
-          role: 'user',
-          content: recentMessages.length === 0
-            ? 'Give your opening take on this topic. 1-2 sentences, sound like a real person.'
-            : `Recent messages:\n${context}\n\nYour response (1-2 sentences, sound human):`
-        }]
+        max_tokens: 180,
+        temperature: 0.95,
+        messages: [
+          {
+            role: 'system',
+            content: `You are a real person debating: "${topic}".
+${personality}
+ 
+LENGTH: ${lengthInstruction}
+ANGLE: ${angle}
+ 
+HARD RULES — break these and you sound like a bot:
+- NEVER open with: I think / I believe / Honestly / Look / For real / lol right / Totally agree / You make a good point / That's a fair point / Great point
+- NEVER summarise what you're about to say — just say it
+- NEVER sound like an essay or a formal argument
+- DO vary your sentence openers: start with the claim, a question, a counterexample, a "but", a "the problem is", "what nobody mentions", etc.
+- Contractions, lowercase, mild profanity fine — sound like a 23-year-old in a heated group chat
+- Every response should feel like a different person said it`,
+          },
+          {
+            role: 'user',
+            content: recentMessages.length === 0
+              ? `Opening take on the topic. ${lengthInstruction}`
+              : `Recent messages:\n${context}\n\nYour turn. ${lengthInstruction} ${angle}`,
+          },
+        ],
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
     ])
+ 
     return result.choices[0].message.content.trim()
   } catch (e) {
     const fallbacks = [
-      'nah that\'s not how it works at all',
-      'honestly people overlook how much this actually matters',
-      'the whole argument falls apart when you think about it practically',
-      'that\'s the thing though — it\'s way more complicated than people act',
-      'I get what you\'re saying but the reality is different',
-      'people always say that but where\'s the actual evidence',
-      'this is literally the problem with how people think about this',
-      'yeah no, that logic doesn\'t hold up',
-      'the data actually says the opposite of what most people assume',
-      'you\'re not wrong but you\'re missing the bigger picture',
+      "the whole premise falls apart once you look at any real example",
+      "people keep saying this like it's settled but nobody ever actually backs it up",
+      "there's a huge gap between how this sounds in theory and what actually happens",
+      "the same talking points get recycled every time and nobody's changing their mind",
+      "what gets ignored is who actually benefits from this being the default position",
+      "the logic only holds if you assume things that aren't true",
+      "at what point does 'it's complicated' just become an excuse to not take a stance",
+      "most people's opinion flips completely once they've actually dealt with this firsthand",
+      "compare this to any other country that tried it — the results tell a different story",
+      "it's not that the argument is wrong, it's missing the most important part entirely",
+      "nobody wants to say it but the obvious answer here has obvious problems too",
+      "the thing behind the thing is what actually matters here and nobody's talking about it",
     ]
     return fallbacks[Math.floor(Math.random() * fallbacks.length)]
   }
 }
-
+ 
 function findRoomForBot() {
   const available = Object.values(rooms).filter(r =>
     r.instanceId !== 'topic_of_the_day' &&
@@ -2678,7 +2721,7 @@ async function runBot(botName, personality) {
 
     await new Promise(r => setTimeout(r, 5000 + Math.random() * 10000))
 
-    async function sendBotMessage() {
+   async function sendBotMessage() {
       if (!state.active) return
       const currentRoom = rooms[state.roomId]
       if (!currentRoom || currentRoom.status !== 'active') {
@@ -2688,22 +2731,20 @@ async function runBot(botName, personality) {
         return
       }
 
-      // Generate the message first so we can calculate realistic typing delay
+      // Generate message first so delay scales with actual length
       const botText = await getBotArgument(currentRoom.topic, personality, currentRoom.messages)
 
-      // Typing speed: 50-60 WPM — delay scales with actual word count
       const wordCount = botText.trim().split(/\s+/).length
-      const wpm = 50 + Math.random() * 10
-      const typingMs = (wordCount / wpm) * 60 * 1000
-      const thinkingMs = (2 + Math.random() * 4) * 1000 // 2–6s thinking before typing starts
+      const wpm = 45 + Math.random() * 20           // 45–65 WPM realistic range
+      const typingMs = (wordCount / wpm) * 60000
+      const thinkingMs = (1.5 + Math.random() * 4) * 1000
 
-      // Enforce a 4s minimum gap per room so two bots don't post simultaneously
       const lastSpoke = roomLastBotMessage[currentRoom.instanceId] || 0
       const elapsed = Date.now() - lastSpoke
       const roomCooldown = Math.max(0, 4000 - elapsed)
       const totalDelay = typingMs + thinkingMs + roomCooldown
 
-      setTimeout(() => {
+      setTimeout(async () => {
         if (!state.active) return
         const room = rooms[state.roomId]
         if (!room || room.status !== 'active') {
@@ -2713,13 +2754,25 @@ async function runBot(botName, personality) {
           return
         }
 
-        const { score: rawScore, feedback } = fallbackScore(botText)
-        const score = Math.min(rawScore, 12)
+        // Collect bot's prior arguments for redundancy checking
+        const priorBotMessages = room.messages
+          .filter(m => m.username === botName)
+          .map(m => m.text)
+
+        // Use the real AI judge — no fallback shortcut, no score cap
+        const { score, feedback } = await scoreArgument(
+          botText,
+          room.topic,
+          room.type,
+          priorBotMessages
+        )
 
         const msg = {
           id: `${Date.now()}-bot-${Math.random()}`,
           username: botName,
-          text: botText, score, aiFeedback: feedback,
+          text: botText,
+          score,
+          aiFeedback: feedback,
           timestamp: Date.now(),
         }
 
@@ -2738,20 +2791,6 @@ async function runBot(botName, personality) {
         sendBotMessage()
       }, totalDelay)
     }
-
-    sendBotMessage()
-  }
-
-  const initialDelay = Math.random() * 5 * 60 * 1000
-  setTimeout(goOnline, initialDelay)
-}
-
-function startBots() {
-  console.log('🤖 Starting 7 debate bots...')
-  BOT_NAMES.slice(0, 7).forEach((name, i) => {
-    setTimeout(() => runBot(name, BOT_PERSONALITIES[i % BOT_PERSONALITIES.length]), i * 8000)
-  })
-}
 
 // ─── Boot ──────────────────────────────────────────────────────
 const botElos = {}
@@ -2864,3 +2903,4 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
     res.json({ transcript: '' })
   }
 })
+}}
