@@ -85,7 +85,10 @@ function saveAdminSettings() {
 // Resolves a Supabase access token to the real, verified email of the
 // logged-in user. Returns null if the token is missing, expired, or invalid.
 async function resolveVerifiedEmail(token) {
-  if (!token) return null
+  if (!token) {
+    console.log('🔒 Admin check: no token received in payload')
+    return null
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: {
@@ -93,11 +96,20 @@ async function resolveVerifiedEmail(token) {
         'Authorization': `Bearer ${token}`,
       },
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.log(`🔒 Admin check: Supabase rejected token — status ${res.status}, body: ${body}`)
+      return null
+    }
     const data = await res.json()
-    return data?.email ? data.email.toLowerCase() : null
+    if (!data?.email) {
+      console.log('🔒 Admin check: token verified but no email on user object:', JSON.stringify(data))
+      return null
+    }
+    console.log(`🔒 Admin check: resolved email "${data.email.toLowerCase()}" — currently allowed: ${JSON.stringify(adminSettings.adminEmails)}`)
+    return data.email.toLowerCase()
   } catch (e) {
-    console.log('Token verification failed:', e.message)
+    console.log('🔒 Admin check: request to Supabase failed —', e.message)
     return null
   }
 }
