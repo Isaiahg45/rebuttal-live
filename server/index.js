@@ -47,6 +47,15 @@ async function supabaseRest(path, method = 'GET', body = null) {
   }
 }
 
+// ─── Admin / Developer accounts ────────────────────────────────
+// Full backend powers: unlimited/multiplayer custom rooms, message
+// deletion, skit creation, forced custom results.
+// TODO: add your own username here.
+const ADMIN_USERNAMES = ['jake', 'zay'].map(u => u.toLowerCase())
+function isAdmin(username) {
+  return !!username && ADMIN_USERNAMES.includes(username.toLowerCase())
+}
+
 // ─── Constants ─────────────────────────────────────────────────
 const TARGET_AVAILABLE = 4
 const TARGET_VC_AVAILABLE = 2
@@ -1077,9 +1086,9 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
       io.to(room.instanceId).emit('start_countdown_tick', { count: room.startCountdown })
       if (room.startCountdown <= 0) {
         room.status = 'active'
-        room.debateEndsAt = Date.now() + room.duration * 1000
+        room.debateEndsAt = room.duration ? Date.now() + room.duration * 1000 : null
         io.to(room.instanceId).emit('debate_started', { duration: room.duration })
-        console.log(`⚡ Started: "${room.topic}" (${playerCount} players)`)
+        console.log(`⚡ Started: "${room.topic}" (${playerCount} players)${room.duration ? '' : ' [unlimited]'}`)
       }
     }
     if (room.status === 'active') {
@@ -1098,6 +1107,9 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         }
         return
       }
+      // Unlimited-duration rooms never auto-end — only via admin_end_debate.
+      if (room.debateEndsAt === null) return
+
       const timeLeft = Math.max(0, Math.round((room.debateEndsAt - Date.now()) / 1000))
 
       // ── Sudden death tick ────────────────────────────────────
@@ -1486,10 +1498,26 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
   })
 
   // ── Create custom room ────────────────────────────────────────
- socket.on('create_custom_room', ({ username, topic, duration, eloStake, isPrivate, password, debateType }) => {
+ socket.on('create_custom_room', ({ username, topic, duration, eloStake, isPrivate, password, debateType, maxPlayers: requestedMaxPlayers }) => {
     if (!username) { socket.emit('error', { message: 'Must be logged in.' }); return }
     if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
     if (isPrivate && !password) { socket.emit('error', { message: 'Private rooms need a password.' }); return }
+
+    // Multiplayer custom rooms (>2 players) — admin-only for now.
+    let maxPlayers = 2
+    if (requestedMaxPlayers && requestedMaxPlayers > 2) {
+      if (!isAdmin(username)) { socket.emit('error', { message: 'Multiplayer custom rooms are admin-only right now.' }); return }
+      maxPlayers = Math.min(20, Math.max(2, requestedMaxPlayers))
+    }
+
+    // Unlimited-duration rooms: client sends duration: 'unlimited' or 0.
+    // Flip ALLOW_UNLIMITED_FOR_ALL to open this to every user instead of just admins.
+    const ALLOW_UNLIMITED_FOR_ALL = false
+    const wantsUnlimited = duration === 'unlimited' || duration === 0
+    if (wantsUnlimited && !ALLOW_UNLIMITED_FOR_ALL && !isAdmin(username)) {
+      socket.emit('error', { message: 'Unlimited-time rooms are admin-only right now.' }); return
+    }
+    const resolvedDuration = wantsUnlimited ? null : (duration || (debateType === 'vc' ? 480 : 300))
 
     // Deduplicate — if this user already has a waiting custom room with the same topic, return it
     const existing = Object.values(rooms).find(r =>
@@ -1512,9 +1540,10 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
       instanceId: id,
       emoji: isPrivate ? '🔒' : '⚔️',
       topic: topic.trim(),
-duration: duration || (isVC ? 480 : 300),      eloRequired: 0,
+      duration: resolvedDuration,
+      eloRequired: 0,
       eloStake: eloStake || 25,
-      maxPlayers: 2,
+      maxPlayers,
       players: {},
       spectators: {},
       messages: [],
@@ -2030,6 +2059,100 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
  socket.on('vc_live_transcript', ({ instanceId, text, username }) => {
   socket.to(instanceId).emit('vc_live_transcript', { text, username })
 })
+
+  // ── Admin: end an unlimited-duration debate manually ───────────
+  socket.on('admin_end_debate', ({ instanceId, username }) => {
+    if (!isAdmin(username)) return
+    const room = rooms[instanceId]
+    if (!room || room.status !== 'active') return
+    room.status = 'ended'
+    totalDebatesCompleted++
+    const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+    const winnerEloVal = sorted[0]?.elo ?? 0
+    const loserEloVal = sorted.length > 1 ? Math.round(sorted.slice(1).reduce((s, p) => s + (p.elo ?? 0), 0) / (sorted.length - 1)) : 0
+    const eloChanges = calculateEloChanges(room.type, sorted.length, room.duration || 300, winnerEloVal, loserEloVal)
+    io.to(instanceId).emit('debate_ended', { standings: sorted, eloChanges, type: room.type, adminEnded: true })
+    console.log(`🛑 Admin ${username} manually ended "${room.topic}"`)
+    io.emit('rooms_update', getRoomList())
+  })
+
+  // ── Admin: delete a message ─────────────────────────────────────
+  socket.on('admin_delete_message', ({ instanceId, messageId, username }) => {
+    if (!isAdmin(username)) return
+    const room = rooms[instanceId]
+    if (!room) return
+    const idx = room.messages.findIndex(m => m.id === messageId)
+    if (idx === -1) return
+    const [deleted] = room.messages.splice(idx, 1)
+    const player = Object.values(room.players).find(p => p.username === deleted.username)
+    if (player && typeof deleted.score === 'number') player.score -= deleted.score
+    io.to(instanceId).emit('message_deleted', { messageId })
+    io.to(instanceId).emit('players_update', Object.values(room.players))
+    console.log(`🗑️ Admin ${username} deleted a message from ${deleted.username} in "${room.topic}"`)
+  })
+
+  // ── Admin: skit mode — scripted debates, no real accounts needed ─
+  socket.on('admin_create_skit_room', ({ username, topic, emoji, proLabel, conLabel }) => {
+    if (!isAdmin(username)) return
+    const id = `skit_${++roomCounter}_${Date.now()}`
+    rooms[id] = {
+      instanceId: id, type: 'skit', isSkit: true, isCustom: true,
+      emoji: emoji || '🎭', topic: topic || 'Scripted Debate',
+      duration: null, eloRequired: 0,
+      maxPlayers: 999, players: {}, spectators: {}, messages: [],
+      status: 'active', countdown: 0, startCountdown: null,
+      debateEndsAt: null,
+      createdAt: Date.now(),
+      skitSides: { pro: proLabel || 'Pro', con: conLabel || 'Con' },
+      createdBy: username,
+    }
+    socket.join(id)
+    socket.emit('admin_skit_created', { instanceId: id, topic: rooms[id].topic })
+    io.emit('rooms_update', getRoomList())
+    console.log(`🎬 Admin ${username} created skit room "${rooms[id].topic}"`)
+  })
+
+  socket.on('admin_skit_message', ({ instanceId, username, side, text, score, feedback }) => {
+    if (!isAdmin(username)) return
+    const room = rooms[instanceId]
+    if (!room || !room.isSkit) return
+    if (!['pro', 'con'].includes(side)) return
+    const msg = {
+      id: `${Date.now()}-${Math.random()}`,
+      username: room.skitSides[side],
+      text,
+      score: typeof score === 'number' ? score : 0,
+      aiFeedback: feedback || '',
+      timestamp: Date.now(),
+      isSkit: true,
+    }
+    room.messages.push(msg)
+    io.to(instanceId).emit('new_message', msg)
+  })
+
+  // ── Admin: force a custom result (skit / custom rooms only) ────
+  socket.on('admin_set_custom_result', ({ instanceId, username, winnerUsername, eloChanges }) => {
+    if (!isAdmin(username)) return
+    const room = rooms[instanceId]
+    if (!room || !(room.isSkit || room.isCustom)) {
+      socket.emit('error', { message: 'Custom results only work on skit or custom rooms.' })
+      return
+    }
+    room.status = 'ended'
+    const standings = Object.values(room.players).sort((a, b) => {
+      if (a.username === winnerUsername) return -1
+      if (b.username === winnerUsername) return 1
+      return 0
+    })
+    io.to(instanceId).emit('debate_ended', {
+      standings,
+      eloChanges: eloChanges || { winnerElo: 0, secondElo: 0, thirdElo: 0, loserBase: 0 },
+      type: room.type,
+      adminOverride: true,
+    })
+    console.log(`🎬 Admin ${username} set a custom result in "${room.topic}" — winner: ${winnerUsername || '(skit)'}`)
+    io.emit('rooms_update', getRoomList())
+  })
 
   // ── Disconnect ────────────────────────────────────────────────
   socket.on('disconnect', () => {
