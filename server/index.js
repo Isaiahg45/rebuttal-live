@@ -2760,22 +2760,21 @@ async function runBot(botName, personality) {
           .map(m => m.text)
 
         // Use the real AI judge — no fallback shortcut, no score cap
-        const { score, feedback } = await scoreArgument(
-          botText,
-          room.topic,
-          room.type,
-          priorBotMessages
-        )
+       const { score: rawScore, feedback } = await scoreArgument(
+  botText,
+  room.topic,
+  room.type,
+  priorBotMessages
+)
 
-        const msg = {
-          id: `${Date.now()}-bot-${Math.random()}`,
-          username: botName,
-          text: botText,
-          score,
-          aiFeedback: feedback,
-          timestamp: Date.now(),
-        }
+const { score: rawScore, feedback } = await scoreArgument(
+  botText,
+  room.topic,
+  room.type,
+  priorBotMessages
+)
 
+const score = Math.min(Math.round(rawScore * 0.6), 12)
         room.messages.push(msg)
         roomLastBotMessage[room.instanceId] = Date.now()
         totalArgumentsMade++
