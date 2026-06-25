@@ -47,13 +47,37 @@ async function supabaseRest(path, method = 'GET', body = null) {
   }
 }
 
-// ─── Admin / Developer accounts ────────────────────────────────
-// Full backend powers: unlimited/multiplayer custom rooms, message
-// deletion, skit creation, forced custom results.
-// TODO: add your own username here.
-const ADMIN_USERNAMES = ['jake', 'zay'].map(u => u.toLowerCase())
+// ─── Admin / Developer settings ────────────────────────────────
+// Editable at runtime from the /admin frontend panel — persisted to
+// Supabase so changes survive a server restart. Falls back to these
+// defaults if the admin_settings table is empty or unreachable.
+let adminSettings = {
+  adminUsernames: ['jake', 'zay'],
+  allowUnlimitedForAll: false,
+  multiplayerMaxCap: 20,
+  skitDefaultEmoji: '🎭',
+  skitDefaultProLabel: 'Pro',
+  skitDefaultConLabel: 'Con',
+}
+
+async function loadAdminSettings() {
+  try {
+    const data = await supabaseRest('admin_settings?id=eq.1&select=settings')
+    if (data?.[0]?.settings && Object.keys(data[0].settings).length > 0) {
+      adminSettings = { ...adminSettings, ...data[0].settings }
+      console.log('⚙️  Loaded admin settings from Supabase')
+    }
+  } catch (e) {
+    console.log('Could not load admin settings, using defaults:', e.message)
+  }
+}
+
+function saveAdminSettings() {
+  supabaseRest('admin_settings?id=eq.1', 'PATCH', { settings: adminSettings }).catch(() => {})
+}
+
 function isAdmin(username) {
-  return !!username && ADMIN_USERNAMES.includes(username.toLowerCase())
+  return !!username && adminSettings.adminUsernames.map(u => u.toLowerCase()).includes(username.toLowerCase())
 }
 
 // ─── Constants ─────────────────────────────────────────────────
@@ -1507,14 +1531,13 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
     let maxPlayers = 2
     if (requestedMaxPlayers && requestedMaxPlayers > 2) {
       if (!isAdmin(username)) { socket.emit('error', { message: 'Multiplayer custom rooms are admin-only right now.' }); return }
-      maxPlayers = Math.min(20, Math.max(2, requestedMaxPlayers))
+     maxPlayers = Math.min(adminSettings.multiplayerMaxCap, Math.max(2, requestedMaxPlayers))
     }
 
     // Unlimited-duration rooms: client sends duration: 'unlimited' or 0.
-    // Flip ALLOW_UNLIMITED_FOR_ALL to open this to every user instead of just admins.
-    const ALLOW_UNLIMITED_FOR_ALL = false
+    // adminSettings.allowUnlimitedForAll is editable live from the /admin panel.
     const wantsUnlimited = duration === 'unlimited' || duration === 0
-    if (wantsUnlimited && !ALLOW_UNLIMITED_FOR_ALL && !isAdmin(username)) {
+    if (wantsUnlimited && !adminSettings.allowUnlimitedForAll && !isAdmin(username)) {
       socket.emit('error', { message: 'Unlimited-time rooms are admin-only right now.' }); return
     }
     const resolvedDuration = wantsUnlimited ? null : (duration || (debateType === 'vc' ? 480 : 300))
@@ -2097,13 +2120,13 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     const id = `skit_${++roomCounter}_${Date.now()}`
     rooms[id] = {
       instanceId: id, type: 'skit', isSkit: true, isCustom: true,
-      emoji: emoji || '🎭', topic: topic || 'Scripted Debate',
+      emoji: emoji || adminSettings.skitDefaultEmoji, topic: topic || 'Scripted Debate',
       duration: null, eloRequired: 0,
       maxPlayers: 999, players: {}, spectators: {}, messages: [],
       status: 'active', countdown: 0, startCountdown: null,
       debateEndsAt: null,
       createdAt: Date.now(),
-      skitSides: { pro: proLabel || 'Pro', con: conLabel || 'Con' },
+      skitSides: { pro: proLabel || adminSettings.skitDefaultProLabel, con: conLabel || adminSettings.skitDefaultConLabel },
       createdBy: username,
     }
     socket.join(id)
@@ -2152,6 +2175,24 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     })
     console.log(`🎬 Admin ${username} set a custom result in "${room.topic}" — winner: ${winnerUsername || '(skit)'}`)
     io.emit('rooms_update', getRoomList())
+  })
+
+  // ── Admin: read/update runtime settings (admin allowlist, toggles) ─
+  socket.on('admin_get_settings', ({ username }) => {
+    if (!isAdmin(username)) return
+    socket.emit('admin_settings', adminSettings)
+  })
+
+  socket.on('admin_update_settings', ({ username, settings }) => {
+    if (!isAdmin(username)) return
+    if (!settings || typeof settings !== 'object') return
+    const allowedKeys = ['adminUsernames', 'allowUnlimitedForAll', 'multiplayerMaxCap', 'skitDefaultEmoji', 'skitDefaultProLabel', 'skitDefaultConLabel']
+    for (const key of allowedKeys) {
+      if (key in settings) adminSettings[key] = settings[key]
+    }
+    saveAdminSettings()
+    io.emit('admin_settings', adminSettings) // keep every open admin panel in sync
+    console.log(`⚙️  Admin ${username} updated settings:`, JSON.stringify(settings))
   })
 
   // ── Disconnect ────────────────────────────────────────────────
@@ -2681,6 +2722,7 @@ async function loadBotElos() {
 }
 
 async function boot() {
+  await loadAdminSettings()
   const totdData = await supabaseRest('totd_winner?id=eq.1&select=username,won_at')
   if (totdData?.[0]?.username) {
     lastTotdWinner = totdData[0].username
