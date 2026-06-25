@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, CSSProperties } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { useAuth } from '../../context/AuthContext'
-import Nav from '../../components/Nav'
+import { useAuth } from '../context/AuthContext'
+import Nav from '../components/Nav'
 
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
@@ -248,7 +248,7 @@ export default function AdminPanel() {
   if (!user) {
     return (
       <>
-        <Nav active="rebut" />
+        <Nav active="admin" />
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--muted)' }}>Log in to access this page.</div>
       </>
     )
@@ -257,7 +257,7 @@ export default function AdminPanel() {
   if (authorized === null) {
     return (
       <>
-        <Nav active="rebut" />
+        <Nav active="admin" />
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--muted)' }}>Checking access…</div>
       </>
     )
@@ -266,7 +266,7 @@ export default function AdminPanel() {
   if (authorized === false) {
     return (
       <>
-        <Nav active="rebut" />
+        <Nav active="admin" />
         <div style={{ padding: '60px', textAlign: 'center' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔒</div>
           <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: 'var(--red)' }}>Not authorized</div>
@@ -280,7 +280,7 @@ export default function AdminPanel() {
 
   return (
     <>
-      <Nav active="rebut" />
+      <Nav active="admin" />
       <div style={{ minHeight: 'calc(100vh - 56px)', overflowY: 'auto', padding: '28px 20px' }}>
         <div style={{ maxWidth: '760px', margin: '0 auto' }}>
           <div style={{ marginBottom: '24px' }}>
