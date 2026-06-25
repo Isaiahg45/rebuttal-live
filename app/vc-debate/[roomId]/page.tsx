@@ -267,7 +267,7 @@ await client.join(AGORA_APP_ID, channelName, token, numericUid)
     if (audioCtxRef.current?.state === 'suspended') {
       await audioCtxRef.current.resume()
     }
-    remoteTrack.play()
+    if (!remoteTrack.isPlaying) remoteTrack.play()
     // Force audio output on iOS
     const audioEl = document.querySelector('audio')
     if (audioEl) audioEl.setAttribute('playsinline', 'true')
@@ -505,7 +505,7 @@ socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, du
           agoraClientRef.current.remoteUsers.forEach(async (remoteUser) => {
             if (remoteUser.hasAudio) {
               await agoraClientRef.current!.subscribe(remoteUser, 'audio')
-              remoteUser.audioTrack?.play()
+              if (!remoteUser.audioTrack?.isPlaying) remoteUser.audioTrack?.play()
               setRemoteAudioActive(true)
             }
           })
@@ -541,7 +541,7 @@ localAudioTrackRef.current?.setEnabled(true)
           agoraClientRef.current.remoteUsers.forEach(async (remoteUser) => {
             if (remoteUser.hasAudio) {
               await agoraClientRef.current!.subscribe(remoteUser, 'audio')
-              remoteUser.audioTrack?.play()
+              if (!remoteUser.audioTrack?.isPlaying) remoteUser.audioTrack?.play()
               setRemoteAudioActive(true)
             }
           })
@@ -549,7 +549,7 @@ localAudioTrackRef.current?.setEnabled(true)
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
-    socket.on('vc_cooldown_start', ({ duration }: { duration: number }) => {
+    socket.on('vc_cooldown_start',({ duration }: { duration: number }) => {
       setInCooldown(true)
       setCooldownLeft(duration)
       clearInterval(cooldownTimerRef.current)
