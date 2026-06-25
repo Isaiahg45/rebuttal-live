@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, CSSProperties } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import Nav from '../components/Nav'
 
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
 interface AdminSettings {
-  adminUsernames: string[]
+  adminEmails: string[]
   allowUnlimitedForAll: boolean
   multiplayerMaxCap: number
   skitDefaultEmoji: string
@@ -34,7 +35,7 @@ interface SkitMessage {
 }
 
 const DEFAULT_SETTINGS: AdminSettings = {
-  adminUsernames: ['jake', 'zay'],
+  adminEmails: ['lg@isaiahlive.com', 'zachariussong@gmail.com'],
   allowUnlimitedForAll: false,
   multiplayerMaxCap: 20,
   skitDefaultEmoji: '🎭',
@@ -99,8 +100,9 @@ export default function AdminPanel() {
 
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS)
-  const [adminUsernamesInput, setAdminUsernamesInput] = useState('')
+  const [adminEmailsInput, setAdminEmailsInput] = useState('')
   const [saveMsg, setSaveMsg] = useState('')
+  const tokenRef = useRef<string | null>(null)
 
   const [rooms, setRooms] = useState<RoomSummary[]>([])
 
@@ -131,18 +133,26 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (!myUsername) return
+    let cancelled = false
+
     const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
-    socket.on('connect', () => {
-      socket.emit('admin_get_settings', { username: myUsername })
+    socket.on('connect', async () => {
+      // Always pull a fresh token right before using it — Supabase keeps the
+      // session refreshed in the background, so this is cheap and avoids
+      // sending an expired token after the tab's been open a while.
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return
+      tokenRef.current = data.session?.access_token ?? null
+      socket.emit('admin_get_settings', { username: myUsername, token: tokenRef.current })
     })
 
     socket.on('admin_settings', (s: AdminSettings) => {
       clearTimeout(timeoutId)
       setSettings(s)
-      setAdminUsernamesInput(s.adminUsernames.join(', '))
-      setAuthorized(true) // server only replies to admins, so receiving this proves access
+      setAdminEmailsInput(s.adminEmails.join(', '))
+      setAuthorized(true) // server only replies after verifying our token against the real admin list
     })
 
     socket.on('rooms_update', (r: RoomSummary[]) => setRooms(r))
@@ -165,35 +175,46 @@ export default function AdminPanel() {
     const timeoutId = setTimeout(() => setAuthorized(false), 2000)
 
     return () => {
+      cancelled = true
       clearTimeout(timeoutId)
       socket.disconnect()
     }
   }, [myUsername])
 
-  function saveSettings() {
-    const parsedUsernames = adminUsernamesInput.split(',').map(u => u.trim()).filter(Boolean)
+  async function getFreshToken() {
+    const { data } = await supabase.auth.getSession()
+    tokenRef.current = data.session?.access_token ?? null
+    return tokenRef.current
+  }
+
+  async function saveSettings() {
+    const token = await getFreshToken()
+    const parsedEmails = adminEmailsInput.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
     const updated: AdminSettings = {
       ...settings,
-      adminUsernames: parsedUsernames.length > 0 ? parsedUsernames : settings.adminUsernames,
+      adminEmails: parsedEmails.length > 0 ? parsedEmails : settings.adminEmails,
     }
-    socketRef.current?.emit('admin_update_settings', { username: myUsername, settings: updated })
+    socketRef.current?.emit('admin_update_settings', { username: myUsername, settings: updated, token })
     setSaveMsg('Saved ✓')
     setTimeout(() => setSaveMsg(''), 2000)
   }
 
-  function createSkitRoom() {
+  async function createSkitRoom() {
     if (!skitTopic.trim()) { alert('Give the skit a topic first.'); return }
+    const token = await getFreshToken()
     socketRef.current?.emit('admin_create_skit_room', {
       username: myUsername,
       topic: skitTopic.trim(),
       emoji: skitEmoji.trim() || undefined,
       proLabel: skitProLabel.trim() || undefined,
       conLabel: skitConLabel.trim() || undefined,
+      token,
     })
   }
 
-  function sendSkit(side: 'pro' | 'con') {
+  async function sendSkit(side: 'pro' | 'con') {
     if (!activeSkitRoomId || !skitText.trim()) return
+    const token = await getFreshToken()
     socketRef.current?.emit('admin_skit_message', {
       instanceId: activeSkitRoomId,
       username: myUsername,
@@ -201,13 +222,15 @@ export default function AdminPanel() {
       text: skitText.trim(),
       score: Number(skitScore) || 0,
       feedback: skitFeedback.trim(),
+      token,
     })
     setSkitText('')
     setSkitFeedback('')
   }
 
-  function createMultiplayerRoom() {
+  async function createMultiplayerRoom() {
     if (!mpTopic.trim() || mpTopic.trim().length < 10) { alert('Topic needs to be at least 10 characters.'); return }
+    const token = await getFreshToken()
     socketRef.current?.emit('create_custom_room', {
       username: myUsername,
       topic: mpTopic.trim(),
@@ -215,23 +238,27 @@ export default function AdminPanel() {
       isPrivate: false,
       debateType: mpDebateType,
       maxPlayers: Number(mpMaxPlayers) || 2,
+      token,
     })
     setMpTopic('')
   }
 
-  function endDebate() {
+  async function endDebate() {
     if (!actionRoomId) { alert('Pick a room first.'); return }
-    socketRef.current?.emit('admin_end_debate', { instanceId: actionRoomId, username: myUsername })
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_end_debate', { instanceId: actionRoomId, username: myUsername, token })
   }
 
-  function deleteMessage() {
+  async function deleteMessage() {
     if (!actionRoomId || !deleteMessageId.trim()) { alert('Need both a room and a message ID.'); return }
-    socketRef.current?.emit('admin_delete_message', { instanceId: actionRoomId, messageId: deleteMessageId.trim(), username: myUsername })
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_delete_message', { instanceId: actionRoomId, messageId: deleteMessageId.trim(), username: myUsername, token })
     setDeleteMessageId('')
   }
 
-  function setCustomResult() {
+  async function setCustomResult() {
     if (!actionRoomId || !resultWinner.trim()) { alert('Need a room and a winner username.'); return }
+    const token = await getFreshToken()
     socketRef.current?.emit('admin_set_custom_result', {
       instanceId: actionRoomId,
       username: myUsername,
@@ -242,6 +269,7 @@ export default function AdminPanel() {
         thirdElo: 0,
         loserBase: Number(resultLoserElo) || 0,
       },
+      token,
     })
   }
 
@@ -290,8 +318,8 @@ export default function AdminPanel() {
 
           {/* ── Runtime settings ───────────────────────────── */}
           <Card title="Settings" subtitle="Persisted to Supabase — changes apply immediately, no redeploy needed">
-            <Field label="Admin usernames (comma-separated)">
-              <input style={inputStyle} value={adminUsernamesInput} onChange={e => setAdminUsernamesInput(e.target.value)} placeholder="jake, zay" />
+            <Field label="Admin emails (comma-separated)">
+              <input style={inputStyle} value={adminEmailsInput} onChange={e => setAdminEmailsInput(e.target.value)} placeholder="lg@isaiahlive.com, zachariussong@gmail.com" />
             </Field>
             <Field label="Allow unlimited-duration rooms for every user (not just admins)">
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>

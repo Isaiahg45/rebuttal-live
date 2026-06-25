@@ -51,8 +51,14 @@ async function supabaseRest(path, method = 'GET', body = null) {
 // Editable at runtime from the /admin frontend panel — persisted to
 // Supabase so changes survive a server restart. Falls back to these
 // defaults if the admin_settings table is empty or unreachable.
+//
+// Admin status is gated by VERIFIED EMAIL, not by a client-supplied
+// username string. Every admin action requires a real Supabase access
+// token, which we exchange for the actual logged-in user's email via
+// Supabase's own auth endpoint — a spoofed `username` in the payload
+// gets you nothing.
 let adminSettings = {
-  adminUsernames: ['jake', 'zay'],
+  adminEmails: ['lg@isaiahlive.com', 'zachariussong@gmail.com'],
   allowUnlimitedForAll: false,
   multiplayerMaxCap: 20,
   skitDefaultEmoji: '🎭',
@@ -74,6 +80,33 @@ async function loadAdminSettings() {
 
 function saveAdminSettings() {
   supabaseRest('admin_settings?id=eq.1', 'PATCH', { settings: adminSettings }).catch(() => {})
+}
+
+// Resolves a Supabase access token to the real, verified email of the
+// logged-in user. Returns null if the token is missing, expired, or invalid.
+async function resolveVerifiedEmail(token) {
+  if (!token) return null
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.email ? data.email.toLowerCase() : null
+  } catch (e) {
+    console.log('Token verification failed:', e.message)
+    return null
+  }
+}
+
+// The real admin check. Always await this — never trust a client-supplied
+// username for anything security-sensitive.
+async function isAdminToken(token) {
+  const email = await resolveVerifiedEmail(token)
+  return !!email && adminSettings.adminEmails.map(e => e.toLowerCase()).includes(email)
 }
 
 function isAdmin(username) {
@@ -1522,7 +1555,7 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
   })
 
   // ── Create custom room ────────────────────────────────────────
- socket.on('create_custom_room', ({ username, topic, duration, eloStake, isPrivate, password, debateType, maxPlayers: requestedMaxPlayers }) => {
+socket.on('create_custom_room', async ({ username, topic, duration, eloStake, isPrivate, password, debateType, maxPlayers: requestedMaxPlayers, token }) => {
     if (!username) { socket.emit('error', { message: 'Must be logged in.' }); return }
     if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
     if (isPrivate && !password) { socket.emit('error', { message: 'Private rooms need a password.' }); return }
@@ -1530,14 +1563,14 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
     // Multiplayer custom rooms (>2 players) — admin-only for now.
     let maxPlayers = 2
     if (requestedMaxPlayers && requestedMaxPlayers > 2) {
-      if (!isAdmin(username)) { socket.emit('error', { message: 'Multiplayer custom rooms are admin-only right now.' }); return }
-     maxPlayers = Math.min(adminSettings.multiplayerMaxCap, Math.max(2, requestedMaxPlayers))
+      if (!(await isAdminToken(token))) { socket.emit('error', { message: 'Multiplayer custom rooms are admin-only right now.' }); return }
+      maxPlayers = Math.min(adminSettings.multiplayerMaxCap, Math.max(2, requestedMaxPlayers))
     }
 
     // Unlimited-duration rooms: client sends duration: 'unlimited' or 0.
     // adminSettings.allowUnlimitedForAll is editable live from the /admin panel.
     const wantsUnlimited = duration === 'unlimited' || duration === 0
-    if (wantsUnlimited && !adminSettings.allowUnlimitedForAll && !isAdmin(username)) {
+    if (wantsUnlimited && !adminSettings.allowUnlimitedForAll && !(await isAdminToken(token))) {
       socket.emit('error', { message: 'Unlimited-time rooms are admin-only right now.' }); return
     }
     const resolvedDuration = wantsUnlimited ? null : (duration || (debateType === 'vc' ? 480 : 300))
@@ -2084,8 +2117,8 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
 })
 
   // ── Admin: end an unlimited-duration debate manually ───────────
-  socket.on('admin_end_debate', ({ instanceId, username }) => {
-    if (!isAdmin(username)) return
+  socket.on('admin_end_debate', async ({ instanceId, username, token }) => {
+    if (!(await isAdminToken(token))) return
     const room = rooms[instanceId]
     if (!room || room.status !== 'active') return
     room.status = 'ended'
@@ -2100,8 +2133,8 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: delete a message ─────────────────────────────────────
-  socket.on('admin_delete_message', ({ instanceId, messageId, username }) => {
-    if (!isAdmin(username)) return
+  socket.on('admin_delete_message', async ({ instanceId, messageId, username, token }) => {
+    if (!(await isAdminToken(token))) return
     const room = rooms[instanceId]
     if (!room) return
     const idx = room.messages.findIndex(m => m.id === messageId)
@@ -2115,8 +2148,8 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: skit mode — scripted debates, no real accounts needed ─
-  socket.on('admin_create_skit_room', ({ username, topic, emoji, proLabel, conLabel }) => {
-    if (!isAdmin(username)) return
+ socket.on('admin_create_skit_room', async ({ username, topic, emoji, proLabel, conLabel, token }) => {
+    if (!(await isAdminToken(token))) return
     const id = `skit_${++roomCounter}_${Date.now()}`
     rooms[id] = {
       instanceId: id, type: 'skit', isSkit: true, isCustom: true,
@@ -2135,8 +2168,8 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     console.log(`🎬 Admin ${username} created skit room "${rooms[id].topic}"`)
   })
 
-  socket.on('admin_skit_message', ({ instanceId, username, side, text, score, feedback }) => {
-    if (!isAdmin(username)) return
+  socket.on('admin_skit_message', async ({ instanceId, username, side, text, score, feedback, token }) => {
+    if (!(await isAdminToken(token))) return
     const room = rooms[instanceId]
     if (!room || !room.isSkit) return
     if (!['pro', 'con'].includes(side)) return
@@ -2154,8 +2187,8 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: force a custom result (skit / custom rooms only) ────
-  socket.on('admin_set_custom_result', ({ instanceId, username, winnerUsername, eloChanges }) => {
-    if (!isAdmin(username)) return
+ socket.on('admin_set_custom_result', async ({ instanceId, username, winnerUsername, eloChanges, token }) => {
+    if (!(await isAdminToken(token))) return
     const room = rooms[instanceId]
     if (!room || !(room.isSkit || room.isCustom)) {
       socket.emit('error', { message: 'Custom results only work on skit or custom rooms.' })
@@ -2178,15 +2211,15 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: read/update runtime settings (admin allowlist, toggles) ─
-  socket.on('admin_get_settings', ({ username }) => {
-    if (!isAdmin(username)) return
+  socket.on('admin_get_settings', async ({ username, token }) => {
+    if (!(await isAdminToken(token))) return
     socket.emit('admin_settings', adminSettings)
   })
 
-  socket.on('admin_update_settings', ({ username, settings }) => {
-    if (!isAdmin(username)) return
+  socket.on('admin_update_settings', async ({ username, settings, token }) => {
+    if (!(await isAdminToken(token))) return
     if (!settings || typeof settings !== 'object') return
-    const allowedKeys = ['adminUsernames', 'allowUnlimitedForAll', 'multiplayerMaxCap', 'skitDefaultEmoji', 'skitDefaultProLabel', 'skitDefaultConLabel']
+    const allowedKeys = ['adminEmails', 'allowUnlimitedForAll', 'multiplayerMaxCap', 'skitDefaultEmoji', 'skitDefaultProLabel', 'skitDefaultConLabel']
     for (const key of allowedKeys) {
       if (key in settings) adminSettings[key] = settings[key]
     }

@@ -27,11 +27,10 @@ const avatarUrl = profile?.avatar_url ?? null
   const { notifications, markSeen, markAllSeen } = useNotifications(profile?.username ?? '')
   const pendingBuddyCount = notifications.length
 
-  // Cosmetic only — the real admin check lives server-side in index.js's
-  // adminSettings.adminUsernames. Keep this list in sync manually so the
-  // tab doesn't show up for people who'd just get "Not authorized" anyway.
-  const ADMIN_USERNAMES_UI = ['jake', 'zay']
-  const isAdminUser = !!profile?.username && ADMIN_USERNAMES_UI.includes(profile.username.toLowerCase())
+  // Cosmetic only — the real admin check lives server-side. Gated by email
+  // rather than username since usernames can be changed but auth email can't.
+  const ADMIN_EMAILS_UI = ['lg@isaiahlive.com', 'zachariussong@gmail.com']
+  const isAdminUser = !!user?.email && ADMIN_EMAILS_UI.includes(user.email.toLowerCase())
 
   const tabs = [
     { id: 'home', label: 'Home', href: '/' },
