@@ -2784,13 +2784,27 @@ async function runBot(botName, personality) {
         const player = room.players[`bot_${botName}`]
         if (player) player.score += score
 
-        io.to(room.instanceId).emit('new_message', msg)
+       io.to(room.instanceId).emit('new_message', msg)
         io.to(room.instanceId).emit('players_update', Object.values(room.players))
         io.emit('room_message', { instanceId: room.instanceId, username: botName, text: botText })
 
         sendBotMessage()
       }, totalDelay)
     }
+
+    sendBotMessage()
+  }
+  const initialDelay = Math.random() * 5 * 60 * 1000
+  setTimeout(goOnline, initialDelay)
+}                     // ← closes runBot
+
+function startBots() {
+  console.log('🤖 Starting 7 debate bots...')
+  BOT_NAMES.slice(0, 7).forEach((name, i) => {
+    setTimeout(() => runBot(name, BOT_PERSONALITIES[i % BOT_PERSONALITIES.length]), i * 8000)
+  })
+}
+
 
 // ─── Boot ──────────────────────────────────────────────────────
 const botElos = {}
@@ -2900,7 +2914,6 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
     res.json({ transcript: result.text })
   } catch (e) {
     console.error('Transcribe error:', e)
-    res.json({ transcript: '' })
+   res.json({ transcript: '' })
   }
 })
-}}
