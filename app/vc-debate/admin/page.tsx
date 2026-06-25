@@ -2,12 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, CSSProperties } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { useAuth } from '../context/AuthContext'
-import Nav from '../components/Nav'
-
-// NOTE on paths: this file assumes it lives at app/rebut/admin/page.tsx,
-// a sibling of app/rebut/vc/[roomId]/page.tsx. If your actual folder
-// structure differs, adjust the two relative imports above.
+import { useAuth } from '../../context/AuthContext'
+import Nav from '../../components/Nav'
 
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
