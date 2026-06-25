@@ -174,17 +174,17 @@ export default function TopicPage() {
                 const isMe = msg.username === username
                 return (
                   <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: isMe ? 'var(--accent)' : 'var(--text2)' }}>{msg.username}</span>
-                      {msg.score !== undefined && msg.score !== 0 && (
-                        <span style={{ fontSize: '10px', color: msg.score > 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>+{msg.score} pts</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5, background: isMe ? 'rgba(230,57,70,0.06)' : 'var(--surface)', border: `1px solid ${isMe ? 'rgba(230,57,70,0.2)' : 'var(--border)'}`, borderRadius: '10px', padding: '8px 12px' }}>
+                   <div style={{ fontSize: '12px', fontWeight: 700, color: isMe ? 'var(--accent)' : 'var(--text2)' }}>{msg.username}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5, background: isMe ? 'rgba(230,57,70,0.06)' : 'var(--surface)', border: `1px solid ${isMe ? 'rgba(230,57,70,0.2)' : 'var(--border)'}`, borderRadius: '10px', padding: '8px 12px', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                       {msg.text}
                     </div>
                     {msg.aiFeedback && (
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: '4px' }}>💬 {msg.aiFeedback}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>💬 {msg.aiFeedback}</span>
+                        {msg.score !== undefined && msg.score !== 0 && (
+                          <span style={{ color: msg.score > 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>+{msg.score} pts</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 )
