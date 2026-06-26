@@ -346,9 +346,38 @@ export default function DebatePage() {
       const totalPlayers = s.length
       const { winnerElo, secondElo, thirdElo, loserBase } = eloChanges
       let change = 0
+     const opponents = s.filter(p => p.username !== myUsernameRef.current).map(p => p.username)
+      const labelFor = (c: number): 'win' | 'loss' | 'draw' | 'forfeit_by' | 'forfeit_against' => {
+        if (draw) return 'draw'
+        if (forfeit && forfeitUsername === myUsernameRef.current) return 'forfeit_by'
+        if (forfeit && forfeitUsername && forfeitUsername !== myUsernameRef.current) return 'forfeit_against'
+        return myPlace === 0 ? 'win' : 'loss'
+      }
+      const logResult = (c: number) => {
+        const result = labelFor(c)
+        const msgs = {
+          win: `🏆 You won! +${c} ELO`,
+          loss: `❌ You lost. ${c} ELO`,
+          draw: `🤝 Draw — no ELO change`,
+          forfeit_by: `🏳️ You forfeited. ${c} ELO`,
+          forfeit_against: `🏳️ Opponent forfeited — you win! +${c} ELO`,
+        }
+        supabase.from('debate_history').insert({
+          username: myUsernameRef.current, opponents,
+          topic: roomInfo?.topic || '', room_type: roomInfo?.type || '',
+          result, elo_change: c, instance_id: instanceId,
+        }).then(() => {})
+        supabase.from('notifications').insert({
+          recipient_username: myUsernameRef.current,
+          type: 'game_result',
+          message: `${msgs[result]} — "${roomInfo?.topic || ''}"`,
+        }).then(() => {})
+      }
+
       if (serverHandledElo && customStake) {
         change = myPlace === 0 ? customStake : -customStake
         setEloChange(change)
+        logResult(change)
         const newWins = myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0)
         await supabase.from('profiles').update({ wins: newWins, debates: (currentProfile.debates ?? 0) + 1 }).eq('id', currentUser.id)
         return
@@ -361,7 +390,8 @@ export default function DebatePage() {
         else if (myPlace === 2) change = thirdElo
         else { const f = (myPlace - 2) / (totalPlayers - 3); change = -Math.round(loserBase * (0.3 + f * 0.7)) }
       }
-      setEloChange(change)
+     setEloChange(change)
+      logResult(change)
       const newElo = (currentProfile.elo ?? 0) + change
       const { error } = await supabase.from('profiles').update({
         elo: newElo,

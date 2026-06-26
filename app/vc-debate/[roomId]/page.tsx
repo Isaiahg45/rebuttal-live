@@ -693,12 +693,11 @@ localAudioTrackRef.current?.setEnabled(true)          } else {
         score: 0, aiFeedback: '', timestamp: Date.now(), turnNumber: 0
       }])
     })
-socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo, draw }: any) => {    
+socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, serverHandledElo, draw, forfeit, forfeitUsername }: any) => {    
       try { lobbyAudioRef.current?.pause() } catch (e) {}
       setStatus('ended')
       setStandings(s)
       if (draw) setIsDraw(true)
-      // Clean up Agora after a short delay to allow final audio
       setTimeout(async () => {
         try {
           await localAudioTrackRef.current?.close()
@@ -713,10 +712,44 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       if (!currentProfile?.username || !currentUser) return
       const myPlace = s.findIndex((p: Player) => p.username === myUsernameRef.current)
       if (myPlace === -1) return
+
+      const opponents = s.filter((p: Player) => p.username !== myUsernameRef.current).map((p: Player) => p.username)
+      const labelFor = (c: number): 'win' | 'loss' | 'draw' | 'forfeit_by' | 'forfeit_against' => {
+        if (draw) return 'draw'
+        if (forfeit && forfeitUsername === myUsernameRef.current) return 'forfeit_by'
+        if (forfeit && forfeitUsername && forfeitUsername !== myUsernameRef.current) return 'forfeit_against'
+        return myPlace === 0 ? 'win' : 'loss'
+      }
+      const logResult = (c: number) => {
+        const result = labelFor(c)
+        const msgs: Record<string, string> = {
+          win: `🏆 You won! +${c} ELO`,
+          loss: `❌ You lost. ${c} ELO`,
+          draw: `🤝 Draw — no ELO change`,
+          forfeit_by: `🏳️ You forfeited. ${c} ELO`,
+          forfeit_against: `🏳️ Opponent forfeited — you win! +${c} ELO`,
+        }
+        supabase.from('debate_history').insert({
+          username: myUsernameRef.current,
+          opponents,
+          topic: roomInfo?.topic || '',
+          room_type: 'vc',
+          result,
+          elo_change: c,
+          instance_id: instanceId,
+        }).then(() => {})
+        supabase.from('notifications').insert({
+          recipient_username: myUsernameRef.current,
+          type: 'game_result',
+          message: `${msgs[result]} — "${roomInfo?.topic || ''}"`,
+        }).then(() => {})
+      }
+
       let change: number
       if (serverHandledElo && customStake) {
         change = myPlace === 0 ? customStake : -customStake
         setEloChange(change)
+        logResult(change)
         await supabase.from('profiles').update({
           wins: myPlace === 0 ? (currentProfile.wins ?? 0) + 1 : (currentProfile.wins ?? 0),
           debates: (currentProfile.debates ?? 0) + 1,
@@ -726,9 +759,10 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       if (customStake) {
         change = myPlace === 0 ? customStake : -customStake
       } else {
-        change = myPlace === 0 ? eloChanges.winnerElo : -Math.round(eloChanges.loserBase)
+        change = draw ? 0 : myPlace === 0 ? eloChanges.winnerElo : -Math.round(eloChanges.loserBase)
       }
       setEloChange(change)
+      logResult(change)
       const oldElo = currentProfile.elo ?? 0
       const newElo = oldElo + change
       await supabase.from('profiles').update({
@@ -737,16 +771,6 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
         debates: (currentProfile.debates ?? 0) + 1,
       }).eq('id', currentUser.id)
 
-      // ELO notification
-      await supabase.from('notifications').insert({
-        recipient_username: currentProfile.username,
-        type: 'elo_change',
-        message: change >= 0
-          ? `📈 You gained ${change} ELO in your last debate! You now have ${newElo} ELO.`
-          : `📉 You lost ${Math.abs(change)} ELO in your last debate. You now have ${newElo} ELO.`,
-      })
-
-      // Tier up notification
       const oldTierName = getTierName(oldElo)
       const newTierName = getTierName(newElo)
       if (newTierName !== oldTierName && newElo > oldElo) {

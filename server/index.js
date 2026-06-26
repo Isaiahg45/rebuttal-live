@@ -47,6 +47,33 @@ async function supabaseRest(path, method = 'GET', body = null) {
   }
 }
 
+// ─── Debate history + notifications ─────────────────────────────
+// Called whenever the SERVER itself determines a final result for a
+// registered (non-guest) player. Writes one history row + one bell
+// notification, independent of whether that player's browser is even
+// still connected — which is the whole point: forfeits/disconnects are
+// exactly the case where the client can't be trusted to record itself.
+async function recordDebateResult({ username, opponents = [], topic, roomType, result, eloChange, instanceId }) {
+  if (!username || username.startsWith('guest')) return
+  supabaseRest('debate_history', 'POST', {
+    username, opponents, topic, room_type: roomType, result, elo_change: eloChange, instance_id: instanceId,
+  }).catch(() => {})
+
+  const labels = {
+    win: { emoji: '🏆', text: `You won! +${eloChange} ELO` },
+    loss: { emoji: '❌', text: `You lost. ${eloChange} ELO` },
+    draw: { emoji: '🤝', text: `Draw — no ELO change` },
+    forfeit_by: { emoji: '🏳️', text: eloChange < 0 ? `You forfeited. ${eloChange} ELO` : `You left an active debate.` },
+    forfeit_against: { emoji: '🏳️', text: `Opponent forfeited — you win! +${eloChange} ELO` },
+  }
+  const l = labels[result] || { emoji: '🎮', text: '' }
+  supabaseRest('notifications', 'POST', {
+    recipient_username: username,
+    type: 'game_result',
+    message: `${l.emoji} "${topic}" — ${l.text}`,
+  }).catch(() => {})
+}
+
 // ─── Admin / Developer settings ────────────────────────────────
 // Editable at runtime from the /admin frontend panel — persisted to
 // Supabase so changes survive a server restart. Falls back to these
@@ -968,12 +995,13 @@ setInterval(() => {
         username: winner.username,
         won_at: new Date().toISOString()
       }).catch(() => {})
-      supabaseRest(
-        `profiles?username=eq.${encodeURIComponent(winner.username)}`,
-        'PATCH',
-        { elo: (winner.elo || 0) + 300 }
-      ).catch(() => {})
-      console.log(`🏆 Debate of the Day winner: ${winner.username} (+300 ELO)`)
+      supabaseRest(`profiles?username=eq.${encodeURIComponent(winner.username)}&select=elo`, 'GET').then(data => {
+        const realCurrentElo = data?.[0]?.elo ?? 0
+        const newElo = realCurrentElo + 300
+        supabaseRest(`profiles?username=eq.${encodeURIComponent(winner.username)}`, 'PATCH', { elo: newElo }).catch(() => {})
+        console.log(`🏆 Debate of the Day winner: ${winner.username} — ${realCurrentElo} → ${newElo} (+300)`)
+        recordDebateResult({ username: winner.username, opponents: [], topic: rooms['topic_of_the_day']?.topic || '', roomType: 'topic_of_the_day', result: 'win', eloChange: 300, instanceId: 'topic_of_the_day' })
+      }).catch(() => {})
       io.to('topic_of_the_day').emit('debate_of_day_winner', {
         username: winner.username,
         score: winner.score,
@@ -1295,7 +1323,6 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
             const player = sorted[i]
             if (!player.username || player.username.startsWith('guest')) continue
             const delta = i === 0 ? stake : -stake
-            const currentElo = player.elo ?? 0
             const isWinner = i === 0
             supabaseRest(
               `profiles?username=eq.${encodeURIComponent(player.username)}`,
@@ -1311,6 +1338,8 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
                   debates: (data[0].debates ?? 0) + 1,
                 }
               ).catch(() => {})
+              const opponents = sorted.filter(p => p.username !== player.username).map(p => p.username)
+              recordDebateResult({ username: player.username, opponents, topic: room.topic, roomType: room.type, result: isWinner ? 'win' : 'loss', eloChange: delta, instanceId: room.instanceId })
             }).catch(() => {})
           }
 
@@ -2327,7 +2356,7 @@ io.to(currentRoomId).emit('vc_debate_ended', {
           const stake = room.eloStake || 25
           const eloChanges = { winnerElo: stake, secondElo: 0, thirdElo: 0, loserBase: stake }
 
-          // Apply ELO server-side directly
+        // Apply ELO server-side directly
           for (const [p, delta] of [[winner, stake], [loser, -stake]]) {
             if (!p.username || p.username.startsWith('guest')) continue
             supabaseRest(`profiles?username=eq.${encodeURIComponent(p.username)}`, 'GET')
@@ -2342,6 +2371,14 @@ io.to(currentRoomId).emit('vc_debate_ended', {
                     debates: (data[0].debates ?? 0) + 1,
                   }
                 ).catch(() => {})
+                const isWinnerSide = delta > 0
+                recordDebateResult({
+                  username: p.username,
+                  opponents: [isWinnerSide ? loser.username : winner.username],
+                  topic: room.topic, roomType: room.type,
+                  result: isWinnerSide ? 'forfeit_against' : 'forfeit_by',
+                  eloChange: delta, instanceId: currentRoomId,
+                })
               }).catch(() => {})
           }
 
@@ -2444,16 +2481,29 @@ io.to(currentRoomId).emit('debate_ended', {
       if (!room.isCustom) scheduleRoom(room.type)
     }
 
-    // Deduct ELO server-side for real players who forfeited
+    // Deduct ELO server-side for real players who forfeited — but only for
+    // genuine 1v1 forfeits. In 3+ player rooms the debate continues without
+    // the leaver, so a flat "lost a 1v1" penalty doesn't reflect a dropped
+    // connection the same way it reflects a deliberate quit.
+    const originalPlayerCount = remainingCount + 1
     if (wasActive && !room.isCustom && currentUsername && !currentUsername.startsWith('guest')) {
-      const loss = calculateEloChanges(room.type, 2, room.duration).loserBase
-      supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'GET').then(data => {
-        if (!data?.[0]) return
-       supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'PATCH', {
-          elo: (data[0].elo ?? 0) - loss,
-          debates: (data[0].debates ?? 0) + 1,
+      if (originalPlayerCount === 2) {
+        const loss = calculateEloChanges(room.type, 2, room.duration).loserBase
+        supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'GET').then(data => {
+          if (!data?.[0]) return
+          const newElo = (data[0].elo ?? 0) - loss
+          supabaseRest(`profiles?username=eq.${encodeURIComponent(currentUsername)}`, 'PATCH', {
+            elo: newElo,
+            debates: (data[0].debates ?? 0) + 1,
+          }).catch(() => {})
+          console.log(`🏳️ Forfeit deduction: ${currentUsername} ${data[0].elo} → ${newElo} (-${loss})`)
+          recordDebateResult({ username: currentUsername, opponents: [], topic: room.topic, roomType: room.type, result: 'forfeit_by', eloChange: -loss, instanceId: currentRoomId })
         }).catch(() => {})
-      }).catch(() => {})
+      } else {
+        // 3+ player room — don't flat-penalize a dropped connection.
+        console.log(`🔌 ${currentUsername} disconnected from a ${originalPlayerCount}-player room — no ELO penalty applied`)
+        recordDebateResult({ username: currentUsername, opponents: [], topic: room.topic, roomType: room.type, result: 'forfeit_by', eloChange: 0, instanceId: currentRoomId })
+      }
     }
 
     delete room.players[socket.id]
