@@ -179,10 +179,12 @@ export default function TopicPage() {
                       {msg.text}
                     </div>
                     {msg.aiFeedback && (
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>💬 {msg.aiFeedback}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: '4px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        💬 {msg.aiFeedback}
                         {msg.score !== undefined && msg.score !== 0 && (
-                          <span style={{ color: msg.score > 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>+{msg.score} pts</span>
+                          <span style={{ color: msg.score > 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600, marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                            +{msg.score} pts
+                          </span>
                         )}
                       </div>
                     )}
@@ -194,22 +196,25 @@ export default function TopicPage() {
 
             {/* Input */}
             <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-              <input
+              <textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+                }}
                 onPaste={e => {
                   e.preventDefault()
                   setMessages(prev => [...prev, { id: `paste-${Date.now()}`, username: '— system —', text: '🚫 NO COPY AND PASTING!', score: 0, aiFeedback: '', timestamp: Date.now() }])
                 }}
                 disabled={!connected}
-                placeholder={!connected ? 'Connecting...' : cooldown > 0 ? 'Cooldown...' : 'Make your argument...'}
-                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 12px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif', minWidth: 0 }}
+                placeholder={!connected ? 'Connecting...' : cooldown > 0 ? 'Cooldown...' : 'Make your argument. Shift+Enter for new lines.'}
+                rows={2}
+                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border2)', borderRadius: '8px', padding: '10px 12px', color: 'var(--text)', fontSize: '13px', outline: 'none', opacity: cooldown > 0 ? 0.5 : 1, fontFamily: 'DM Sans, sans-serif', minWidth: 0, resize: 'none', lineHeight: 1.5 }}
               />
               <button
                 onClick={sendMessage}
                 disabled={cooldown > 0 || !input.trim() || !connected}
-                style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '10px 14px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: cooldown > 0 ? 'not-allowed' : 'pointer', opacity: cooldown > 0 || !input.trim() ? 0.4 : 1, fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}
+                style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '10px 14px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: cooldown > 0 ? 'not-allowed' : 'pointer', opacity: cooldown > 0 || !input.trim() ? 0.4 : 1, fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap', flexShrink: 0, alignSelf: 'flex-start' }}
               >
                 Rebut ⚡
               </button>

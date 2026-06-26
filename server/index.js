@@ -643,21 +643,21 @@ let lastTotdWinner = null
 let activeBotCount = 0
 // ─── Topic of the Day ──────────────────────────────────────────
 const TOTD_TOPICS = [
-  { topic: 'Is Donald Trump making America great again or tearing it apart?', emoji: '🇺🇸' },
-  { topic: 'Will AI take your job within 5 years?', emoji: '🤖' },
-  { topic: 'Is the housing crisis the biggest failure of modern government?', emoji: '🏠' },
-  { topic: 'Is social media destroying an entire generation?', emoji: '📱' },
-  { topic: 'Should billionaires be allowed to exist?', emoji: '💰' },
-  { topic: 'Is cancel culture out of control?', emoji: '❌' },
-  { topic: 'Are we heading toward World War 3?', emoji: '🌍' },
-  { topic: 'Is Gen Z the most politically divided generation ever?', emoji: '✊' },
-  { topic: 'Has feminism gone too far or not far enough?', emoji: '♀️' },
-  { topic: 'Is religion dying — and is that a good thing?', emoji: '⛪' },
-  { topic: 'Is democracy failing everywhere at once?', emoji: '🗳️' },
-  { topic: 'Should the US stay out of foreign wars entirely?', emoji: '🪖' },
-  { topic: 'Is the American Dream still real in 2026?', emoji: '🌟' },
-  { topic: 'Is China going to dominate the 21st century?', emoji: '🐉' },
-  { topic: 'Are young men in crisis — and who\'s responsible?', emoji: '👦' },
+  { topic: 'Who is the greatest footballer of all time — Messi or Ronaldo?', emoji: '⚽' },
+  { topic: 'Will Brazil or Argentina win this World Cup?', emoji: '🏆' },
+  { topic: 'Is Mbappé already better than Messi was at his peak?', emoji: '🐐' },
+  { topic: 'Should the World Cup be expanded beyond 48 teams?', emoji: '🌍' },
+  { topic: 'Is VAR ruining the World Cup or saving it?', emoji: '📺' },
+  { topic: 'Is Haaland the best striker in World Cup history already?', emoji: '🎯' },
+  { topic: 'Should the host nation get an automatic World Cup bid?', emoji: '🏟️' },
+  { topic: 'Is the World Cup still bigger than the Olympics?', emoji: '🥇' },
+  { topic: 'Is Vinícius Jr. a top 5 player in the world right now?', emoji: '⭐' },
+  { topic: 'Should World Cup referees be full-time professionals only?', emoji: '🟨' },
+  { topic: 'Is winning the World Cup more impressive than winning the Champions League?', emoji: '🏆' },
+  { topic: 'Does club form in Europe matter more than international form heading into the World Cup?', emoji: '🌍' },
+  { topic: 'Is this the most talented World Cup field ever assembled?', emoji: '🔥' },
+  { topic: 'Should World Cup squads be allowed unlimited substitutions?', emoji: '🔄' },
+  { topic: 'Is national pride or club loyalty more important during the World Cup?', emoji: '🇧🇷' },
 ]
 
 let totdResetting = false
