@@ -90,9 +90,19 @@ function MuteButton({ muted, disabled, onClick }: { muted: boolean; disabled: bo
         background: muted ? 'rgba(230,57,70,0.12)' : 'rgba(34,197,94,0.12)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, padding: 0,
+        position: 'relative',
       }}
     >
-      <img src={muted ? '/mutemic.png' : '/mic.png'} alt={muted ? 'Muted' : 'Unmuted'} style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+      <img src="/mic.png" alt={muted ? 'Muted' : 'Unmuted'} style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+      {muted && (
+        <svg
+          width="34" height="34" viewBox="0 0 34 34"
+          style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}
+        >
+          <circle cx="17" cy="17" r="15" fill="none" stroke="#e63946" strokeWidth="3" />
+          <line x1="7" y1="27" x2="27" y2="7" stroke="#e63946" strokeWidth="3" />
+        </svg>
+      )}
     </button>
   )
 }
