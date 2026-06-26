@@ -77,6 +77,26 @@ function AudioBar({ analyser, active, color = '#e63946' }: { analyser: AnalyserN
   return <canvas ref={canvasRef} width={120} height={40} style={{ display: 'block', borderRadius: '4px' }} />
 }
 
+// ── Mute Button — only ever clickable during the lobby or your turn ──
+function MuteButton({ muted, disabled, onClick }: { muted: boolean; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled ? "You can only mute/unmute during the lobby or your turn to speak" : muted ? 'Unmute' : 'Mute'}
+      style={{
+        width: '40px', height: '40px', borderRadius: '50%',
+        border: `1px solid ${muted ? 'rgba(230,57,70,0.4)' : 'rgba(34,197,94,0.4)'}`,
+        background: muted ? 'rgba(230,57,70,0.12)' : 'rgba(34,197,94,0.12)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, padding: 0,
+      }}
+    >
+      <img src={muted ? '/mutemic.png' : '/mic.png'} alt={muted ? 'Muted' : 'Unmuted'} style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+    </button>
+  )
+}
+
 // ── Speech Recognition Hook ───────────────────────────────────
 function useSpeechRecognition(onTranscriptUpdate: (t: string) => void) {
   const [listening, setListening] = useState(false)
@@ -819,13 +839,30 @@ agoraInitializedRef.current = false
     endMyTurn(socketRef.current)
   }
 
-  const handleToggleMute = () => {
-    const newMuted = !isMuted
-    setIsMuted(newMuted)
-    if (localAudioTrackRef.current) {
-      if (newMuted) localAudioTrackRef.current.setMuted(true)
-      else localAudioTrackRef.current.setMuted(false)
+  // Mute/unmute is only ever allowed in the lobby (waiting/starting) or
+  // during your own turn to speak — sudden death reuses isMyTurn too, so
+  // this covers that automatically without extra cases.
+  const canToggleMute = (status === 'waiting' || status === 'starting') || (status === 'active' && isMyTurn && !inCooldown)
+  const prevCanToggleMuteRef = useRef(false)
+
+  // Default to unmuted every time you re-enter an allowed window.
+  useEffect(() => {
+    if (canToggleMute && !prevCanToggleMuteRef.current) {
+      setIsMuted(false)
     }
+    prevCanToggleMuteRef.current = canToggleMute
+  }, [canToggleMute])
+
+  // Single source of truth applying mute state to the real Agora track —
+  // hard-muted whenever outside an allowed window, regardless of isMuted.
+  useEffect(() => {
+    if (!localAudioTrackRef.current) return
+    localAudioTrackRef.current.setMuted(!canToggleMute ? true : isMuted)
+  }, [canToggleMute, isMuted, micGranted])
+
+  const handleToggleMute = () => {
+    if (!canToggleMute) return
+    setIsMuted(prev => !prev)
   }
 
   const handleForfeit = () => { setShowForfeitModal(false); router.push('/rebut') }
@@ -926,7 +963,11 @@ agoraInitializedRef.current = false
                 <span>{micGranted ? '✅' : '⏳'}</span>
                 {micGranted ? 'Microphone ready' : 'Connecting microphone...'}
               </div>
-               
+
+              {micGranted && (
+                <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
+              )}
+
               {micGranted && (
                 <>
                 <div style={{ fontSize: '13px', textAlign: 'left', lineHeight: 1.7, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
@@ -1140,6 +1181,7 @@ agoraInitializedRef.current = false
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '48px', color: turnTimeLeft <= 10 ? 'var(--red)' : 'var(--accent)', letterSpacing: '2px', lineHeight: 1 }}>
                 {turnTimeLeft}s
               </div>
+              <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Done Speaking Early
               </button>
