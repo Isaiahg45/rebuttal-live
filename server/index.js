@@ -668,6 +668,23 @@ let totalDebatesCompleted = 0
 const roomLastBotMessage = {}
 let lastTotdWinner = null
 let activeBotCount = 0
+
+// ─── Banned users ──────────────────────────────────────────────
+// In-memory cache so every join doesn't need a Supabase round trip.
+// Populated at boot and kept in sync by admin_ban_user.
+// REQUIRES a `banned` boolean column on the `profiles` table
+// (e.g. `alter table profiles add column banned boolean default false;`).
+const bannedUsernames = new Set()
+
+async function loadBannedUsernames() {
+  try {
+    const data = await supabaseRest('profiles?banned=eq.true&select=username')
+    ;(data || []).forEach(u => bannedUsernames.add(u.username))
+    console.log(`🔨 Loaded ${bannedUsernames.size} banned username(s)`)
+  } catch (e) {
+    console.log('Could not load banned usernames:', e.message)
+  }
+}
 // ─── Topic of the Day ──────────────────────────────────────────
 const TOTD_TOPICS = [
   { topic: 'Who is the greatest footballer of all time — Messi or Ronaldo?', emoji: '⚽' },
@@ -1186,9 +1203,28 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         room.debateEndsAt = room.duration ? Date.now() + room.duration * 1000 : null
         io.to(room.instanceId).emit('debate_started', { duration: room.duration })
         console.log(`⚡ Started: "${room.topic}" (${playerCount} players)${room.duration ? '' : ' [unlimited]'}`)
+        if (room.botScripts) {
+          room.debateStartedAt = Date.now()
+          Object.entries(room.botScripts).forEach(([botKey, cfg]) => {
+            if (cfg.mode === 'auto') startAdvancedAutoBot(room.instanceId, botKey)
+          })
+        }
       }
     }
     if (room.status === 'active') {
+      // Advanced-room scripted bots: fire any line whose scheduled offset has elapsed.
+      if (room.botScripts && room.debateStartedAt) {
+        const elapsedSec = Math.round((Date.now() - room.debateStartedAt) / 1000)
+        Object.entries(room.botScripts).forEach(([botKey, cfg]) => {
+          if (cfg.mode !== 'scripted') return
+          cfg.script.forEach(line => {
+            if (!line.sent && elapsedSec >= line.atSeconds) {
+              line.sent = true
+              sendScriptedBotMessage(room.instanceId, botKey, line.text)
+            }
+          })
+        })
+      }
       // End immediately if room is completely empty
       // But skip custom waiting rooms — they stay open until someone joins
       if (playerCount === 0 && !room.isCustom) {
@@ -1524,6 +1560,7 @@ io.on('connection', (socket) => {
 
   // ── Join text room ────────────────────────────────────────────
   socket.on('join_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
+    if (bannedUsernames.has(username)) { socket.emit('error', { message: 'Your account has been banned.' }); return }
     // Remove player from any room they're already in (stale session cleanup)
     // Skip the target room to avoid wiping the creator's entry before they rejoin
     for (const [rid, r] of Object.entries(rooms)) {
@@ -1618,6 +1655,7 @@ if (room.eloRequired > 0 && elo < room.eloRequired) { socket.emit('error', { mes
   // ── Create custom room ────────────────────────────────────────
 socket.on('create_custom_room', async ({ username, topic, duration, eloStake, isPrivate, password, debateType, maxPlayers: requestedMaxPlayers, token }) => {
     if (!username) { socket.emit('error', { message: 'Must be logged in.' }); return }
+    if (bannedUsernames.has(username)) { socket.emit('error', { message: 'Your account has been banned.' }); return }
     if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
     if (isPrivate && !password) { socket.emit('error', { message: 'Private rooms need a password.' }); return }
 
@@ -1787,6 +1825,7 @@ socket.emit('message_history', room.messages)
       id: `${Date.now()}-${Math.random()}`,
       username, text, score, aiFeedback: feedback,
       timestamp: Date.now(),
+      instanceId,
     }
     room.messages.push(msg)
     const player = room.players[socket.id]
@@ -1820,6 +1859,7 @@ io.emit('room_message', { instanceId, username: msg.username, text: msg.text })
 
   // ── Join VC room ──────────────────────────────────────────────
   socket.on('join_vc_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
+    if (bannedUsernames.has(username)) { socket.emit('error', { message: 'Your account has been banned.' }); return }
     // Clear any stale sessions for this username (but not from the room they're joining)
     for (const [rid, r] of Object.entries(rooms)) {
       if (rid === instanceId) continue
@@ -2242,6 +2282,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       aiFeedback: feedback || '',
       timestamp: Date.now(),
       isSkit: true,
+      instanceId,
     }
     room.messages.push(msg)
     io.to(instanceId).emit('new_message', msg)
@@ -2287,6 +2328,139 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     saveAdminSettings()
     io.emit('admin_settings', adminSettings) // keep every open admin panel in sync
     console.log(`⚙️  Admin ${username} updated settings:`, JSON.stringify(settings))
+  })
+
+  // ── Admin: create an advanced custom room (max players, any duration, bots) ─
+  socket.on('admin_create_advanced_room', async ({ username, topic, maxPlayers, duration, debateType, bots, token }) => {
+    if (!(await isAdminToken(token))) return
+    if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
+
+    const resolvedMaxPlayers = Math.max(2, Math.min(50, Number(maxPlayers) || 2))
+    const wantsUnlimited = duration === 'unlimited'
+    const resolvedDuration = wantsUnlimited ? null : Math.max(1, Number(duration) || 300)
+
+    const id = `advcustom_${++roomCounter}_${Date.now()}`
+    rooms[id] = {
+      instanceId: id,
+      type: 'custom',
+      emoji: '🛠️',
+      topic: topic.trim(),
+      duration: resolvedDuration,
+      eloRequired: 0,
+      eloStake: 0,
+      maxPlayers: resolvedMaxPlayers,
+      players: {},
+      spectators: {},
+      messages: [],
+      status: 'waiting',
+      countdown: 1800,
+      startCountdown: null,
+      createdAt: Date.now(),
+      isCustom: true,
+      isPrivate: false,
+      password: null,
+      createdBy: username,
+      isAdminAdvanced: true,
+      botScripts: {},
+    }
+
+    // Seed bots into the room immediately — players see them already seated
+    // when they join, and scripted timers are ready before anyone arrives.
+    const botList = Array.isArray(bots) ? bots.slice(0, 10) : []
+    botList.forEach((bot, i) => {
+      const botUsername = (bot.name && String(bot.name).trim()) || `Bot${i + 1}`
+      const botKey = `bot_adv_${id}_${i}`
+      const botEloData = botElos[botUsername] || { elo: 100 }
+      rooms[id].players[botKey] = { username: botUsername, score: 0, elo: botEloData.elo, isAdvBot: true }
+      rooms[id].botScripts[botKey] = {
+        mode: bot.mode === 'scripted' ? 'scripted' : 'auto',
+        script: Array.isArray(bot.script)
+          ? bot.script.map(l => ({ text: String(l.text || ''), atSeconds: Math.max(0, Number(l.atSeconds) || 0), sent: false }))
+          : [],
+      }
+    })
+
+    socket.emit('advanced_room_created', { instanceId: id })
+    io.emit('rooms_update', getRoomList())
+    console.log(`🛠️ Admin ${username} created advanced room "${rooms[id].topic}" (max ${resolvedMaxPlayers}, ${wantsUnlimited ? 'unlimited' : resolvedDuration + 's'}) with ${botList.length} bot(s)`)
+  })
+
+  // ── Admin: list Rebuttal users for the Rebuttal Users panel ────
+  socket.on('admin_list_users', async ({ token }) => {
+    if (!(await isAdminToken(token))) return
+    try {
+      // REQUIRES a `banned` boolean column on `profiles` (see bannedUsernames above).
+      const data = await supabaseRest('profiles?select=username,elo,banned,created_at&order=created_at.desc&limit=500')
+      const list = (data || []).map(u => ({
+        username: u.username,
+        elo: u.elo ?? 0,
+        banned: !!u.banned,
+        createdAt: u.created_at,
+      }))
+      socket.emit('admin_users_list', list)
+    } catch (e) {
+      console.log('admin_list_users error:', e.message)
+      socket.emit('admin_users_list', [])
+    }
+  })
+
+  // ── Admin: kick a user out of whatever room they're currently in ─
+  socket.on('admin_kick_user', async ({ username, token }) => {
+    if (!(await isAdminToken(token))) return
+    let kicked = false
+    for (const [rid, room] of Object.entries(rooms)) {
+      for (const [sid, p] of Object.entries(room.players)) {
+        if (p.username === username && !sid.startsWith('bot_')) {
+          const targetSocket = io.sockets.sockets.get(sid)
+          delete room.players[sid]
+          io.to(rid).emit('system_message', { text: `${username} was removed by an admin.` })
+          io.to(rid).emit('players_update', Object.values(room.players))
+          if (targetSocket) {
+            targetSocket.emit('error', { message: 'You were removed from this room by an admin.' })
+            targetSocket.disconnect(true)
+          }
+          kicked = true
+        }
+      }
+    }
+    io.emit('rooms_update', getRoomList())
+    console.log(`👮 Admin kicked ${username}${kicked ? '' : ' (not found in any active room)'}`)
+  })
+
+  // ── Admin: ban / unban a user — persists to Supabase + kicks immediately ─
+  socket.on('admin_ban_user', async ({ username, banned, token }) => {
+    if (!(await isAdminToken(token))) return
+    if (!username) return
+    await supabaseRest(`profiles?username=eq.${encodeURIComponent(username)}`, 'PATCH', { banned: !!banned })
+    if (banned) {
+      bannedUsernames.add(username)
+      for (const [rid, room] of Object.entries(rooms)) {
+        for (const [sid, p] of Object.entries(room.players)) {
+          if (p.username === username && !sid.startsWith('bot_')) {
+            const targetSocket = io.sockets.sockets.get(sid)
+            delete room.players[sid]
+            io.to(rid).emit('players_update', Object.values(room.players))
+            if (targetSocket) {
+              targetSocket.emit('error', { message: 'Your account has been banned.' })
+              targetSocket.disconnect(true)
+            }
+          }
+        }
+      }
+      io.emit('rooms_update', getRoomList())
+    } else {
+      bannedUsernames.delete(username)
+    }
+    console.log(`🔨 Admin set banned=${!!banned} for ${username}`)
+  })
+
+  // ── Admin: watch a room's messages without joining as a player/spectator ─
+  socket.on('admin_watch_room', async ({ instanceId, token }) => {
+    if (!(await isAdminToken(token))) return
+    const room = rooms[instanceId]
+    if (!room) return
+    socket.join(instanceId) // so this admin socket also receives future new_message broadcasts
+    socket.emit('room_message_history', { instanceId, messages: room.messages })
   })
 
   // ── Disconnect ────────────────────────────────────────────────
@@ -2637,6 +2811,85 @@ function findRoomForBot() {
   return available[Math.floor(Math.random() * available.length)]
 }
 
+// ─── Advanced custom-room bots (admin panel) ────────────────────
+// Two modes, configured per-bot when an admin creates an advanced room:
+//   'scripted' — fires pre-written lines at an exact elapsed-seconds offset
+//                (dispatched from the main game loop, see sendScriptedBotMessage)
+//   'auto'     — argues normally using the same AI judge + bot-argument
+//                generator as the free-roaming bots, but stays dedicated
+//                to this one room for as long as it's active.
+function sendScriptedBotMessage(instanceId, botKey, text) {
+  const room = rooms[instanceId]
+  if (!room || room.status !== 'active') return
+  const player = room.players[botKey]
+  if (!player) return
+  const priorMessages = room.messages.filter(m => m.username === player.username).map(m => m.text)
+  scoreArgument(text, room.topic, room.type, priorMessages)
+    .then(({ score, feedback }) => {
+      const r = rooms[instanceId]
+      if (!r || r.status !== 'active') return
+      const p = r.players[botKey]
+      if (!p) return
+      const msg = {
+        id: `${Date.now()}-${Math.random()}`,
+        username: p.username,
+        text,
+        score,
+        aiFeedback: feedback,
+        timestamp: Date.now(),
+        instanceId,
+      }
+      r.messages.push(msg)
+      p.score += score
+      io.to(instanceId).emit('new_message', msg)
+      io.to(instanceId).emit('players_update', Object.values(r.players))
+      console.log(`🗒️ Scripted bot "${p.username}" spoke (on schedule) in "${r.topic}"`)
+    })
+    .catch(() => {})
+}
+
+function startAdvancedAutoBot(instanceId, botKey) {
+  async function loop() {
+    const room = rooms[instanceId]
+    if (!room || room.status !== 'active') return
+    const player = room.players[botKey]
+    if (!player) return
+
+    const personality = BOT_PERSONALITIES[Math.floor(Math.random() * BOT_PERSONALITIES.length)]
+    const botText = await getBotArgument(room.topic, personality, room.messages)
+
+    const wordCount = botText.trim().split(/\s+/).length
+    const wpm = 45 + Math.random() * 20
+    const typingMs = (wordCount / wpm) * 60000
+    const thinkingMs = (1.5 + Math.random() * 4) * 1000
+
+    setTimeout(async () => {
+      const r = rooms[instanceId]
+      if (!r || r.status !== 'active') return
+      const p = r.players[botKey]
+      if (!p) return
+
+      const priorMessages = r.messages.filter(m => m.username === p.username).map(m => m.text)
+      const { score, feedback } = await scoreArgument(botText, r.topic, r.type, priorMessages)
+      const msg = {
+        id: `${Date.now()}-${Math.random()}`,
+        username: p.username,
+        text: botText,
+        score,
+        aiFeedback: feedback,
+        timestamp: Date.now(),
+        instanceId,
+      }
+      r.messages.push(msg)
+      p.score += score
+      io.to(instanceId).emit('new_message', msg)
+      io.to(instanceId).emit('players_update', Object.values(r.players))
+      loop() // keep going until the room is no longer active
+    }, typingMs + thinkingMs)
+  }
+  loop()
+}
+
 async function runBot(botName, personality) {
   const state = { roomId: null, active: true }
 
@@ -2829,6 +3082,7 @@ const score = botRawScore >= 25
           score,
           aiFeedback: botFeedback,
           timestamp: Date.now(),
+          instanceId: room.instanceId,
         }
         room.messages.push(msg)
         roomLastBotMessage[room.instanceId] = Date.now()
@@ -2892,6 +3146,7 @@ async function boot() {
     console.log('Could not load stats:', e.message)
   }
  await loadBotElos()
+  await loadBannedUsernames()
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} text rooms + 1 VC room`)
   setTimeout(refillAIQueue, 2000)

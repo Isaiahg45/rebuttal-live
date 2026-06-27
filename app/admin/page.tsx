@@ -8,6 +8,30 @@ import Nav from '../components/Nav'
 
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
+// ─────────────────────────────────────────────────────────────────────────
+// NOTE ON BACKEND DEPENDENCIES
+// This file is frontend-only. The events below are NEW and assume matching
+// handlers exist (or will be added) on the Socket.io server. Anything
+// already in your server today (admin_get_settings, admin_update_settings,
+// admin_create_skit_room, admin_skit_message, create_custom_room,
+// admin_end_debate, admin_delete_message, admin_set_custom_result,
+// rooms_update, new_message) is untouched in behavior.
+//
+// NEW events this file emits/listens for — you'll need to add these server-side:
+//   admin_create_advanced_room   { username, topic, maxPlayers, duration, debateType, bots, token }
+//     -> emit back: advanced_room_created { instanceId }
+//   admin_list_users             { token }
+//     -> emit back: admin_users_list  RebuttalUser[]
+//   admin_kick_user              { username, token }
+//   admin_ban_user               { username, banned, token }
+//   admin_watch_room             { instanceId, token }   (start forwarding new_message/room_message_history for a room the admin isn't playing in)
+//     -> emit back: room_message_history { instanceId, messages: SkitMessage[] }
+//   new_message payloads should include an `instanceId` field so the admin
+//   panel can route incoming lines to the right room's log.
+//   Bot config shape sent on room creation:
+//     bots: { name: string; mode: 'auto' | 'scripted'; script?: { text: string; atSeconds: number }[] }[]
+// ─────────────────────────────────────────────────────────────────────────
+
 interface AdminSettings {
   adminEmails: string[]
   allowUnlimitedForAll: boolean
@@ -32,7 +56,32 @@ interface SkitMessage {
   text: string
   score: number
   aiFeedback: string
+  instanceId?: string
 }
+
+interface RebuttalUser {
+  username: string
+  email?: string
+  elo?: number
+  banned: boolean
+  createdAt?: string
+}
+
+interface ScriptedLine {
+  id: string
+  text: string
+  atSeconds: number
+}
+
+interface BotConfig {
+  id: string
+  name: string
+  mode: 'auto' | 'scripted'
+  scriptedLines: ScriptedLine[]
+}
+
+type DurationUnit = 'seconds' | 'minutes' | 'hours'
+type Tab = 'settings' | 'skits' | 'games' | 'users'
 
 const DEFAULT_SETTINGS: AdminSettings = {
   adminEmails: ['lg@isaiahlive.com', 'zachariussong@gmail.com'],
@@ -41,6 +90,27 @@ const DEFAULT_SETTINGS: AdminSettings = {
   skitDefaultEmoji: '🎭',
   skitDefaultProLabel: 'Pro',
   skitDefaultConLabel: 'Con',
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+function unitToSeconds(value: number, unit: DurationUnit) {
+  if (unit === 'minutes') return value * 60
+  if (unit === 'hours') return value * 3600
+  return value
+}
+
+function formatSeconds(total: number) {
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const parts = []
+  if (h) parts.push(`${h}h`)
+  if (m) parts.push(`${m}m`)
+  if (s || parts.length === 0) parts.push(`${s}s`)
+  return parts.join(' ')
 }
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
@@ -70,12 +140,13 @@ const inputStyle: CSSProperties = {
   fontFamily: 'DM Sans, sans-serif', outline: 'none',
 }
 
-function Button({ children, onClick, variant = 'default', disabled }: { children: ReactNode; onClick: () => void; variant?: 'default' | 'accent' | 'green' | 'red'; disabled?: boolean }) {
+function Button({ children, onClick, variant = 'default', disabled, small }: { children: ReactNode; onClick: () => void; variant?: 'default' | 'accent' | 'green' | 'red' | 'gold'; disabled?: boolean; small?: boolean }) {
   const colors: Record<string, { bg: string; border: string; color: string }> = {
     default: { bg: 'rgba(255,255,255,0.04)', border: 'var(--border)', color: 'var(--text2)' },
     accent: { bg: 'rgba(230,57,70,0.15)', border: 'rgba(230,57,70,0.4)', color: 'var(--accent)' },
     green: { bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.35)', color: 'var(--green)' },
     red: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)', color: 'var(--red)' },
+    gold: { bg: 'rgba(255,214,10,0.12)', border: 'rgba(255,214,10,0.4)', color: 'var(--gold)' },
   }
   const c = colors[variant]
   return (
@@ -83,8 +154,8 @@ function Button({ children, onClick, variant = 'default', disabled }: { children
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: '9px 16px', borderRadius: '8px', border: `1px solid ${c.border}`, background: c.bg,
-        color: c.color, fontSize: '13px', fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
+        padding: small ? '6px 12px' : '9px 16px', borderRadius: '8px', border: `1px solid ${c.border}`, background: c.bg,
+        color: c.color, fontSize: small ? '12px' : '13px', fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
         fontFamily: 'DM Sans, sans-serif', opacity: disabled ? 0.5 : 1,
       }}
     >
@@ -93,11 +164,33 @@ function Button({ children, onClick, variant = 'default', disabled }: { children
   )
 }
 
+function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'green' | 'red' }) {
+  const colors: Record<string, { bg: string; color: string }> = {
+    default: { bg: 'rgba(255,255,255,0.06)', color: 'var(--muted)' },
+    green: { bg: 'rgba(34,197,94,0.12)', color: 'var(--green)' },
+    red: { bg: 'rgba(239,68,68,0.12)', color: 'var(--red)' },
+  }
+  const c = colors[tone]
+  return (
+    <span style={{ background: c.bg, color: c.color, fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '20px', letterSpacing: '0.3px' }}>
+      {children}
+    </span>
+  )
+}
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'settings', label: 'Settings' },
+  { id: 'skits', label: 'Skit Mode' },
+  { id: 'games', label: 'Advanced Custom Games' },
+  { id: 'users', label: 'Rebuttal Users' },
+]
+
 export default function AdminPanel() {
   const { profile, user } = useAuth()
   const myUsername = profile?.username || ''
   const socketRef = useRef<Socket | null>(null)
 
+  const [tab, setTab] = useState<Tab>('settings')
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS)
   const [adminEmailsInput, setAdminEmailsInput] = useState('')
@@ -106,7 +199,7 @@ export default function AdminPanel() {
 
   const [rooms, setRooms] = useState<RoomSummary[]>([])
 
-  // Skit mode
+  // ── Skit mode state ──────────────────────────────────────────────
   const [skitTopic, setSkitTopic] = useState('')
   const [skitEmoji, setSkitEmoji] = useState('')
   const [skitProLabel, setSkitProLabel] = useState('')
@@ -117,19 +210,28 @@ export default function AdminPanel() {
   const [skitScore, setSkitScore] = useState('15')
   const [skitFeedback, setSkitFeedback] = useState('')
 
-  // Multiplayer / unlimited room creator
-  const [mpTopic, setMpTopic] = useState('')
-  const [mpMaxPlayers, setMpMaxPlayers] = useState('4')
-  const [mpUnlimited, setMpUnlimited] = useState(false)
-  const [mpDurationSec, setMpDurationSec] = useState('300')
-  const [mpDebateType, setMpDebateType] = useState<'text' | 'vc'>('text')
+  // ── Advanced custom games state ──────────────────────────────────
+  const [advTopic, setAdvTopic] = useState('')
+  const [advMaxPlayers, setAdvMaxPlayers] = useState('4')
+  const [advDurationValue, setAdvDurationValue] = useState('5')
+  const [advDurationUnit, setAdvDurationUnit] = useState<DurationUnit>('minutes')
+  const [advUnlimited, setAdvUnlimited] = useState(false)
+  const [advBots, setAdvBots] = useState<BotConfig[]>([])
+  const [advCreating, setAdvCreating] = useState(false)
+  const [advError, setAdvError] = useState('')
 
-  // Live room actions
+  // Live moderation (works for any room the admin selects, including ones from advanced games)
   const [actionRoomId, setActionRoomId] = useState('')
+  const [liveLogs, setLiveLogs] = useState<Record<string, SkitMessage[]>>({})
   const [deleteMessageId, setDeleteMessageId] = useState('')
   const [resultWinner, setResultWinner] = useState('')
   const [resultWinnerElo, setResultWinnerElo] = useState('25')
   const [resultLoserElo, setResultLoserElo] = useState('25')
+
+  // ── Rebuttal users state ─────────────────────────────────────────
+  const [users, setUsers] = useState<RebuttalUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
 
   useEffect(() => {
     if (!myUsername) return
@@ -139,9 +241,6 @@ export default function AdminPanel() {
     socketRef.current = socket
 
     socket.on('connect', async () => {
-      // Always pull a fresh token right before using it — Supabase keeps the
-      // session refreshed in the background, so this is cheap and avoids
-      // sending an expired token after the tab's been open a while.
       const { data } = await supabase.auth.getSession()
       if (cancelled) return
       tokenRef.current = data.session?.access_token ?? null
@@ -152,26 +251,48 @@ export default function AdminPanel() {
       clearTimeout(timeoutId)
       setSettings(s)
       setAdminEmailsInput(s.adminEmails.join(', '))
-      setAuthorized(true) // server only replies after verifying our token against the real admin list
+      setAuthorized(true)
     })
 
     socket.on('rooms_update', (r: RoomSummary[]) => setRooms(r))
 
-    socket.on('admin_skit_created', ({ instanceId, topic }: { instanceId: string; topic: string }) => {
+    socket.on('admin_skit_created', ({ instanceId }: { instanceId: string; topic: string }) => {
       setActiveSkitRoomId(instanceId)
       setSkitMessages([])
     })
 
+    socket.on('advanced_room_created', ({ instanceId }: { instanceId: string }) => {
+      setAdvCreating(false)
+      setActionRoomId(instanceId)
+      setLiveLogs(prev => ({ ...prev, [instanceId]: [] }))
+    })
+
     socket.on('new_message', (msg: SkitMessage) => {
-      setSkitMessages(prev => [...prev, msg])
+      if (activeSkitRoomId && (!msg.instanceId || msg.instanceId === activeSkitRoomId)) {
+        setSkitMessages(prev => [...prev, msg])
+      }
+      if (msg.instanceId) {
+        setLiveLogs(prev => ({
+          ...prev,
+          [msg.instanceId as string]: [...(prev[msg.instanceId as string] || []), msg],
+        }))
+      }
+    })
+
+    socket.on('room_message_history', ({ instanceId, messages }: { instanceId: string; messages: SkitMessage[] }) => {
+      setLiveLogs(prev => ({ ...prev, [instanceId]: messages }))
+    })
+
+    socket.on('admin_users_list', (list: RebuttalUser[]) => {
+      setUsers(list)
+      setUsersLoading(false)
     })
 
     socket.on('error', ({ message }: { message: string }) => {
       alert(message)
+      setAdvCreating(false)
     })
 
-    // If nothing comes back within 2s, this account isn't an admin.
-    // Cleared above as soon as admin_settings actually arrives.
     const timeoutId = setTimeout(() => setAuthorized(false), 2000)
 
     return () => {
@@ -179,6 +300,7 @@ export default function AdminPanel() {
       clearTimeout(timeoutId)
       socket.disconnect()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUsername])
 
   async function getFreshToken() {
@@ -187,6 +309,7 @@ export default function AdminPanel() {
     return tokenRef.current
   }
 
+  // ── Settings ──────────────────────────────────────────────────────
   async function saveSettings() {
     const token = await getFreshToken()
     const parsedEmails = adminEmailsInput.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
@@ -199,6 +322,7 @@ export default function AdminPanel() {
     setTimeout(() => setSaveMsg(''), 2000)
   }
 
+  // ── Skit mode ─────────────────────────────────────────────────────
   async function createSkitRoom() {
     if (!skitTopic.trim()) { alert('Give the skit a topic first.'); return }
     const token = await getFreshToken()
@@ -228,32 +352,100 @@ export default function AdminPanel() {
     setSkitFeedback('')
   }
 
-  async function createMultiplayerRoom() {
-    if (!mpTopic.trim() || mpTopic.trim().length < 10) { alert('Topic needs to be at least 10 characters.'); return }
+  // ── Advanced custom games ────────────────────────────────────────
+  function addBot() {
+    if (advBots.length >= 10) return
+    setAdvBots(prev => [...prev, { id: uid(), name: `Bot ${prev.length + 1}`, mode: 'auto', scriptedLines: [] }])
+  }
+
+  function removeBot(id: string) {
+    setAdvBots(prev => prev.filter(b => b.id !== id))
+  }
+
+  function updateBot(id: string, patch: Partial<BotConfig>) {
+    setAdvBots(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)))
+  }
+
+  function addScriptedLine(botId: string) {
+    setAdvBots(prev => prev.map(b => b.id === botId
+      ? { ...b, scriptedLines: [...b.scriptedLines, { id: uid(), text: '', atSeconds: 20 }] }
+      : b))
+  }
+
+  function updateScriptedLine(botId: string, lineId: string, patch: Partial<ScriptedLine>) {
+    setAdvBots(prev => prev.map(b => b.id === botId
+      ? { ...b, scriptedLines: b.scriptedLines.map(l => (l.id === lineId ? { ...l, ...patch } : l)) }
+      : b))
+  }
+
+  function removeScriptedLine(botId: string, lineId: string) {
+    setAdvBots(prev => prev.map(b => b.id === botId
+      ? { ...b, scriptedLines: b.scriptedLines.filter(l => l.id !== lineId) }
+      : b))
+  }
+
+  async function createAdvancedRoom() {
+    if (!advTopic.trim() || advTopic.trim().length < 10) { setAdvError('Topic needs to be at least 10 characters.'); return }
+    const maxPlayers = Number(advMaxPlayers)
+    if (!maxPlayers || maxPlayers < 2) { setAdvError('Max players must be at least 2.'); return }
+    const durationValue = Number(advDurationValue)
+    if (!advUnlimited && (!durationValue || durationValue < 1)) { setAdvError('Duration must be at least 1 second.'); return }
+    for (const bot of advBots) {
+      if (bot.mode === 'scripted' && bot.scriptedLines.some(l => !l.text.trim())) {
+        setAdvError(`${bot.name} has a scripted line with no text.`)
+        return
+      }
+    }
+    setAdvError('')
+    setAdvCreating(true)
     const token = await getFreshToken()
-    socketRef.current?.emit('create_custom_room', {
+    const duration = advUnlimited ? 'unlimited' : unitToSeconds(durationValue, advDurationUnit)
+    socketRef.current?.emit('admin_create_advanced_room', {
       username: myUsername,
-      topic: mpTopic.trim(),
-      duration: mpUnlimited ? 'unlimited' : Number(mpDurationSec) || 300,
-      isPrivate: false,
-      debateType: mpDebateType,
-      maxPlayers: Number(mpMaxPlayers) || 2,
+      topic: advTopic.trim(),
+      maxPlayers,
+      duration,
+      debateType: 'text',
+      bots: advBots.map(b => ({
+        name: b.name.trim() || 'Bot',
+        mode: b.mode,
+        script: b.mode === 'scripted'
+          ? b.scriptedLines.map(l => ({ text: l.text.trim(), atSeconds: Math.max(0, Math.round(l.atSeconds)) }))
+          : undefined,
+      })),
       token,
     })
-    setMpTopic('')
+  }
+
+  // ── Live room moderation ─────────────────────────────────────────
+  function watchRoom(instanceId: string) {
+    setActionRoomId(instanceId)
+    if (!liveLogs[instanceId]) {
+      getFreshToken().then(token => {
+        socketRef.current?.emit('admin_watch_room', { instanceId, token })
+      })
+    }
+  }
+
+  async function deleteLiveMessage(instanceId: string, messageId: string) {
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_delete_message', { instanceId, messageId, username: myUsername, token })
+    setLiveLogs(prev => ({
+      ...prev,
+      [instanceId]: (prev[instanceId] || []).filter(m => m.id !== messageId),
+    }))
+  }
+
+  async function deleteMessageById() {
+    if (!actionRoomId || !deleteMessageId.trim()) { alert('Need both a room and a message ID.'); return }
+    await deleteLiveMessage(actionRoomId, deleteMessageId.trim())
+    setDeleteMessageId('')
   }
 
   async function endDebate() {
     if (!actionRoomId) { alert('Pick a room first.'); return }
     const token = await getFreshToken()
     socketRef.current?.emit('admin_end_debate', { instanceId: actionRoomId, username: myUsername, token })
-  }
-
-  async function deleteMessage() {
-    if (!actionRoomId || !deleteMessageId.trim()) { alert('Need both a room and a message ID.'); return }
-    const token = await getFreshToken()
-    socketRef.current?.emit('admin_delete_message', { instanceId: actionRoomId, messageId: deleteMessageId.trim(), username: myUsername, token })
-    setDeleteMessageId('')
   }
 
   async function setCustomResult() {
@@ -271,6 +463,36 @@ export default function AdminPanel() {
       },
       token,
     })
+  }
+
+  // ── Rebuttal users ────────────────────────────────────────────────
+  async function loadUsers() {
+    setUsersLoading(true)
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_list_users', { token })
+  }
+
+  useEffect(() => {
+    if (tab === 'users' && authorized) loadUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, authorized])
+
+  async function kickUser(username: string) {
+    if (!confirm(`Kick ${username} from their current room?`)) return
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_kick_user', { username, token })
+  }
+
+  async function toggleBan(u: RebuttalUser) {
+    const next = !u.banned
+    if (!confirm(next ? `Ban ${u.username}? They won't be able to play until unbanned.` : `Unban ${u.username}?`)) return
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_ban_user', { username: u.username, banned: next, token })
+    setUsers(prev => prev.map(x => (x.username === u.username ? { ...x, banned: next } : x)))
+  }
+
+  function isUserInRoom(username: string) {
+    return rooms.some(r => r.players.includes(username))
   }
 
   if (!user) {
@@ -305,148 +527,310 @@ export default function AdminPanel() {
   }
 
   const activeSkitTopic = rooms.find(r => r.instanceId === activeSkitRoomId)?.topic
+  const filteredUsers = users.filter(u => u.username.toLowerCase().includes(userSearch.trim().toLowerCase()))
+  const selectedRoom = rooms.find(r => r.instanceId === actionRoomId)
+  const selectedRoomLog = actionRoomId ? (liveLogs[actionRoomId] || []) : []
 
   return (
     <>
       <Nav active="admin" />
       <div style={{ minHeight: 'calc(100vh - 56px)', overflowY: 'auto', padding: '28px 20px' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-          <div style={{ marginBottom: '24px' }}>
+        <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '20px' }}>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', letterSpacing: '2px' }}>ADMIN PANEL</div>
             <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Signed in as <b style={{ color: 'var(--accent)' }}>{myUsername}</b></div>
           </div>
 
-          {/* ── Runtime settings ───────────────────────────── */}
-          <Card title="Settings" subtitle="Persisted to Supabase — changes apply immediately, no redeploy needed">
-            <Field label="Admin emails (comma-separated)">
-              <input style={inputStyle} value={adminEmailsInput} onChange={e => setAdminEmailsInput(e.target.value)} placeholder="lg@isaiahlive.com, zachariussong@gmail.com" />
-            </Field>
-            <Field label="Allow unlimited-duration rooms for every user (not just admins)">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={settings.allowUnlimitedForAll} onChange={e => setSettings(s => ({ ...s, allowUnlimitedForAll: e.target.checked }))} />
-                Enabled for everyone
-              </label>
-            </Field>
-            <Field label="Multiplayer custom room cap (max players)">
-              <input style={inputStyle} type="number" min={2} max={50} value={settings.multiplayerMaxCap} onChange={e => setSettings(s => ({ ...s, multiplayerMaxCap: Number(e.target.value) }))} />
-            </Field>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <Field label="Skit default emoji">
-                <input style={inputStyle} value={settings.skitDefaultEmoji} onChange={e => setSettings(s => ({ ...s, skitDefaultEmoji: e.target.value }))} />
-              </Field>
-              <Field label="Skit default pro label">
-                <input style={inputStyle} value={settings.skitDefaultProLabel} onChange={e => setSettings(s => ({ ...s, skitDefaultProLabel: e.target.value }))} />
-              </Field>
-              <Field label="Skit default con label">
-                <input style={inputStyle} value={settings.skitDefaultConLabel} onChange={e => setSettings(s => ({ ...s, skitDefaultConLabel: e.target.value }))} />
-              </Field>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
-              <Button onClick={saveSettings} variant="accent">Save settings</Button>
-              {saveMsg && <span style={{ fontSize: '13px', color: 'var(--green)' }}>{saveMsg}</span>}
-            </div>
-          </Card>
+          {/* ── Tab nav ─────────────────────────────────────────── */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '22px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: 'DM Sans, sans-serif', fontSize: '13px', fontWeight: 700,
+                  color: tab === t.id ? 'var(--accent)' : 'var(--muted)',
+                  borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+                  marginBottom: '-1px',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-          {/* ── Skit mode ───────────────────────────────────── */}
-          <Card title="Skit mode" subtitle="Script both sides of a debate without real accounts">
-            {!activeSkitRoomId ? (
-              <>
-                <Field label="Topic"><input style={inputStyle} value={skitTopic} onChange={e => setSkitTopic(e.target.value)} placeholder="Is pineapple on pizza a crime?" /></Field>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Field label="Emoji (optional)"><input style={inputStyle} value={skitEmoji} onChange={e => setSkitEmoji(e.target.value)} placeholder={settings.skitDefaultEmoji} /></Field>
-                  <Field label="Pro label (optional)"><input style={inputStyle} value={skitProLabel} onChange={e => setSkitProLabel(e.target.value)} placeholder={settings.skitDefaultProLabel} /></Field>
-                  <Field label="Con label (optional)"><input style={inputStyle} value={skitConLabel} onChange={e => setSkitConLabel(e.target.value)} placeholder={settings.skitDefaultConLabel} /></Field>
-                </div>
-                <Button onClick={createSkitRoom} variant="accent">Create skit room</Button>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>
-                  🎬 Live: <b>{activeSkitTopic}</b> ({activeSkitRoomId})
-                </div>
-                <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {skitMessages.length === 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No lines yet — write the first one below.</div>}
-                  {skitMessages.map(m => (
-                    <div key={m.id} style={{ fontSize: '13px' }}>
-                      <b style={{ color: 'var(--accent)' }}>{m.username}:</b> {m.text}
-                      <span style={{ color: 'var(--muted)', fontSize: '11px', marginLeft: '6px' }}>+{m.score} pts{m.aiFeedback ? ` — ${m.aiFeedback}` : ''}</span>
-                    </div>
-                  ))}
-                </div>
-                <Field label="Line"><textarea style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} value={skitText} onChange={e => setSkitText(e.target.value)} /></Field>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Field label="Score"><input style={inputStyle} type="number" min={0} max={30} value={skitScore} onChange={e => setSkitScore(e.target.value)} /></Field>
-                  <Field label="AI feedback (optional)"><input style={inputStyle} value={skitFeedback} onChange={e => setSkitFeedback(e.target.value)} /></Field>
-                </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button onClick={() => sendSkit('pro')} variant="green">Send as Pro</Button>
-                  <Button onClick={() => sendSkit('con')} variant="red">Send as Con</Button>
-                  <Button onClick={() => { setActiveSkitRoomId(null); setSkitMessages([]) }}>Close skit</Button>
-                </div>
-              </>
-            )}
-          </Card>
-
-          {/* ── Multiplayer / unlimited room creator ─────────── */}
-          <Card title="Create a custom room" subtitle="Multiplayer (3+) and unlimited-duration options, admin-only unless enabled above">
-            <Field label="Topic"><input style={inputStyle} value={mpTopic} onChange={e => setMpTopic(e.target.value)} placeholder="At least 10 characters" /></Field>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <Field label="Max players">
-                <input style={inputStyle} type="number" min={2} max={settings.multiplayerMaxCap} value={mpMaxPlayers} onChange={e => setMpMaxPlayers(e.target.value)} />
+          {/* ── Settings tab ────────────────────────────────────── */}
+          {tab === 'settings' && (
+            <Card title="Settings" subtitle="Persisted to Supabase — changes apply immediately, no redeploy needed">
+              <Field label="Admin emails (comma-separated)">
+                <input style={inputStyle} value={adminEmailsInput} onChange={e => setAdminEmailsInput(e.target.value)} placeholder="lg@isaiahlive.com, zachariussong@gmail.com" />
               </Field>
-              <Field label="Type">
-                <select style={inputStyle} value={mpDebateType} onChange={e => setMpDebateType(e.target.value as 'text' | 'vc')}>
-                  <option value="text">Text</option>
-                  <option value="vc">Voice</option>
-                </select>
+              <Field label="Allow unlimited-duration rooms for every user (not just admins)">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={settings.allowUnlimitedForAll} onChange={e => setSettings(s => ({ ...s, allowUnlimitedForAll: e.target.checked }))} />
+                  Enabled for everyone
+                </label>
               </Field>
-              <Field label="Duration (sec)">
-                <input style={{ ...inputStyle, opacity: mpUnlimited ? 0.4 : 1 }} type="number" disabled={mpUnlimited} value={mpDurationSec} onChange={e => setMpDurationSec(e.target.value)} />
+              <Field label="Multiplayer custom room cap (max players)">
+                <input style={inputStyle} type="number" min={2} max={50} value={settings.multiplayerMaxCap} onChange={e => setSettings(s => ({ ...s, multiplayerMaxCap: Number(e.target.value) }))} />
               </Field>
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer', marginBottom: '12px' }}>
-              <input type="checkbox" checked={mpUnlimited} onChange={e => setMpUnlimited(e.target.checked)} />
-              Unlimited duration (never auto-ends — end manually below)
-            </label>
-            <Button onClick={createMultiplayerRoom} variant="accent">Create room</Button>
-          </Card>
-
-          {/* ── Live room actions ─────────────────────────────── */}
-          <Card title="Live room actions" subtitle="End a debate, delete a message, or force a result on a custom/skit room">
-            <Field label="Room">
-              <select style={inputStyle} value={actionRoomId} onChange={e => setActionRoomId(e.target.value)}>
-                <option value="">Select a room…</option>
-                {rooms.map(r => (
-                  <option key={r.instanceId} value={r.instanceId}>
-                    [{r.status}] {r.topic} ({r.playerCount} in room)
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '6px' }}>
-              <Button onClick={endDebate} variant="red">End this debate now</Button>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
-              <Field label="Message ID to delete">
-                <input style={inputStyle} value={deleteMessageId} onChange={e => setDeleteMessageId(e.target.value)} placeholder="Copy from message_history / new_message payload" />
-              </Field>
-              <Button onClick={deleteMessage} variant="red">Delete message</Button>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-                Custom results only work on <b>custom</b> or <b>skit</b> rooms — not standard matchmaking rooms.
-              </div>
-              <Field label="Winner username"><input style={inputStyle} value={resultWinner} onChange={e => setResultWinner(e.target.value)} /></Field>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <Field label="Winner ELO gain"><input style={inputStyle} type="number" value={resultWinnerElo} onChange={e => setResultWinnerElo(e.target.value)} /></Field>
-                <Field label="Loser ELO loss"><input style={inputStyle} type="number" value={resultLoserElo} onChange={e => setResultLoserElo(e.target.value)} /></Field>
+                <Field label="Skit default emoji">
+                  <input style={inputStyle} value={settings.skitDefaultEmoji} onChange={e => setSettings(s => ({ ...s, skitDefaultEmoji: e.target.value }))} />
+                </Field>
+                <Field label="Skit default pro label">
+                  <input style={inputStyle} value={settings.skitDefaultProLabel} onChange={e => setSettings(s => ({ ...s, skitDefaultProLabel: e.target.value }))} />
+                </Field>
+                <Field label="Skit default con label">
+                  <input style={inputStyle} value={settings.skitDefaultConLabel} onChange={e => setSettings(s => ({ ...s, skitDefaultConLabel: e.target.value }))} />
+                </Field>
               </div>
-              <Button onClick={setCustomResult} variant="accent">Force result</Button>
-            </div>
-          </Card>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+                <Button onClick={saveSettings} variant="accent">Save settings</Button>
+                {saveMsg && <span style={{ fontSize: '13px', color: 'var(--green)' }}>{saveMsg}</span>}
+              </div>
+            </Card>
+          )}
+
+          {/* ── Skit mode tab ───────────────────────────────────── */}
+          {tab === 'skits' && (
+            <Card title="Skit mode" subtitle="Script both sides of a debate without real accounts — for marketing clips and demos">
+              {!activeSkitRoomId ? (
+                <>
+                  <Field label="Topic"><input style={inputStyle} value={skitTopic} onChange={e => setSkitTopic(e.target.value)} placeholder="Is pineapple on pizza a crime?" /></Field>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <Field label="Emoji (optional)"><input style={inputStyle} value={skitEmoji} onChange={e => setSkitEmoji(e.target.value)} placeholder={settings.skitDefaultEmoji} /></Field>
+                    <Field label="Pro label (optional)"><input style={inputStyle} value={skitProLabel} onChange={e => setSkitProLabel(e.target.value)} placeholder={settings.skitDefaultProLabel} /></Field>
+                    <Field label="Con label (optional)"><input style={inputStyle} value={skitConLabel} onChange={e => setSkitConLabel(e.target.value)} placeholder={settings.skitDefaultConLabel} /></Field>
+                  </div>
+                  <Button onClick={createSkitRoom} variant="accent">Create skit room</Button>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>
+                    🎬 Live: <b>{activeSkitTopic}</b> ({activeSkitRoomId})
+                  </div>
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {skitMessages.length === 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No lines yet — write the first one below.</div>}
+                    {skitMessages.map(m => (
+                      <div key={m.id} style={{ fontSize: '13px' }}>
+                        <b style={{ color: 'var(--accent)' }}>{m.username}:</b> {m.text}
+                        <span style={{ color: 'var(--muted)', fontSize: '11px', marginLeft: '6px' }}>+{m.score} pts{m.aiFeedback ? ` — ${m.aiFeedback}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Field label="Line"><textarea style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} value={skitText} onChange={e => setSkitText(e.target.value)} /></Field>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <Field label="Score"><input style={inputStyle} type="number" min={0} max={30} value={skitScore} onChange={e => setSkitScore(e.target.value)} /></Field>
+                    <Field label="AI feedback (optional)"><input style={inputStyle} value={skitFeedback} onChange={e => setSkitFeedback(e.target.value)} /></Field>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <Button onClick={() => sendSkit('pro')} variant="green">Send as Pro</Button>
+                    <Button onClick={() => sendSkit('con')} variant="red">Send as Con</Button>
+                    <Button onClick={() => { setActiveSkitRoomId(null); setSkitMessages([]) }}>Close skit</Button>
+                  </div>
+                </>
+              )}
+            </Card>
+          )}
+
+          {/* ── Advanced custom games tab ───────────────────────── */}
+          {tab === 'games' && (
+            <>
+              <Card title="Create an advanced custom room" subtitle="Text debates only — set capacity, duration, and bot behavior before the game starts">
+                <Field label="Topic"><input style={inputStyle} value={advTopic} onChange={e => setAdvTopic(e.target.value)} placeholder="At least 10 characters" /></Field>
+
+                <Field label="Max players">
+                  <input style={inputStyle} type="number" min={2} value={advMaxPlayers} onChange={e => setAdvMaxPlayers(e.target.value)} />
+                </Field>
+
+                <Field label="Duration">
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      style={{ ...inputStyle, opacity: advUnlimited ? 0.4 : 1, width: '110px' }}
+                      type="number" min={1} disabled={advUnlimited}
+                      value={advDurationValue} onChange={e => setAdvDurationValue(e.target.value)}
+                    />
+                    <select
+                      style={{ ...inputStyle, opacity: advUnlimited ? 0.4 : 1, width: '130px' }}
+                      disabled={advUnlimited} value={advDurationUnit}
+                      onChange={e => setAdvDurationUnit(e.target.value as DurationUnit)}
+                    >
+                      <option value="seconds">Seconds</option>
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={advUnlimited} onChange={e => setAdvUnlimited(e.target.checked)} />
+                      Unlimited (never auto-ends)
+                    </label>
+                  </div>
+                  {!advUnlimited && Number(advDurationValue) > 0 && (
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                      = {formatSeconds(unitToSeconds(Number(advDurationValue), advDurationUnit))}
+                    </div>
+                  )}
+                </Field>
+
+                {/* ── Bots ── */}
+                <Field label={`Bots (${advBots.length}/10)`}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {advBots.map(bot => (
+                      <div key={bot.id} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '12px' }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                          <input
+                            style={{ ...inputStyle, flex: 1 }}
+                            value={bot.name}
+                            onChange={e => updateBot(bot.id, { name: e.target.value })}
+                          />
+                          <select
+                            style={{ ...inputStyle, width: '170px' }}
+                            value={bot.mode}
+                            onChange={e => updateBot(bot.id, { mode: e.target.value as 'auto' | 'scripted' })}
+                          >
+                            <option value="auto">Auto-debate topic</option>
+                            <option value="scripted">Pre-scripted lines</option>
+                          </select>
+                          <Button small variant="red" onClick={() => removeBot(bot.id)}>Remove</Button>
+                        </div>
+
+                        {bot.mode === 'auto' ? (
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                            This bot will argue normally based on the room's topic, like any standard AI debater.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {bot.scriptedLines.length === 0 && (
+                              <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No scripted lines yet — add one below.</div>
+                            )}
+                            {bot.scriptedLines.map(line => (
+                              <div key={line.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                <textarea
+                                  style={{ ...inputStyle, flex: 1, minHeight: '40px', resize: 'vertical' }}
+                                  placeholder="What the bot will say…"
+                                  value={line.text}
+                                  onChange={e => updateScriptedLine(bot.id, line.id, { text: e.target.value })}
+                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                  <input
+                                    style={{ ...inputStyle, width: '80px' }}
+                                    type="number" min={0}
+                                    value={line.atSeconds}
+                                    onChange={e => updateScriptedLine(bot.id, line.id, { atSeconds: Number(e.target.value) })}
+                                  />
+                                  <span style={{ fontSize: '10px', color: 'var(--muted)' }}>sec into game</span>
+                                </div>
+                                <Button small variant="red" onClick={() => removeScriptedLine(bot.id, line.id)}>×</Button>
+                              </div>
+                            ))}
+                            <div>
+                              <Button small onClick={() => addScriptedLine(bot.id)}>+ Add line</Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <div>
+                      <Button onClick={addBot} disabled={advBots.length >= 10}>+ Add bot</Button>
+                    </div>
+                  </div>
+                </Field>
+
+                {advError && (
+                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>
+                    ⚠️ {advError}
+                  </div>
+                )}
+
+                <Button onClick={createAdvancedRoom} variant="accent" disabled={advCreating}>
+                  {advCreating ? 'Creating…' : 'Create advanced room'}
+                </Button>
+              </Card>
+
+              <Card title="Live room moderation" subtitle="Delete any message — yours or anyone else's — end the debate, or force a result">
+                <Field label="Room">
+                  <select style={inputStyle} value={actionRoomId} onChange={e => watchRoom(e.target.value)}>
+                    <option value="">Select a room…</option>
+                    {rooms.map(r => (
+                      <option key={r.instanceId} value={r.instanceId}>
+                        [{r.status}] {r.topic} ({r.playerCount} in room)
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                {actionRoomId && (
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px', marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {selectedRoomLog.length === 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No messages logged yet for this room.</div>}
+                    {selectedRoomLog.map(m => (
+                      <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                        <div><b style={{ color: 'var(--accent)' }}>{m.username}:</b> {m.text}</div>
+                        <Button small variant="red" onClick={() => deleteLiveMessage(actionRoomId, m.id)}>Delete</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+                  <Button onClick={endDebate} variant="red">End this debate now</Button>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
+                  <Field label="Or delete by message ID">
+                    <input style={inputStyle} value={deleteMessageId} onChange={e => setDeleteMessageId(e.target.value)} placeholder="Paste a message ID" />
+                  </Field>
+                  <Button onClick={deleteMessageById} variant="red">Delete message</Button>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
+                    Custom results only work on <b>custom</b> or <b>skit</b> rooms — not standard matchmaking rooms.
+                  </div>
+                  <Field label="Winner username"><input style={inputStyle} value={resultWinner} onChange={e => setResultWinner(e.target.value)} /></Field>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <Field label="Winner ELO gain"><input style={inputStyle} type="number" value={resultWinnerElo} onChange={e => setResultWinnerElo(e.target.value)} /></Field>
+                    <Field label="Loser ELO loss"><input style={inputStyle} type="number" value={resultLoserElo} onChange={e => setResultLoserElo(e.target.value)} /></Field>
+                  </div>
+                  <Button onClick={setCustomResult} variant="accent">Force result</Button>
+                </div>
+              </Card>
+            </>
+          )}
+
+          {/* ── Rebuttal users tab ──────────────────────────────── */}
+          {tab === 'users' && (
+            <Card title="Rebuttal users" subtitle="Search, kick from a live room, or ban/unban an account">
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+                <input style={inputStyle} placeholder="Search username…" value={userSearch} onChange={e => setUserSearch(e.target.value)} />
+                <Button onClick={loadUsers}>{usersLoading ? 'Loading…' : 'Refresh'}</Button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {filteredUsers.length === 0 && (
+                  <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                    {usersLoading ? 'Loading users…' : 'No users found.'}
+                  </div>
+                )}
+                {filteredUsers.map(u => (
+                  <div key={u.username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700 }}>
+                        @{u.username} {u.banned ? <Badge tone="red">Banned</Badge> : isUserInRoom(u.username) ? <Badge tone="green">In room</Badge> : <Badge>Active</Badge>}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                        {u.email ? `${u.email} · ` : ''}{u.elo !== undefined ? `${u.elo} ELO` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button small disabled={!isUserInRoom(u.username)} onClick={() => kickUser(u.username)}>Kick</Button>
+                      <Button small variant={u.banned ? 'green' : 'red'} onClick={() => toggleBan(u)}>{u.banned ? 'Unban' : 'Ban'}</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </>
