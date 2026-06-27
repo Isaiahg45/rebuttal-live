@@ -1233,6 +1233,9 @@ const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, winne
         return
       }
       if (playerCount === 0 && room.isCustom) {
+        // Skit rooms are admin-scripted and never have a real "player" in
+        // room.players — don't let the empty-room cleanup kill them.
+        if (room.isSkit) return
         const ageSeconds = (Date.now() - room.createdAt) / 1000
         if (ageSeconds > 5) {
           room.status = 'ended'
