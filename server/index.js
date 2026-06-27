@@ -2275,7 +2275,13 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       skitDebateType: isVoice ? 'voice' : 'text',
       emoji: emoji || (isVoice ? '🎙️' : adminSettings.skitDefaultEmoji), topic: topic || 'Scripted Debate',
       duration: null, eloRequired: 0,
-      maxPlayers: 999, players: {}, spectators: {}, messages: [],
+      maxPlayers: 999,
+      // Seed the admin as a permanent "host" entry so playerCount is never 0.
+      // The empty-room auto-expire check elsewhere only fires when playerCount
+      // === 0 — this makes that condition impossible for skit rooms, so the
+      // room can never be mistaken for an abandoned one nobody joined.
+      players: { [`skit_host_${id}`]: { username, score: 0, elo: 0, isSkitHost: true } },
+      spectators: {}, messages: [],
       status: 'active', countdown: 0, startCountdown: null,
       debateEndsAt: null,
       createdAt: Date.now(),
