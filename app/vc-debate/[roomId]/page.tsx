@@ -198,6 +198,7 @@ const [micGranted, setMicGranted] = useState(false)
  const [suddenDeath, setSuddenDeath] = useState(false)
   const [suddenDeathRound, setSuddenDeathRound] = useState(0)
   const [isDraw, setIsDraw] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
   const popAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -453,7 +454,24 @@ console.log('✅ Remote analyser connected')
     await initAgora(instanceId, socket.id ?? '')
   }
   socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
+  // Lightweight admin check — only used to decide whether to show the
+  // inline per-message delete button below. No-op for non-admins.
+  supabase.auth.getSession().then(({ data }) => {
+    socket.emit('admin_check', { token: data.session?.access_token })
+  })
 })
+    socket.on('admin_check_result', ({ isAdmin: ok }: { isAdmin: boolean }) => setIsAdmin(ok))
+
+    socket.on('message_deleted', ({ messageId }: { messageId: string }) => {
+      setTranscripts(prev => {
+        const deleted = prev.find(t => t.id === messageId)
+        if (deleted) {
+          setScores(s => ({ ...s, [deleted.username]: (s[deleted.username] || 0) - deleted.score }))
+        }
+        return prev.filter(t => t.id !== messageId)
+      })
+    })
+
     socket.on('reconnect', () => {
       setConnected(true)
       socket.emit('join_vc_room', { instanceId, username: myUsername, elo: myElo, password: passwordParam })
@@ -873,6 +891,15 @@ agoraInitializedRef.current = false
     endMyTurn(socketRef.current)
   }
 
+  // Admin-only: delete a transcript entry directly from the live room.
+  const handleAdminDelete = async (messageId: string) => {
+    if (!socketRef.current) return
+    const { data } = await supabase.auth.getSession()
+    socketRef.current.emit('admin_delete_message', {
+      instanceId, messageId, username: myUsername, token: data.session?.access_token,
+    })
+  }
+
   // Mute/unmute is only ever allowed in the lobby (waiting/starting) or
   // during your own turn to speak — sudden death reuses isMyTurn too, so
   // this covers that automatically without extra cases.
@@ -1287,6 +1314,15 @@ agoraInitializedRef.current = false
                       +{t.score} pts{t.score >= 25 && ' 🔥'}
                     </span>
                     {t.aiFeedback && <span style={{ fontSize: '11px', color: 'var(--blue)' }}>🤖 {t.aiFeedback}</span>}
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleAdminDelete(t.id)}
+                        title="Delete this entry (admin)"
+                        style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '1px 7px', color: 'var(--red)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}
+                      >
+                        🗑
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

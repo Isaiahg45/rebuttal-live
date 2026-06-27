@@ -2233,6 +2233,13 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     io.emit('rooms_update', getRoomList())
   })
 
+  // ── Admin: lightweight check used by the live debate/VC pages to decide
+  // whether to show the inline per-message delete button to this viewer ─
+  socket.on('admin_check', async ({ token }) => {
+    const ok = await isAdminToken(token)
+    socket.emit('admin_check_result', { isAdmin: ok })
+  })
+
   // ── Admin: delete a message ─────────────────────────────────────
   socket.on('admin_delete_message', async ({ instanceId, messageId, username, token }) => {
     if (!(await isAdminToken(token))) return
@@ -2249,12 +2256,21 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: skit mode — scripted debates, no real accounts needed ─
- socket.on('admin_create_skit_room', async ({ username, topic, emoji, proLabel, conLabel, token }) => {
+ socket.on('admin_create_skit_room', async ({ username, topic, emoji, proLabel, conLabel, debateType, token }) => {
     if (!(await isAdminToken(token))) return
     const id = `skit_${++roomCounter}_${Date.now()}`
+    const isVoice = debateType === 'voice'
+    // IMPORTANT: type is always 'custom' — a value the lobby already knows how to
+    // render and route. 'skit' was a made-up type the lobby didn't recognize, which
+    // is why these rooms never actually showed up anywhere for real users.
+    // Voice vs text is currently label/emoji-only (no real audio synthesis exists
+    // for scripted lines) — using type:'vc' here would hand the room to the real
+    // voice-debate game loop (turn timers, 2-player auto-start, auto-end), which
+    // would fight with admin-scripted messages and could end the room prematurely.
     rooms[id] = {
-      instanceId: id, type: 'skit', isSkit: true, isCustom: true,
-      emoji: emoji || adminSettings.skitDefaultEmoji, topic: topic || 'Scripted Debate',
+      instanceId: id, type: 'custom', isSkit: true, isCustom: true,
+      skitDebateType: isVoice ? 'voice' : 'text',
+      emoji: emoji || (isVoice ? '🎙️' : adminSettings.skitDefaultEmoji), topic: topic || 'Scripted Debate',
       duration: null, eloRequired: 0,
       maxPlayers: 999, players: {}, spectators: {}, messages: [],
       status: 'active', countdown: 0, startCountdown: null,
@@ -2266,7 +2282,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     socket.join(id)
     socket.emit('admin_skit_created', { instanceId: id, topic: rooms[id].topic })
     io.emit('rooms_update', getRoomList())
-    console.log(`🎬 Admin ${username} created skit room "${rooms[id].topic}"`)
+    console.log(`🎬 Admin ${username} created ${isVoice ? 'voice' : 'text'} skit room "${rooms[id].topic}"`)
   })
 
   socket.on('admin_skit_message', async ({ instanceId, username, side, text, score, feedback, token }) => {
@@ -2331,19 +2347,24 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: create an advanced custom room (max players, any duration, bots) ─
-  socket.on('admin_create_advanced_room', async ({ username, topic, maxPlayers, duration, debateType, bots, token }) => {
+  socket.on('admin_create_advanced_room', async ({ username, topic, maxPlayers, unlimitedPlayers, duration, debateType, bots, token }) => {
     if (!(await isAdminToken(token))) return
     if (!topic || topic.trim().length < 10) { socket.emit('error', { message: 'Topic must be at least 10 characters.' }); return }
 
-    const resolvedMaxPlayers = Math.max(2, Math.min(50, Number(maxPlayers) || 2))
+    const isVoice = debateType === 'vc'
+    const resolvedMaxPlayers = isVoice
+      ? 2
+      : (unlimitedPlayers ? 999999 : Math.max(1, Number(maxPlayers) || 1))
     const wantsUnlimited = duration === 'unlimited'
     const resolvedDuration = wantsUnlimited ? null : Math.max(1, Number(duration) || 300)
 
-    const id = `advcustom_${++roomCounter}_${Date.now()}`
-    rooms[id] = {
+    const id = isVoice
+      ? `advvc_${++roomCounter}_${Date.now()}`
+      : `advcustom_${++roomCounter}_${Date.now()}`
+
+    const baseRoom = {
       instanceId: id,
-      type: 'custom',
-      emoji: '🛠️',
+      emoji: isVoice ? '🎙️' : '🛠️',
       topic: topic.trim(),
       duration: resolvedDuration,
       eloRequired: 0,
@@ -2361,8 +2382,28 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       password: null,
       createdBy: username,
       isAdminAdvanced: true,
-      botScripts: {},
     }
+
+    if (isVoice) {
+      // A real voice room — same shape createVCRoom() uses, so it flows through
+      // the existing join_vc_room / vc_turn_complete / VC game-loop logic untouched.
+      // Bots aren't supported here — there's no audio synthesis for them to speak with.
+      rooms[id] = {
+        ...baseRoom,
+        type: 'vc',
+        vcState: {
+          currentSpeaker: null, turnNumber: 0, turnStartTime: null,
+          turnDuration: 90, turnCooldown: 5, inCooldown: false,
+          scores: {}, paidToGoFirst: null, firstSpeakerLocked: false, transcripts: [], sides: {},
+        },
+      }
+      socket.emit('advanced_room_created', { instanceId: id })
+      io.emit('rooms_update', getRoomList())
+      console.log(`🛠️🎙️ Admin ${username} created advanced VOICE room "${rooms[id].topic}" (max 2, ${wantsUnlimited ? 'unlimited' : resolvedDuration + 's'})`)
+      return
+    }
+
+    rooms[id] = { ...baseRoom, type: 'custom', botScripts: {} }
 
     // Seed bots into the room immediately — players see them already seated
     // when they join, and scripted timers are ready before anyone arrives.
@@ -2389,13 +2430,21 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   socket.on('admin_list_users', async ({ token }) => {
     if (!(await isAdminToken(token))) return
     try {
-      // REQUIRES a `banned` boolean column on `profiles` (see bannedUsernames above).
-      const data = await supabaseRest('profiles?select=username,elo,banned,created_at&order=created_at.desc&limit=500')
-      const list = (data || []).map(u => ({
+      let data = await supabaseRest('profiles?select=username,elo,banned&order=username.asc&limit=1000')
+      if (!Array.isArray(data)) {
+        // `banned` column probably doesn't exist yet — fall back to a minimal select
+        // so the list still populates. Run the migration mentioned above to get ban status too.
+        console.log('admin_list_users: full select failed, falling back —', JSON.stringify(data))
+        data = await supabaseRest('profiles?select=username,elo&order=username.asc&limit=1000')
+      }
+      if (!Array.isArray(data)) {
+        console.log('admin_list_users: profiles query failed entirely —', JSON.stringify(data))
+        data = []
+      }
+      const list = data.map(u => ({
         username: u.username,
         elo: u.elo ?? 0,
         banned: !!u.banned,
-        createdAt: u.created_at,
       }))
       socket.emit('admin_users_list', list)
     } catch (e) {

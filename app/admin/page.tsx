@@ -201,6 +201,7 @@ export default function AdminPanel() {
 
   // ── Skit mode state ──────────────────────────────────────────────
   const [skitTopic, setSkitTopic] = useState('')
+  const [skitDebateType, setSkitDebateType] = useState<'text' | 'voice'>('text')
   const [skitEmoji, setSkitEmoji] = useState('')
   const [skitProLabel, setSkitProLabel] = useState('')
   const [skitConLabel, setSkitConLabel] = useState('')
@@ -212,7 +213,9 @@ export default function AdminPanel() {
 
   // ── Advanced custom games state ──────────────────────────────────
   const [advTopic, setAdvTopic] = useState('')
+  const [advDebateType, setAdvDebateType] = useState<'text' | 'vc'>('text')
   const [advMaxPlayers, setAdvMaxPlayers] = useState('4')
+  const [advUnlimitedPlayers, setAdvUnlimitedPlayers] = useState(false)
   const [advDurationValue, setAdvDurationValue] = useState('5')
   const [advDurationUnit, setAdvDurationUnit] = useState<DurationUnit>('minutes')
   const [advUnlimited, setAdvUnlimited] = useState(false)
@@ -220,10 +223,8 @@ export default function AdminPanel() {
   const [advCreating, setAdvCreating] = useState(false)
   const [advError, setAdvError] = useState('')
 
-  // Live moderation (works for any room the admin selects, including ones from advanced games)
+  // Room-level moderation (end debate / force result)
   const [actionRoomId, setActionRoomId] = useState('')
-  const [liveLogs, setLiveLogs] = useState<Record<string, SkitMessage[]>>({})
-  const [deleteMessageId, setDeleteMessageId] = useState('')
   const [resultWinner, setResultWinner] = useState('')
   const [resultWinnerElo, setResultWinnerElo] = useState('25')
   const [resultLoserElo, setResultLoserElo] = useState('25')
@@ -264,23 +265,12 @@ export default function AdminPanel() {
     socket.on('advanced_room_created', ({ instanceId }: { instanceId: string }) => {
       setAdvCreating(false)
       setActionRoomId(instanceId)
-      setLiveLogs(prev => ({ ...prev, [instanceId]: [] }))
     })
 
     socket.on('new_message', (msg: SkitMessage) => {
       if (activeSkitRoomId && (!msg.instanceId || msg.instanceId === activeSkitRoomId)) {
         setSkitMessages(prev => [...prev, msg])
       }
-      if (msg.instanceId) {
-        setLiveLogs(prev => ({
-          ...prev,
-          [msg.instanceId as string]: [...(prev[msg.instanceId as string] || []), msg],
-        }))
-      }
-    })
-
-    socket.on('room_message_history', ({ instanceId, messages }: { instanceId: string; messages: SkitMessage[] }) => {
-      setLiveLogs(prev => ({ ...prev, [instanceId]: messages }))
     })
 
     socket.on('admin_users_list', (list: RebuttalUser[]) => {
@@ -329,6 +319,7 @@ export default function AdminPanel() {
     socketRef.current?.emit('admin_create_skit_room', {
       username: myUsername,
       topic: skitTopic.trim(),
+      debateType: skitDebateType,
       emoji: skitEmoji.trim() || undefined,
       proLabel: skitProLabel.trim() || undefined,
       conLabel: skitConLabel.trim() || undefined,
@@ -386,14 +377,17 @@ export default function AdminPanel() {
 
   async function createAdvancedRoom() {
     if (!advTopic.trim() || advTopic.trim().length < 10) { setAdvError('Topic needs to be at least 10 characters.'); return }
+    const isVoice = advDebateType === 'vc'
     const maxPlayers = Number(advMaxPlayers)
-    if (!maxPlayers || maxPlayers < 2) { setAdvError('Max players must be at least 2.'); return }
+    if (!isVoice && !advUnlimitedPlayers && (!maxPlayers || maxPlayers < 1)) { setAdvError('Max players must be at least 1.'); return }
     const durationValue = Number(advDurationValue)
     if (!advUnlimited && (!durationValue || durationValue < 1)) { setAdvError('Duration must be at least 1 second.'); return }
-    for (const bot of advBots) {
-      if (bot.mode === 'scripted' && bot.scriptedLines.some(l => !l.text.trim())) {
-        setAdvError(`${bot.name} has a scripted line with no text.`)
-        return
+    if (!isVoice) {
+      for (const bot of advBots) {
+        if (bot.mode === 'scripted' && bot.scriptedLines.some(l => !l.text.trim())) {
+          setAdvError(`${bot.name} has a scripted line with no text.`)
+          return
+        }
       }
     }
     setAdvError('')
@@ -404,9 +398,10 @@ export default function AdminPanel() {
       username: myUsername,
       topic: advTopic.trim(),
       maxPlayers,
+      unlimitedPlayers: advUnlimitedPlayers,
       duration,
-      debateType: 'text',
-      bots: advBots.map(b => ({
+      debateType: advDebateType,
+      bots: isVoice ? [] : advBots.map(b => ({
         name: b.name.trim() || 'Bot',
         mode: b.mode,
         script: b.mode === 'scripted'
@@ -417,31 +412,7 @@ export default function AdminPanel() {
     })
   }
 
-  // ── Live room moderation ─────────────────────────────────────────
-  function watchRoom(instanceId: string) {
-    setActionRoomId(instanceId)
-    if (!liveLogs[instanceId]) {
-      getFreshToken().then(token => {
-        socketRef.current?.emit('admin_watch_room', { instanceId, token })
-      })
-    }
-  }
-
-  async function deleteLiveMessage(instanceId: string, messageId: string) {
-    const token = await getFreshToken()
-    socketRef.current?.emit('admin_delete_message', { instanceId, messageId, username: myUsername, token })
-    setLiveLogs(prev => ({
-      ...prev,
-      [instanceId]: (prev[instanceId] || []).filter(m => m.id !== messageId),
-    }))
-  }
-
-  async function deleteMessageById() {
-    if (!actionRoomId || !deleteMessageId.trim()) { alert('Need both a room and a message ID.'); return }
-    await deleteLiveMessage(actionRoomId, deleteMessageId.trim())
-    setDeleteMessageId('')
-  }
-
+  // ── Room-level moderation ──────────────────────────────────────────
   async function endDebate() {
     if (!actionRoomId) { alert('Pick a room first.'); return }
     const token = await getFreshToken()
@@ -528,8 +499,6 @@ export default function AdminPanel() {
 
   const activeSkitTopic = rooms.find(r => r.instanceId === activeSkitRoomId)?.topic
   const filteredUsers = users.filter(u => u.username.toLowerCase().includes(userSearch.trim().toLowerCase()))
-  const selectedRoom = rooms.find(r => r.instanceId === actionRoomId)
-  const selectedRoomLog = actionRoomId ? (liveLogs[actionRoomId] || []) : []
 
   return (
     <>
@@ -572,9 +541,6 @@ export default function AdminPanel() {
                   Enabled for everyone
                 </label>
               </Field>
-              <Field label="Multiplayer custom room cap (max players)">
-                <input style={inputStyle} type="number" min={2} max={50} value={settings.multiplayerMaxCap} onChange={e => setSettings(s => ({ ...s, multiplayerMaxCap: Number(e.target.value) }))} />
-              </Field>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <Field label="Skit default emoji">
                   <input style={inputStyle} value={settings.skitDefaultEmoji} onChange={e => setSettings(s => ({ ...s, skitDefaultEmoji: e.target.value }))} />
@@ -599,6 +565,15 @@ export default function AdminPanel() {
               {!activeSkitRoomId ? (
                 <>
                   <Field label="Topic"><input style={inputStyle} value={skitTopic} onChange={e => setSkitTopic(e.target.value)} placeholder="Is pineapple on pizza a crime?" /></Field>
+                  <Field label="Debate type">
+                    <select style={inputStyle} value={skitDebateType} onChange={e => setSkitDebateType(e.target.value as 'text' | 'voice')}>
+                      <option value="text">Text</option>
+                      <option value="voice">Voice</option>
+                    </select>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                      Voice just changes the room's label/emoji for now — your scripted lines still show as text, since there's no audio synthesis wired up yet.
+                    </div>
+                  </Field>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <Field label="Emoji (optional)"><input style={inputStyle} value={skitEmoji} onChange={e => setSkitEmoji(e.target.value)} placeholder={settings.skitDefaultEmoji} /></Field>
                     <Field label="Pro label (optional)"><input style={inputStyle} value={skitProLabel} onChange={e => setSkitProLabel(e.target.value)} placeholder={settings.skitDefaultProLabel} /></Field>
@@ -638,12 +613,35 @@ export default function AdminPanel() {
           {/* ── Advanced custom games tab ───────────────────────── */}
           {tab === 'games' && (
             <>
-              <Card title="Create an advanced custom room" subtitle="Text debates only — set capacity, duration, and bot behavior before the game starts">
+              <Card title="Create an advanced custom room" subtitle="Set the debate type, capacity, duration, and bot behavior before the game starts">
                 <Field label="Topic"><input style={inputStyle} value={advTopic} onChange={e => setAdvTopic(e.target.value)} placeholder="At least 10 characters" /></Field>
 
-                <Field label="Max players">
-                  <input style={inputStyle} type="number" min={2} value={advMaxPlayers} onChange={e => setAdvMaxPlayers(e.target.value)} />
+                <Field label="Debate type">
+                  <select style={inputStyle} value={advDebateType} onChange={e => setAdvDebateType(e.target.value as 'text' | 'vc')}>
+                    <option value="text">Text (1 to unlimited players)</option>
+                    <option value="vc">Voice (1v1 only)</option>
+                  </select>
                 </Field>
+
+                {advDebateType === 'text' ? (
+                  <Field label="Max players">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        style={{ ...inputStyle, opacity: advUnlimitedPlayers ? 0.4 : 1, width: '120px' }}
+                        type="number" min={1} disabled={advUnlimitedPlayers}
+                        value={advMaxPlayers} onChange={e => setAdvMaxPlayers(e.target.value)}
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={advUnlimitedPlayers} onChange={e => setAdvUnlimitedPlayers(e.target.checked)} />
+                        Unlimited players
+                      </label>
+                    </div>
+                  </Field>
+                ) : (
+                  <Field label="Max players">
+                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>2 (voice debates are 1v1 only)</div>
+                  </Field>
+                )}
 
                 <Field label="Duration">
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -673,7 +671,8 @@ export default function AdminPanel() {
                   )}
                 </Field>
 
-                {/* ── Bots ── */}
+                {/* ── Bots — text rooms only, no audio synthesis exists for voice bots ── */}
+                {advDebateType === 'text' && (
                 <Field label={`Bots (${advBots.length}/10)`}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {advBots.map(bot => (
@@ -736,6 +735,7 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 </Field>
+                )}
 
                 {advError && (
                   <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>
@@ -748,9 +748,9 @@ export default function AdminPanel() {
                 </Button>
               </Card>
 
-              <Card title="Live room moderation" subtitle="Delete any message — yours or anyone else's — end the debate, or force a result">
+              <Card title="Room controls" subtitle="End an unlimited-duration debate, or force a result on a custom room. Per-message delete now lives in the live debate room itself, not here.">
                 <Field label="Room">
-                  <select style={inputStyle} value={actionRoomId} onChange={e => watchRoom(e.target.value)}>
+                  <select style={inputStyle} value={actionRoomId} onChange={e => setActionRoomId(e.target.value)}>
                     <option value="">Select a room…</option>
                     {rooms.map(r => (
                       <option key={r.instanceId} value={r.instanceId}>
@@ -760,27 +760,8 @@ export default function AdminPanel() {
                   </select>
                 </Field>
 
-                {actionRoomId && (
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px', marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {selectedRoomLog.length === 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No messages logged yet for this room.</div>}
-                    {selectedRoomLog.map(m => (
-                      <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
-                        <div><b style={{ color: 'var(--accent)' }}>{m.username}:</b> {m.text}</div>
-                        <Button small variant="red" onClick={() => deleteLiveMessage(actionRoomId, m.id)}>Delete</Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
                   <Button onClick={endDebate} variant="red">End this debate now</Button>
-                </div>
-
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
-                  <Field label="Or delete by message ID">
-                    <input style={inputStyle} value={deleteMessageId} onChange={e => setDeleteMessageId(e.target.value)} placeholder="Paste a message ID" />
-                  </Field>
-                  <Button onClick={deleteMessageById} variant="red">Delete message</Button>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
@@ -809,7 +790,7 @@ export default function AdminPanel() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {filteredUsers.length === 0 && (
                   <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-                    {usersLoading ? 'Loading users…' : 'No users found.'}
+                    {usersLoading ? 'Loading users…' : 'No users found. If this persists, check the Railway logs for an admin_list_users error.'}
                   </div>
                 )}
                 {filteredUsers.map(u => (

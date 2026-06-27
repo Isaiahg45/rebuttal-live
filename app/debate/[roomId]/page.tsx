@@ -106,6 +106,7 @@ export default function DebatePage() {
   const [suddenDeathPhase, setSuddenDeathPhase] = useState<'first' | 'cooldown' | 'second' | null>(null)
   const [suddenDeathTimeLeft, setSuddenDeathTimeLeft] = useState(0)
   const [suddenDeathCooldown, setSuddenDeathCooldown] = useState(0)
+  const [isAdmin, setIsAdmin] = useState(false)
  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
   const popAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -245,6 +246,17 @@ export default function DebatePage() {
       } else {
         socket.emit('join_room', { instanceId, username: myUsername, elo: myElo })
       }
+      // Lightweight admin check — only used to decide whether to show the
+      // inline per-message delete button below. No-op for non-admins.
+      supabase.auth.getSession().then(({ data }) => {
+        socket.emit('admin_check', { token: data.session?.access_token })
+      })
+    })
+
+    socket.on('admin_check_result', ({ isAdmin: ok }: { isAdmin: boolean }) => setIsAdmin(ok))
+
+    socket.on('message_deleted', ({ messageId }: { messageId: string }) => {
+      setMessages(prev => prev.filter(m => m.id !== messageId))
     })
 
     socket.on('join_as_spectator', ({ instanceId: rid }: { instanceId: string }) => {
@@ -527,6 +539,15 @@ export default function DebatePage() {
     cooldownRef.current = setInterval(() => {
       setCooldown(prev => { if (prev <= 1) { clearInterval(cooldownRef.current); return 0 } return prev - 1 })
     }, 1000)
+  }
+
+  // Admin-only: delete someone's (or your own) message directly from the live room.
+  const handleAdminDelete = async (messageId: string) => {
+    if (!socketRef.current) return
+    const { data } = await supabase.auth.getSession()
+    socketRef.current.emit('admin_delete_message', {
+      instanceId, messageId, username: myUsername, token: data.session?.access_token,
+    })
   }
 
   const handleLeaveClick = () => {
@@ -889,6 +910,15 @@ export default function DebatePage() {
                           <span style={{ fontSize: '11px', color: 'var(--blue)', lineHeight: 1.5 }}>
                             🤖 {msg.aiFeedback}
                           </span>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleAdminDelete(msg.id)}
+                            title="Delete this message (admin)"
+                            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '1px 7px', color: 'var(--red)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}
+                          >
+                            🗑
+                          </button>
                         )}
                       </>
                     )}
