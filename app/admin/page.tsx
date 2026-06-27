@@ -343,6 +343,17 @@ export default function AdminPanel() {
     setSkitFeedback('')
   }
 
+  async function closeSkit() {
+    if (!activeSkitRoomId) return
+    const token = await getFreshToken()
+    // Actually end the room server-side — closing it locally only hid it from
+    // this panel, it never told the server, so the room (and its empty-room
+    // exemption) stayed alive forever in the lobby.
+    socketRef.current?.emit('admin_end_debate', { instanceId: activeSkitRoomId, username: myUsername, token })
+    setActiveSkitRoomId(null)
+    setSkitMessages([])
+  }
+
   // ── Advanced custom games ────────────────────────────────────────
   function addBot() {
     if (advBots.length >= 10) return
@@ -603,7 +614,7 @@ export default function AdminPanel() {
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <Button onClick={() => sendSkit('pro')} variant="green">Send as Pro</Button>
                     <Button onClick={() => sendSkit('con')} variant="red">Send as Con</Button>
-                    <Button onClick={() => { setActiveSkitRoomId(null); setSkitMessages([]) }}>Close skit</Button>
+                    <Button onClick={closeSkit}>Close skit</Button>
                   </div>
                 </>
               )}
