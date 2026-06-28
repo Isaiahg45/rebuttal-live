@@ -2496,22 +2496,24 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   socket.on('admin_list_users', async ({ token }) => {
     if (!(await isAdminToken(token))) return
     try {
-      let data = await supabaseRest('profiles?select=username,elo,banned&order=username.asc&limit=1000')
+      let data = await supabaseRest('profiles?select=username,elo,banned&username=not.is.null&order=username.asc&limit=500')
       if (!Array.isArray(data)) {
         // `banned` column probably doesn't exist yet — fall back to a minimal select
         // so the list still populates. Run the migration mentioned above to get ban status too.
         console.log('admin_list_users: full select failed, falling back —', JSON.stringify(data))
-        data = await supabaseRest('profiles?select=username,elo&order=username.asc&limit=1000')
+        data = await supabaseRest('profiles?select=username,elo&username=not.is.null&order=username.asc&limit=500')
       }
       if (!Array.isArray(data)) {
         console.log('admin_list_users: profiles query failed entirely —', JSON.stringify(data))
         data = []
       }
-      const list = data.map(u => ({
-        username: u.username,
-        elo: u.elo ?? 0,
-        banned: !!u.banned,
-      }))
+      const list = data
+        .filter(u => u && typeof u.username === 'string' && u.username.trim().length > 0)
+        .map(u => ({
+          username: u.username,
+          elo: u.elo ?? 0,
+          banned: !!u.banned,
+        }))
       socket.emit('admin_users_list', list)
     } catch (e) {
       console.log('admin_list_users error:', e.message)

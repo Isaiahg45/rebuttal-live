@@ -516,7 +516,7 @@ export default function AdminPanel() {
   }
 
   const activeSkitTopic = rooms.find(r => r.instanceId === activeSkitRoomId)?.topic
-  const filteredUsers = users.filter(u => u.username.toLowerCase().includes(userSearch.trim().toLowerCase()))
+  const filteredUsers = users.filter(u => u && typeof u.username === 'string' && u.username.toLowerCase().includes(userSearch.trim().toLowerCase()))
 
   return (
     <>
