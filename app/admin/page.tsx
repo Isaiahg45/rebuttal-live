@@ -81,7 +81,7 @@ interface BotConfig {
 }
 
 type DurationUnit = 'seconds' | 'minutes' | 'hours'
-type Tab = 'settings' | 'skits' | 'games' | 'users'
+type Tab = 'settings' | 'skits' | 'users'
 
 const DEFAULT_SETTINGS: AdminSettings = {
   adminEmails: ['lg@isaiahlive.com', 'zachariussong@gmail.com'],
@@ -181,7 +181,6 @@ function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'de
 const TABS: { id: Tab; label: string }[] = [
   { id: 'settings', label: 'Settings' },
   { id: 'skits', label: 'Skit Mode' },
-  { id: 'games', label: 'Advanced Custom Games' },
   { id: 'users', label: 'Rebuttal Users' },
 ]
 
@@ -211,23 +210,22 @@ export default function AdminPanel() {
   const [skitScore, setSkitScore] = useState('15')
   const [skitFeedback, setSkitFeedback] = useState('')
 
-  // ── Advanced custom games state ──────────────────────────────────
-  const [advTopic, setAdvTopic] = useState('')
-  const [advDebateType, setAdvDebateType] = useState<'text' | 'vc'>('text')
-  const [advMaxPlayers, setAdvMaxPlayers] = useState('4')
-  const [advUnlimitedPlayers, setAdvUnlimitedPlayers] = useState(false)
-  const [advDurationValue, setAdvDurationValue] = useState('5')
-  const [advDurationUnit, setAdvDurationUnit] = useState<DurationUnit>('minutes')
-  const [advUnlimited, setAdvUnlimited] = useState(false)
-  const [advBots, setAdvBots] = useState<BotConfig[]>([])
-  const [advCreating, setAdvCreating] = useState(false)
-  const [advError, setAdvError] = useState('')
+  // Capacity, duration, and bots — folded in from the old Advanced Custom
+  // Games tab, since a skit is just a "pretend game" with the same needs.
+  const [skitMaxPlayers, setSkitMaxPlayers] = useState('10')
+  const [skitUnlimitedPlayers, setSkitUnlimitedPlayers] = useState(true)
+  const [skitDurationValue, setSkitDurationValue] = useState('5')
+  const [skitDurationUnit, setSkitDurationUnit] = useState<DurationUnit>('minutes')
+  const [skitUnlimitedDuration, setSkitUnlimitedDuration] = useState(true)
+  const [skitBots, setSkitBots] = useState<BotConfig[]>([])
+  const [skitCreating, setSkitCreating] = useState(false)
+  const [skitError, setSkitError] = useState('')
+  const [endingAllSkits, setEndingAllSkits] = useState(false)
 
-  // Room-level moderation (end debate / force result)
-  const [actionRoomId, setActionRoomId] = useState('')
-  const [resultWinner, setResultWinner] = useState('')
-  const [resultWinnerElo, setResultWinnerElo] = useState('25')
-  const [resultLoserElo, setResultLoserElo] = useState('25')
+  // Force-result controls for the currently open skit
+  const [skitWinner, setSkitWinner] = useState('')
+  const [skitWinnerElo, setSkitWinnerElo] = useState('25')
+  const [skitLoserElo, setSkitLoserElo] = useState('25')
 
   // ── Rebuttal users state ─────────────────────────────────────────
   const [users, setUsers] = useState<RebuttalUser[]>([])
@@ -258,13 +256,9 @@ export default function AdminPanel() {
     socket.on('rooms_update', (r: RoomSummary[]) => setRooms(r))
 
     socket.on('admin_skit_created', ({ instanceId }: { instanceId: string; topic: string }) => {
+      setSkitCreating(false)
       setActiveSkitRoomId(instanceId)
       setSkitMessages([])
-    })
-
-    socket.on('advanced_room_created', ({ instanceId }: { instanceId: string }) => {
-      setAdvCreating(false)
-      setActionRoomId(instanceId)
     })
 
     socket.on('new_message', (msg: SkitMessage) => {
@@ -280,7 +274,8 @@ export default function AdminPanel() {
 
     socket.on('error', ({ message }: { message: string }) => {
       alert(message)
-      setAdvCreating(false)
+      setSkitCreating(false)
+      setEndingAllSkits(false)
     })
 
     const timeoutId = setTimeout(() => setAuthorized(false), 2000)
@@ -313,9 +308,56 @@ export default function AdminPanel() {
   }
 
   // ── Skit mode ─────────────────────────────────────────────────────
+  function addBot() {
+    if (skitBots.length >= 10) return
+    setSkitBots(prev => [...prev, { id: uid(), name: `Bot ${prev.length + 1}`, mode: 'auto', scriptedLines: [] }])
+  }
+
+  function removeBot(id: string) {
+    setSkitBots(prev => prev.filter(b => b.id !== id))
+  }
+
+  function updateBot(id: string, patch: Partial<BotConfig>) {
+    setSkitBots(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)))
+  }
+
+  function addScriptedLine(botId: string) {
+    setSkitBots(prev => prev.map(b => b.id === botId
+      ? { ...b, scriptedLines: [...b.scriptedLines, { id: uid(), text: '', atSeconds: 20 }] }
+      : b))
+  }
+
+  function updateScriptedLine(botId: string, lineId: string, patch: Partial<ScriptedLine>) {
+    setSkitBots(prev => prev.map(b => b.id === botId
+      ? { ...b, scriptedLines: b.scriptedLines.map(l => (l.id === lineId ? { ...l, ...patch } : l)) }
+      : b))
+  }
+
+  function removeScriptedLine(botId: string, lineId: string) {
+    setSkitBots(prev => prev.map(b => b.id === botId
+      ? { ...b, scriptedLines: b.scriptedLines.filter(l => l.id !== lineId) }
+      : b))
+  }
+
   async function createSkitRoom() {
-    if (!skitTopic.trim()) { alert('Give the skit a topic first.'); return }
+    if (!skitTopic.trim() || skitTopic.trim().length < 10) { setSkitError('Topic needs to be at least 10 characters.'); return }
+    const isVoice = skitDebateType === 'voice'
+    const maxPlayers = Number(skitMaxPlayers)
+    if (!isVoice && !skitUnlimitedPlayers && (!maxPlayers || maxPlayers < 1)) { setSkitError('Max players must be at least 1.'); return }
+    const durationValue = Number(skitDurationValue)
+    if (!skitUnlimitedDuration && (!durationValue || durationValue < 1)) { setSkitError('Duration must be at least 1 second.'); return }
+    if (!isVoice) {
+      for (const bot of skitBots) {
+        if (bot.mode === 'scripted' && bot.scriptedLines.some(l => !l.text.trim())) {
+          setSkitError(`${bot.name} has a scripted line with no text.`)
+          return
+        }
+      }
+    }
+    setSkitError('')
+    setSkitCreating(true)
     const token = await getFreshToken()
+    const duration = skitUnlimitedDuration ? 'unlimited' : unitToSeconds(durationValue, skitDurationUnit)
     socketRef.current?.emit('admin_create_skit_room', {
       username: myUsername,
       topic: skitTopic.trim(),
@@ -323,6 +365,16 @@ export default function AdminPanel() {
       emoji: skitEmoji.trim() || undefined,
       proLabel: skitProLabel.trim() || undefined,
       conLabel: skitConLabel.trim() || undefined,
+      maxPlayers,
+      unlimitedPlayers: skitUnlimitedPlayers,
+      duration,
+      bots: isVoice ? [] : skitBots.map(b => ({
+        name: b.name.trim() || 'Bot',
+        mode: b.mode,
+        script: b.mode === 'scripted'
+          ? b.scriptedLines.map(l => ({ text: l.text.trim(), atSeconds: Math.max(0, Math.round(l.atSeconds)) }))
+          : undefined,
+      })),
       token,
     })
   }
@@ -343,6 +395,13 @@ export default function AdminPanel() {
     setSkitFeedback('')
   }
 
+  function resetSkitCreationForm() {
+    setSkitTopic(''); setSkitBots([])
+    setSkitMaxPlayers('10'); setSkitUnlimitedPlayers(true)
+    setSkitDurationValue('5'); setSkitUnlimitedDuration(true)
+    setSkitWinner(''); setSkitWinnerElo('25'); setSkitLoserElo('25')
+  }
+
   async function closeSkit() {
     if (!activeSkitRoomId) return
     const token = await getFreshToken()
@@ -352,99 +411,45 @@ export default function AdminPanel() {
     socketRef.current?.emit('admin_end_debate', { instanceId: activeSkitRoomId, username: myUsername, token })
     setActiveSkitRoomId(null)
     setSkitMessages([])
+    resetSkitCreationForm()
   }
 
-  // ── Advanced custom games ────────────────────────────────────────
-  function addBot() {
-    if (advBots.length >= 10) return
-    setAdvBots(prev => [...prev, { id: uid(), name: `Bot ${prev.length + 1}`, mode: 'auto', scriptedLines: [] }])
-  }
-
-  function removeBot(id: string) {
-    setAdvBots(prev => prev.filter(b => b.id !== id))
-  }
-
-  function updateBot(id: string, patch: Partial<BotConfig>) {
-    setAdvBots(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)))
-  }
-
-  function addScriptedLine(botId: string) {
-    setAdvBots(prev => prev.map(b => b.id === botId
-      ? { ...b, scriptedLines: [...b.scriptedLines, { id: uid(), text: '', atSeconds: 20 }] }
-      : b))
-  }
-
-  function updateScriptedLine(botId: string, lineId: string, patch: Partial<ScriptedLine>) {
-    setAdvBots(prev => prev.map(b => b.id === botId
-      ? { ...b, scriptedLines: b.scriptedLines.map(l => (l.id === lineId ? { ...l, ...patch } : l)) }
-      : b))
-  }
-
-  function removeScriptedLine(botId: string, lineId: string) {
-    setAdvBots(prev => prev.map(b => b.id === botId
-      ? { ...b, scriptedLines: b.scriptedLines.filter(l => l.id !== lineId) }
-      : b))
-  }
-
-  async function createAdvancedRoom() {
-    if (!advTopic.trim() || advTopic.trim().length < 10) { setAdvError('Topic needs to be at least 10 characters.'); return }
-    const isVoice = advDebateType === 'vc'
-    const maxPlayers = Number(advMaxPlayers)
-    if (!isVoice && !advUnlimitedPlayers && (!maxPlayers || maxPlayers < 1)) { setAdvError('Max players must be at least 1.'); return }
-    const durationValue = Number(advDurationValue)
-    if (!advUnlimited && (!durationValue || durationValue < 1)) { setAdvError('Duration must be at least 1 second.'); return }
-    if (!isVoice) {
-      for (const bot of advBots) {
-        if (bot.mode === 'scripted' && bot.scriptedLines.some(l => !l.text.trim())) {
-          setAdvError(`${bot.name} has a scripted line with no text.`)
-          return
-        }
-      }
-    }
-    setAdvError('')
-    setAdvCreating(true)
-    const token = await getFreshToken()
-    const duration = advUnlimited ? 'unlimited' : unitToSeconds(durationValue, advDurationUnit)
-    socketRef.current?.emit('admin_create_advanced_room', {
-      username: myUsername,
-      topic: advTopic.trim(),
-      maxPlayers,
-      unlimitedPlayers: advUnlimitedPlayers,
-      duration,
-      debateType: advDebateType,
-      bots: isVoice ? [] : advBots.map(b => ({
-        name: b.name.trim() || 'Bot',
-        mode: b.mode,
-        script: b.mode === 'scripted'
-          ? b.scriptedLines.map(l => ({ text: l.text.trim(), atSeconds: Math.max(0, Math.round(l.atSeconds)) }))
-          : undefined,
-      })),
-      token,
-    })
-  }
-
-  // ── Room-level moderation ──────────────────────────────────────────
-  async function endDebate() {
-    if (!actionRoomId) { alert('Pick a room first.'); return }
-    const token = await getFreshToken()
-    socketRef.current?.emit('admin_end_debate', { instanceId: actionRoomId, username: myUsername, token })
-  }
-
-  async function setCustomResult() {
-    if (!actionRoomId || !resultWinner.trim()) { alert('Need a room and a winner username.'); return }
+  // Manual winner + ELO declaration for the currently open skit. This is the
+  // primary way a skit ends — pick who "won" (the host, a bot, or anyone
+  // else currently in the room) and how much ELO they gain/lose.
+  // Note: since nobody in a skit is a real connected player, these ELO
+  // numbers are cosmetic/declarative — they're broadcast with the result but
+  // don't get written to any real Supabase profile.
+  async function forceSkitResult() {
+    if (!activeSkitRoomId || !skitWinner.trim()) { alert('Need a winner.'); return }
     const token = await getFreshToken()
     socketRef.current?.emit('admin_set_custom_result', {
-      instanceId: actionRoomId,
+      instanceId: activeSkitRoomId,
       username: myUsername,
-      winnerUsername: resultWinner.trim(),
+      winnerUsername: skitWinner.trim(),
       eloChanges: {
-        winnerElo: Number(resultWinnerElo) || 0,
+        winnerElo: Number(skitWinnerElo) || 0,
         secondElo: 0,
         thirdElo: 0,
-        loserBase: Number(resultLoserElo) || 0,
+        loserBase: Number(skitLoserElo) || 0,
       },
       token,
     })
+    setActiveSkitRoomId(null)
+    setSkitMessages([])
+    resetSkitCreationForm()
+  }
+
+  // Kill switch — force-ends every skit room this admin has created, in
+  // case one (or several) got left running and needs cleaning up fast.
+  async function endAllSkits() {
+    if (!confirm('Force-end every active skit room? This cannot be undone.')) return
+    setEndingAllSkits(true)
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_end_all_skits', { username: myUsername, token })
+    setActiveSkitRoomId(null)
+    setSkitMessages([])
+    setTimeout(() => setEndingAllSkits(false), 1500)
   }
 
   // ── Rebuttal users ────────────────────────────────────────────────
@@ -571,224 +576,221 @@ export default function AdminPanel() {
           )}
 
           {/* ── Skit mode tab ───────────────────────────────────── */}
-          {tab === 'skits' && (
-            <Card title="Skit mode" subtitle="Script both sides of a debate without real accounts — for marketing clips and demos">
-              {!activeSkitRoomId ? (
-                <>
-                  <Field label="Topic"><input style={inputStyle} value={skitTopic} onChange={e => setSkitTopic(e.target.value)} placeholder="Is pineapple on pizza a crime?" /></Field>
-                  <Field label="Debate type">
-                    <select style={inputStyle} value={skitDebateType} onChange={e => setSkitDebateType(e.target.value as 'text' | 'voice')}>
-                      <option value="text">Text</option>
-                      <option value="voice">Voice</option>
-                    </select>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
-                      Voice just changes the room's label/emoji for now — your scripted lines still show as text, since there's no audio synthesis wired up yet.
-                    </div>
-                  </Field>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Field label="Emoji (optional)"><input style={inputStyle} value={skitEmoji} onChange={e => setSkitEmoji(e.target.value)} placeholder={settings.skitDefaultEmoji} /></Field>
-                    <Field label="Pro label (optional)"><input style={inputStyle} value={skitProLabel} onChange={e => setSkitProLabel(e.target.value)} placeholder={settings.skitDefaultProLabel} /></Field>
-                    <Field label="Con label (optional)"><input style={inputStyle} value={skitConLabel} onChange={e => setSkitConLabel(e.target.value)} placeholder={settings.skitDefaultConLabel} /></Field>
+          {tab === 'skits' && (() => {
+            const activeSkitRoom = rooms.find(r => r.instanceId === activeSkitRoomId)
+            const skitParticipants = activeSkitRoom?.players || []
+            return (
+              <>
+                <Card title="Pretend games" subtitle="Script a debate with optional bots, capacity, and duration — for marketing clips and demos. No real accounts are touched.">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px' }}>
+                    <Button small variant="red" onClick={endAllSkits} disabled={endingAllSkits}>
+                      {endingAllSkits ? 'Ending…' : '🛑 End ALL skits (kill switch)'}
+                    </Button>
                   </div>
-                  <Button onClick={createSkitRoom} variant="accent">Create skit room</Button>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>
-                    🎬 Live: <b>{activeSkitTopic}</b> ({activeSkitRoomId})
-                  </div>
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {skitMessages.length === 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No lines yet — write the first one below.</div>}
-                    {skitMessages.map(m => (
-                      <div key={m.id} style={{ fontSize: '13px' }}>
-                        <b style={{ color: 'var(--accent)' }}>{m.username}:</b> {m.text}
-                        <span style={{ color: 'var(--muted)', fontSize: '11px', marginLeft: '6px' }}>+{m.score} pts{m.aiFeedback ? ` — ${m.aiFeedback}` : ''}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <Field label="Line"><textarea style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} value={skitText} onChange={e => setSkitText(e.target.value)} /></Field>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Field label="Score"><input style={inputStyle} type="number" min={0} max={30} value={skitScore} onChange={e => setSkitScore(e.target.value)} /></Field>
-                    <Field label="AI feedback (optional)"><input style={inputStyle} value={skitFeedback} onChange={e => setSkitFeedback(e.target.value)} /></Field>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Button onClick={() => sendSkit('pro')} variant="green">Send as Pro</Button>
-                    <Button onClick={() => sendSkit('con')} variant="red">Send as Con</Button>
-                    <Button onClick={closeSkit}>Close skit</Button>
-                  </div>
-                </>
-              )}
-            </Card>
-          )}
 
-          {/* ── Advanced custom games tab ───────────────────────── */}
-          {tab === 'games' && (
-            <>
-              <Card title="Create an advanced custom room" subtitle="Set the debate type, capacity, duration, and bot behavior before the game starts">
-                <Field label="Topic"><input style={inputStyle} value={advTopic} onChange={e => setAdvTopic(e.target.value)} placeholder="At least 10 characters" /></Field>
+                  {!activeSkitRoomId ? (
+                    <>
+                      <Field label="Topic"><input style={inputStyle} value={skitTopic} onChange={e => setSkitTopic(e.target.value)} placeholder="At least 10 characters" /></Field>
 
-                <Field label="Debate type">
-                  <select style={inputStyle} value={advDebateType} onChange={e => setAdvDebateType(e.target.value as 'text' | 'vc')}>
-                    <option value="text">Text (1 to unlimited players)</option>
-                    <option value="vc">Voice (1v1 only)</option>
-                  </select>
-                </Field>
+                      <Field label="Debate type">
+                        <select style={inputStyle} value={skitDebateType} onChange={e => setSkitDebateType(e.target.value as 'text' | 'voice')}>
+                          <option value="text">Text (1 to unlimited players)</option>
+                          <option value="voice">Voice</option>
+                        </select>
+                        {skitDebateType === 'voice' && (
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                            Voice just changes the room's label/emoji for now — your scripted lines still show as text, and bots aren't available since there's no audio synthesis wired up yet.
+                          </div>
+                        )}
+                      </Field>
 
-                {advDebateType === 'text' ? (
-                  <Field label="Max players">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <input
-                        style={{ ...inputStyle, opacity: advUnlimitedPlayers ? 0.4 : 1, width: '120px' }}
-                        type="number" min={1} disabled={advUnlimitedPlayers}
-                        value={advMaxPlayers} onChange={e => setAdvMaxPlayers(e.target.value)}
-                      />
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={advUnlimitedPlayers} onChange={e => setAdvUnlimitedPlayers(e.target.checked)} />
-                        Unlimited players
-                      </label>
-                    </div>
-                  </Field>
-                ) : (
-                  <Field label="Max players">
-                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>2 (voice debates are 1v1 only)</div>
-                  </Field>
-                )}
+                      {skitDebateType === 'text' ? (
+                        <Field label="Max players">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <input
+                              style={{ ...inputStyle, opacity: skitUnlimitedPlayers ? 0.4 : 1, width: '120px' }}
+                              type="number" min={1} disabled={skitUnlimitedPlayers}
+                              value={skitMaxPlayers} onChange={e => setSkitMaxPlayers(e.target.value)}
+                            />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={skitUnlimitedPlayers} onChange={e => setSkitUnlimitedPlayers(e.target.checked)} />
+                              Unlimited players
+                            </label>
+                          </div>
+                        </Field>
+                      ) : (
+                        <Field label="Max players">
+                          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Cosmetic only for voice skits — no real mic flow is involved.</div>
+                        </Field>
+                      )}
 
-                <Field label="Duration">
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input
-                      style={{ ...inputStyle, opacity: advUnlimited ? 0.4 : 1, width: '110px' }}
-                      type="number" min={1} disabled={advUnlimited}
-                      value={advDurationValue} onChange={e => setAdvDurationValue(e.target.value)}
-                    />
-                    <select
-                      style={{ ...inputStyle, opacity: advUnlimited ? 0.4 : 1, width: '130px' }}
-                      disabled={advUnlimited} value={advDurationUnit}
-                      onChange={e => setAdvDurationUnit(e.target.value as DurationUnit)}
-                    >
-                      <option value="seconds">Seconds</option>
-                      <option value="minutes">Minutes</option>
-                      <option value="hours">Hours</option>
-                    </select>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={advUnlimited} onChange={e => setAdvUnlimited(e.target.checked)} />
-                      Unlimited (never auto-ends)
-                    </label>
-                  </div>
-                  {!advUnlimited && Number(advDurationValue) > 0 && (
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
-                      = {formatSeconds(unitToSeconds(Number(advDurationValue), advDurationUnit))}
-                    </div>
-                  )}
-                </Field>
-
-                {/* ── Bots — text rooms only, no audio synthesis exists for voice bots ── */}
-                {advDebateType === 'text' && (
-                <Field label={`Bots (${advBots.length}/10)`}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {advBots.map(bot => (
-                      <div key={bot.id} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '12px' }}>
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                      <Field label="Duration">
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                           <input
-                            style={{ ...inputStyle, flex: 1 }}
-                            value={bot.name}
-                            onChange={e => updateBot(bot.id, { name: e.target.value })}
+                            style={{ ...inputStyle, opacity: skitUnlimitedDuration ? 0.4 : 1, width: '110px' }}
+                            type="number" min={1} disabled={skitUnlimitedDuration}
+                            value={skitDurationValue} onChange={e => setSkitDurationValue(e.target.value)}
                           />
                           <select
-                            style={{ ...inputStyle, width: '170px' }}
-                            value={bot.mode}
-                            onChange={e => updateBot(bot.id, { mode: e.target.value as 'auto' | 'scripted' })}
+                            style={{ ...inputStyle, opacity: skitUnlimitedDuration ? 0.4 : 1, width: '130px' }}
+                            disabled={skitUnlimitedDuration} value={skitDurationUnit}
+                            onChange={e => setSkitDurationUnit(e.target.value as DurationUnit)}
                           >
-                            <option value="auto">Auto-debate topic</option>
-                            <option value="scripted">Pre-scripted lines</option>
+                            <option value="seconds">Seconds</option>
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
                           </select>
-                          <Button small variant="red" onClick={() => removeBot(bot.id)}>Remove</Button>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={skitUnlimitedDuration} onChange={e => setSkitUnlimitedDuration(e.target.checked)} />
+                            Unlimited (never auto-ends)
+                          </label>
                         </div>
-
-                        {bot.mode === 'auto' ? (
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                            This bot will argue normally based on the room's topic, like any standard AI debater.
+                        {!skitUnlimitedDuration && Number(skitDurationValue) > 0 && (
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                            = {formatSeconds(unitToSeconds(Number(skitDurationValue), skitDurationUnit))}. If time runs out before you force a result, it'll auto-end ranked by bot score — use the winner controls below to end it on your terms instead.
                           </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {bot.scriptedLines.length === 0 && (
-                              <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No scripted lines yet — add one below.</div>
-                            )}
-                            {bot.scriptedLines.map(line => (
-                              <div key={line.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                <textarea
-                                  style={{ ...inputStyle, flex: 1, minHeight: '40px', resize: 'vertical' }}
-                                  placeholder="What the bot will say…"
-                                  value={line.text}
-                                  onChange={e => updateScriptedLine(bot.id, line.id, { text: e.target.value })}
-                                />
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        )}
+                      </Field>
+
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <Field label="Emoji (optional)"><input style={inputStyle} value={skitEmoji} onChange={e => setSkitEmoji(e.target.value)} placeholder={settings.skitDefaultEmoji} /></Field>
+                        <Field label="Pro label (optional)"><input style={inputStyle} value={skitProLabel} onChange={e => setSkitProLabel(e.target.value)} placeholder={settings.skitDefaultProLabel} /></Field>
+                        <Field label="Con label (optional)"><input style={inputStyle} value={skitConLabel} onChange={e => setSkitConLabel(e.target.value)} placeholder={settings.skitDefaultConLabel} /></Field>
+                      </div>
+
+                      {/* ── Bots — text skits only, no audio synthesis for voice ── */}
+                      {skitDebateType === 'text' && (
+                        <Field label={`Bots (${skitBots.length}/10)`}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {skitBots.map(bot => (
+                              <div key={bot.id} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '12px' }}>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
                                   <input
-                                    style={{ ...inputStyle, width: '80px' }}
-                                    type="number" min={0}
-                                    value={line.atSeconds}
-                                    onChange={e => updateScriptedLine(bot.id, line.id, { atSeconds: Number(e.target.value) })}
+                                    style={{ ...inputStyle, flex: 1 }}
+                                    value={bot.name}
+                                    onChange={e => updateBot(bot.id, { name: e.target.value })}
                                   />
-                                  <span style={{ fontSize: '10px', color: 'var(--muted)' }}>sec into game</span>
+                                  <select
+                                    style={{ ...inputStyle, width: '170px' }}
+                                    value={bot.mode}
+                                    onChange={e => updateBot(bot.id, { mode: e.target.value as 'auto' | 'scripted' })}
+                                  >
+                                    <option value="auto">Auto-debate topic</option>
+                                    <option value="scripted">Pre-scripted lines</option>
+                                  </select>
+                                  <Button small variant="red" onClick={() => removeBot(bot.id)}>Remove</Button>
                                 </div>
-                                <Button small variant="red" onClick={() => removeScriptedLine(bot.id, line.id)}>×</Button>
+
+                                {bot.mode === 'auto' ? (
+                                  <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                                    This bot will argue normally based on the room's topic, like any standard AI debater.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {bot.scriptedLines.length === 0 && (
+                                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No scripted lines yet — add one below.</div>
+                                    )}
+                                    {bot.scriptedLines.map(line => (
+                                      <div key={line.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                        <textarea
+                                          style={{ ...inputStyle, flex: 1, minHeight: '40px', resize: 'vertical' }}
+                                          placeholder="What the bot will say…"
+                                          value={line.text}
+                                          onChange={e => updateScriptedLine(bot.id, line.id, { text: e.target.value })}
+                                        />
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                          <input
+                                            style={{ ...inputStyle, width: '80px' }}
+                                            type="number" min={0}
+                                            value={line.atSeconds}
+                                            onChange={e => updateScriptedLine(bot.id, line.id, { atSeconds: Number(e.target.value) })}
+                                          />
+                                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>sec into game</span>
+                                        </div>
+                                        <Button small variant="red" onClick={() => removeScriptedLine(bot.id, line.id)}>×</Button>
+                                      </div>
+                                    ))}
+                                    <div>
+                                      <Button small onClick={() => addScriptedLine(bot.id)}>+ Add line</Button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                             <div>
-                              <Button small onClick={() => addScriptedLine(bot.id)}>+ Add line</Button>
+                              <Button onClick={addBot} disabled={skitBots.length >= 10}>+ Add bot</Button>
                             </div>
                           </div>
-                        )}
+                        </Field>
+                      )}
+
+                      {skitError && (
+                        <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>
+                          ⚠️ {skitError}
+                        </div>
+                      )}
+
+                      <Button onClick={createSkitRoom} variant="accent" disabled={skitCreating}>
+                        {skitCreating ? 'Creating…' : 'Create skit room'}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>
+                        🎬 Live: <b>{activeSkitTopic}</b> ({activeSkitRoomId})
                       </div>
-                    ))}
-                    <div>
-                      <Button onClick={addBot} disabled={advBots.length >= 10}>+ Add bot</Button>
-                    </div>
-                  </div>
-                </Field>
-                )}
+                      <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {skitMessages.length === 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No lines yet — write the first one below, or wait for any bots you added.</div>}
+                        {skitMessages.map(m => (
+                          <div key={m.id} style={{ fontSize: '13px' }}>
+                            <b style={{ color: 'var(--accent)' }}>{m.username}:</b> {m.text}
+                            <span style={{ color: 'var(--muted)', fontSize: '11px', marginLeft: '6px' }}>+{m.score} pts{m.aiFeedback ? ` — ${m.aiFeedback}` : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <Field label="Line"><textarea style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} value={skitText} onChange={e => setSkitText(e.target.value)} /></Field>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <Field label="Score"><input style={inputStyle} type="number" min={0} max={30} value={skitScore} onChange={e => setSkitScore(e.target.value)} /></Field>
+                        <Field label="AI feedback (optional)"><input style={inputStyle} value={skitFeedback} onChange={e => setSkitFeedback(e.target.value)} /></Field>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '18px' }}>
+                        <Button onClick={() => sendSkit('pro')} variant="green">Send as Pro</Button>
+                        <Button onClick={() => sendSkit('con')} variant="red">Send as Con</Button>
+                        <Button onClick={closeSkit}>End without a winner</Button>
+                      </div>
 
-                {advError && (
-                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>
-                    ⚠️ {advError}
-                  </div>
-                )}
-
-                <Button onClick={createAdvancedRoom} variant="accent" disabled={advCreating}>
-                  {advCreating ? 'Creating…' : 'Create advanced room'}
-                </Button>
-              </Card>
-
-              <Card title="Room controls" subtitle="End an unlimited-duration debate, or force a result on a custom room. Per-message delete now lives in the live debate room itself, not here.">
-                <Field label="Room">
-                  <select style={inputStyle} value={actionRoomId} onChange={e => setActionRoomId(e.target.value)}>
-                    <option value="">Select a room…</option>
-                    {rooms.map(r => (
-                      <option key={r.instanceId} value={r.instanceId}>
-                        [{r.status}] {r.topic} ({r.playerCount} in room)
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-                  <Button onClick={endDebate} variant="red">End this debate now</Button>
-                </div>
-
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '14px' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-                    Custom results only work on <b>custom</b> or <b>skit</b> rooms — not standard matchmaking rooms.
-                  </div>
-                  <Field label="Winner username"><input style={inputStyle} value={resultWinner} onChange={e => setResultWinner(e.target.value)} /></Field>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Field label="Winner ELO gain"><input style={inputStyle} type="number" value={resultWinnerElo} onChange={e => setResultWinnerElo(e.target.value)} /></Field>
-                    <Field label="Loser ELO loss"><input style={inputStyle} type="number" value={resultLoserElo} onChange={e => setResultLoserElo(e.target.value)} /></Field>
-                  </div>
-                  <Button onClick={setCustomResult} variant="accent">Force result</Button>
-                </div>
-              </Card>
-            </>
-          )}
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Declare a winner & end it</div>
+                        <Field label="Winner">
+                          <select
+                            style={inputStyle}
+                            value={skitParticipants.includes(skitWinner) ? skitWinner : ''}
+                            onChange={e => setSkitWinner(e.target.value)}
+                          >
+                            <option value="">Select…</option>
+                            {skitParticipants.map(p => (
+                              <option key={p} value={p}>{p}{p === myUsername ? ' (you, the host)' : ''}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Or type any other username">
+                          <input style={inputStyle} value={skitWinner} onChange={e => setSkitWinner(e.target.value)} placeholder="e.g. a guest who joined" />
+                        </Field>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <Field label="Winner ELO gain"><input style={inputStyle} type="number" value={skitWinnerElo} onChange={e => setSkitWinnerElo(e.target.value)} /></Field>
+                          <Field label="Everyone else ELO loss"><input style={inputStyle} type="number" value={skitLoserElo} onChange={e => setSkitLoserElo(e.target.value)} /></Field>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>
+                          These ELO numbers are declarative for the skit's outcome — nobody here is a real connected player, so no real Supabase profile gets touched.
+                        </div>
+                        <Button onClick={forceSkitResult} variant="accent">Force result & end</Button>
+                      </div>
+                    </>
+                  )}
+                </Card>
+              </>
+            )
+          })()}
 
           {/* ── Rebuttal users tab ──────────────────────────────── */}
           {tab === 'users' && (

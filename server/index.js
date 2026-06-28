@@ -2259,7 +2259,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: skit mode — scripted debates, no real accounts needed ─
- socket.on('admin_create_skit_room', async ({ username, topic, emoji, proLabel, conLabel, debateType, token }) => {
+ socket.on('admin_create_skit_room', async ({ username, topic, emoji, proLabel, conLabel, debateType, maxPlayers, unlimitedPlayers, duration, bots, token }) => {
     if (!(await isAdminToken(token))) return
     const id = `skit_${++roomCounter}_${Date.now()}`
     const isVoice = debateType === 'voice'
@@ -2270,28 +2270,85 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     // for scripted lines) — using type:'vc' here would hand the room to the real
     // voice-debate game loop (turn timers, 2-player auto-start, auto-end), which
     // would fight with admin-scripted messages and could end the room prematurely.
+    const resolvedMaxPlayers = isVoice ? 999 : (unlimitedPlayers ? 999999 : Math.max(1, Number(maxPlayers) || 999))
+    const wantsUnlimitedDuration = duration === 'unlimited' || duration === undefined || duration === null
+    const resolvedDuration = wantsUnlimitedDuration ? null : Math.max(1, Number(duration) || 0)
+
+    const hostKey = `skit_host_${id}`
+    // Seed the admin as a permanent "host" entry so playerCount is never 0.
+    // The empty-room auto-expire check elsewhere only fires when playerCount
+    // === 0 — this makes that condition impossible for skit rooms, so the
+    // room can never be mistaken for an abandoned one nobody joined.
+    const players = { [hostKey]: { username, score: 0, elo: 0, isSkitHost: true } }
+    const botScripts = {}
+
+    // Bots — same shape/behavior as the old Advanced Custom Games feature,
+    // now folded directly into skit creation. Text rooms only — no audio
+    // synthesis exists for a bot to "speak" in a voice skit.
+    const botList = !isVoice && Array.isArray(bots) ? bots.slice(0, 10) : []
+    botList.forEach((bot, i) => {
+      const botUsername = (bot.name && String(bot.name).trim()) || `Bot${i + 1}`
+      const botKey = `bot_skit_${id}_${i}`
+      const botEloData = botElos[botUsername] || { elo: 100 }
+      players[botKey] = { username: botUsername, score: 0, elo: botEloData.elo, isAdvBot: true }
+      botScripts[botKey] = {
+        mode: bot.mode === 'scripted' ? 'scripted' : 'auto',
+        script: Array.isArray(bot.script)
+          ? bot.script.map(l => ({ text: String(l.text || ''), atSeconds: Math.max(0, Number(l.atSeconds) || 0), sent: false }))
+          : [],
+      }
+    })
+
     rooms[id] = {
       instanceId: id, type: 'custom', isSkit: true, isCustom: true,
       skitDebateType: isVoice ? 'voice' : 'text',
       emoji: emoji || (isVoice ? '🎙️' : adminSettings.skitDefaultEmoji), topic: topic || 'Scripted Debate',
-      duration: null, eloRequired: 0,
-      maxPlayers: 999,
-      // Seed the admin as a permanent "host" entry so playerCount is never 0.
-      // The empty-room auto-expire check elsewhere only fires when playerCount
-      // === 0 — this makes that condition impossible for skit rooms, so the
-      // room can never be mistaken for an abandoned one nobody joined.
-      players: { [`skit_host_${id}`]: { username, score: 0, elo: 0, isSkitHost: true } },
+      duration: resolvedDuration, eloRequired: 0,
+      maxPlayers: resolvedMaxPlayers,
+      players,
       spectators: {}, messages: [],
       status: 'active', countdown: 0, startCountdown: null,
-      debateEndsAt: null,
+      // Skits start active immediately (no waiting/starting phase), so the
+      // timer + bot-loop fields that normally get set on that transition
+      // have to be seeded here instead.
+      debateEndsAt: resolvedDuration ? Date.now() + resolvedDuration * 1000 : null,
+      debateStartedAt: Date.now(),
+      botScripts,
       createdAt: Date.now(),
       skitSides: { pro: proLabel || adminSettings.skitDefaultProLabel, con: conLabel || adminSettings.skitDefaultConLabel },
       createdBy: username,
     }
+
+    // Kick off auto-mode bots right away — normally this fires on the
+    // waiting->active transition, which skits skip entirely.
+    Object.entries(botScripts).forEach(([botKey, cfg]) => {
+      if (cfg.mode === 'auto') startAdvancedAutoBot(id, botKey)
+    })
+
     socket.join(id)
     socket.emit('admin_skit_created', { instanceId: id, topic: rooms[id].topic })
     io.emit('rooms_update', getRoomList())
-    console.log(`🎬 Admin ${username} created ${isVoice ? 'voice' : 'text'} skit room "${rooms[id].topic}"`)
+    console.log(`🎬 Admin ${username} created ${isVoice ? 'voice' : 'text'} skit room "${rooms[id].topic}" with ${botList.length} bot(s), ${wantsUnlimitedDuration ? 'unlimited' : resolvedDuration + 's'}`)
+  })
+
+  // ── Admin: kill switch — force-end every skit room this admin has created ─
+  socket.on('admin_end_all_skits', async ({ username, token }) => {
+    if (!(await isAdminToken(token))) return
+    let count = 0
+    for (const room of Object.values(rooms)) {
+      if (!room.isSkit || room.status === 'ended') continue
+      room.status = 'ended'
+      const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+      io.to(room.instanceId).emit('debate_ended', {
+        standings: sorted,
+        eloChanges: { winnerElo: 0, secondElo: 0, thirdElo: 0, loserBase: 0 },
+        type: room.type,
+        adminEnded: true,
+      })
+      count++
+    }
+    io.emit('rooms_update', getRoomList())
+    console.log(`🛑 Admin ${username} force-ended ${count} skit room(s)`)
   })
 
   socket.on('admin_skit_message', async ({ instanceId, username, side, text, score, feedback, token }) => {
