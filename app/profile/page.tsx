@@ -30,6 +30,7 @@ const [bio, setBio] = useState('')
   const [badges, setBadges] = useState<string[]>([])
   const [badgeSaving, setBadgeSaving] = useState(false)
   const [proLoading, setProLoading] = useState(false)
+  const [adminMessages, setAdminMessages] = useState<any[]>([])
   const BADGE_OPTIONS = [
     // Politics
     'Conservative', 'Liberal', 'Libertarian', 'Socialist', 'Progressive', 'Moderate', 'Apolitical',
@@ -74,6 +75,27 @@ const [bio, setBio] = useState('')
   useEffect(() => {
     supabase.from('profiles').select('username, elo').order('elo', { ascending: false }).then(({ data }) => setPlayers(data ?? []))
   }, [])
+
+  // Messages from Rebuttal Live (admin warnings/comments) — fetched
+  // independently of the bell's notification hook so they stay visible here
+  // even after being dismissed from the bell (which just sets seen=true).
+  useEffect(() => {
+    if (!profile?.username) return
+    supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_username', profile.username)
+      .eq('type', 'admin_warning')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setAdminMessages(data ?? []))
+  }, [profile?.username])
+
+  const markMessageRead = async (id: string) => {
+    await supabase.from('notifications').update({ seen: true }).eq('id', id)
+    setAdminMessages(prev => prev.map(m => (m.id === id ? { ...m, seen: true } : m)))
+  }
+
+  const stripRebuttalLivePrefix = (msg: string) => msg.replace(/^⚠️\s*Rebuttal Live:\s*/, '')
 
   useEffect(() => {
     if (!newUsername || newUsername === profile?.username) { setUsernameAvailable(null); setUsernameError(''); return }
@@ -276,6 +298,33 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
 
         <div style={{ maxWidth: '640px', margin: '0 auto', padding: 'clamp(20px,4vw,32px) clamp(16px,4vw,24px)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+          {/* Messages from Rebuttal Live */}
+          {adminMessages.length > 0 && (
+            <div style={{ background: 'rgba(255,214,10,0.04)', border: '1px solid rgba(255,214,10,0.25)', borderRadius: '14px', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,214,10,0.15)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#ffd60a' }}>
+                📨 MESSAGES FROM REBUTTAL LIVE
+              </div>
+              <div>
+                {adminMessages.map(m => (
+                  <div key={m.id} style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', opacity: m.seen ? 0.55 : 1 }}>
+                    <div>
+                      <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{stripRebuttalLivePrefix(m.message)}</div>
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', marginTop: '4px' }}>
+                        {new Date(m.created_at).toLocaleString()}
+                        {!m.seen && <span style={{ color: '#ffd60a', fontWeight: 700, marginLeft: '8px', letterSpacing: '1px' }}>NEW</span>}
+                      </div>
+                    </div>
+                    {!m.seen && (
+                      <button onClick={() => markMessageRead(m.id)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 10px', color: 'rgba(255,255,255,0.5)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        Mark read
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>

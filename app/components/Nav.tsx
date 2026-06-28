@@ -126,12 +126,31 @@ const avatarUrl = profile?.avatar_url ?? null
                         </div>
                       ) : (
                         <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-                          {notifications.map(n => (
-                            <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', background: 'rgba(255,255,255,0.02)' }}>
-                              <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5, flex: 1 }}>{n.message}</div>
-                              <button onClick={() => markSeen(n.id)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 8px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}>✕</button>
-                            </div>
-                          ))}
+                          {notifications.map(n => {
+                            const isAdminMsg = n.type === 'admin_warning'
+                            return (
+                              <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', background: isAdminMsg ? 'rgba(255,214,10,0.05)' : 'rgba(255,255,255,0.02)' }}>
+                                <div style={{ flex: 1 }}>
+                                  {isAdminMsg ? (
+                                    <>
+                                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffd60a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        📨 Rebuttal Live sent you a message
+                                      </div>
+                                      <button
+                                        onClick={() => { setShowNotifs(false); router.push('/profile') }}
+                                        style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'underline', padding: 0, marginTop: '4px' }}
+                                      >
+                                        View in profile →
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{n.message}</div>
+                                  )}
+                                </div>
+                                <button onClick={() => markSeen(n.id)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 8px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap', flexShrink: 0 }}>✕</button>
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
