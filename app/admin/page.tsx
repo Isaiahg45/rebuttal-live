@@ -10,26 +10,25 @@ const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
 // ─────────────────────────────────────────────────────────────────────────
 // NOTE ON BACKEND DEPENDENCIES
-// This file is frontend-only. The events below are NEW and assume matching
-// handlers exist (or will be added) on the Socket.io server. Anything
-// already in your server today (admin_get_settings, admin_update_settings,
-// admin_create_skit_room, admin_skit_message, create_custom_room,
-// admin_end_debate, admin_delete_message, admin_set_custom_result,
-// rooms_update, new_message) is untouched in behavior.
-//
-// NEW events this file emits/listens for — you'll need to add these server-side:
-//   admin_create_advanced_room   { username, topic, maxPlayers, duration, debateType, bots, token }
-//     -> emit back: advanced_room_created { instanceId }
-//   admin_list_users             { token }
-//     -> emit back: admin_users_list  RebuttalUser[]
-//   admin_kick_user              { username, token }
-//   admin_ban_user               { username, banned, token }
-//   admin_watch_room             { instanceId, token }   (start forwarding new_message/room_message_history for a room the admin isn't playing in)
-//     -> emit back: room_message_history { instanceId, messages: SkitMessage[] }
-//   new_message payloads should include an `instanceId` field so the admin
-//   panel can route incoming lines to the right room's log.
+// This file is frontend-only. It assumes these server-side events exist:
+//   admin_get_settings / admin_update_settings
+//   admin_create_skit_room   { username, topic, emoji, proLabel, conLabel,
+//                              debateType, maxPlayers, unlimitedPlayers,
+//                              duration, bots, token }
+//     -> emit back: admin_skit_created { instanceId, topic }
+//   admin_skit_message      { instanceId, username, side, text, score, feedback, token }
+//   admin_end_debate        { instanceId, username, token }
+//   admin_set_custom_result { instanceId, username, winnerUsername, eloChanges, token }
+//   admin_end_all_skits     { username, token }  — kill switch, force-ends every active skit
+//   admin_list_users  { token } -> admin_users_list  RebuttalUser[]
+//   admin_kick_user   { username, token }
+//   admin_ban_user    { username, banned, token }
+//   rooms_update / new_message — new_message payloads should include an
+//   `instanceId` field so this panel can route incoming lines to the right
+//   room's log.
 //   Bot config shape sent on room creation:
 //     bots: { name: string; mode: 'auto' | 'scripted'; script?: { text: string; atSeconds: number }[] }[]
+// ─────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────
 
 interface AdminSettings {
@@ -205,6 +204,8 @@ export default function AdminPanel() {
   const [skitProLabel, setSkitProLabel] = useState('')
   const [skitConLabel, setSkitConLabel] = useState('')
   const [activeSkitRoomId, setActiveSkitRoomId] = useState<string | null>(null)
+  const activeSkitRoomIdRef = useRef<string | null>(null)
+  useEffect(() => { activeSkitRoomIdRef.current = activeSkitRoomId }, [activeSkitRoomId])
   const [skitMessages, setSkitMessages] = useState<SkitMessage[]>([])
   const [skitText, setSkitText] = useState('')
   const [skitScore, setSkitScore] = useState('15')
@@ -262,7 +263,8 @@ export default function AdminPanel() {
     })
 
     socket.on('new_message', (msg: SkitMessage) => {
-      if (activeSkitRoomId && (!msg.instanceId || msg.instanceId === activeSkitRoomId)) {
+      const currentSkitId = activeSkitRoomIdRef.current
+      if (currentSkitId && (!msg.instanceId || msg.instanceId === currentSkitId)) {
         setSkitMessages(prev => [...prev, msg])
       }
     })
