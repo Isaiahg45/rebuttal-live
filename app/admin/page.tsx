@@ -21,8 +21,9 @@ const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 //   admin_set_custom_result { instanceId, username, winnerUsername, eloChanges, token }
 //   admin_end_all_skits     { username, token }  — kill switch, force-ends every active skit
 //   admin_list_users  { token } -> admin_users_list  RebuttalUser[]
-//   admin_kick_user   { username, token }
 //   admin_ban_user    { username, banned, token }
+//   admin_send_warning { username, recipientUsername, message, token } —
+//     writes a notification attributed to "Rebuttal Live", not the admin's account
 //   rooms_update / new_message — new_message payloads should include an
 //   `instanceId` field so this panel can route incoming lines to the right
 //   room's log.
@@ -64,6 +65,7 @@ interface RebuttalUser {
   elo?: number
   banned: boolean
   createdAt?: string
+  online?: boolean
 }
 
 interface ScriptedLine {
@@ -232,6 +234,9 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<RebuttalUser[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
+  const [warnTarget, setWarnTarget] = useState<string | null>(null)
+  const [warnText, setWarnText] = useState('')
+  const [warnSending, setWarnSending] = useState(false)
 
   useEffect(() => {
     if (!myUsername) return
@@ -466,18 +471,24 @@ export default function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, authorized])
 
-  async function kickUser(username: string) {
-    if (!confirm(`Kick ${username} from their current room?`)) return
-    const token = await getFreshToken()
-    socketRef.current?.emit('admin_kick_user', { username, token })
-  }
-
   async function toggleBan(u: RebuttalUser) {
     const next = !u.banned
     if (!confirm(next ? `Ban ${u.username}? They won't be able to play until unbanned.` : `Unban ${u.username}?`)) return
     const token = await getFreshToken()
     socketRef.current?.emit('admin_ban_user', { username: u.username, banned: next, token })
     setUsers(prev => prev.map(x => (x.username === u.username ? { ...x, banned: next } : x)))
+  }
+
+  async function sendWarning() {
+    if (!warnTarget || !warnText.trim()) return
+    setWarnSending(true)
+    const token = await getFreshToken()
+    // recipientUsername is who gets it — `username` here is just for server
+    // logs, the recipient only ever sees it attributed to "Rebuttal Live."
+    socketRef.current?.emit('admin_send_warning', { username: myUsername, recipientUsername: warnTarget, message: warnText.trim(), token })
+    setWarnTarget(null)
+    setWarnText('')
+    setWarnSending(false)
   }
 
   function isUserInRoom(username: string) {
@@ -796,11 +807,31 @@ export default function AdminPanel() {
 
           {/* ── Rebuttal users tab ──────────────────────────────── */}
           {tab === 'users' && (
-            <Card title="Rebuttal users" subtitle="Search, kick from a live room, or ban/unban an account">
+            <Card title="Rebuttal users" subtitle="Search, send a warning/comment, or ban/unban an account">
               <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
                 <input style={inputStyle} placeholder="Search username…" value={userSearch} onChange={e => setUserSearch(e.target.value)} />
                 <Button onClick={loadUsers}>{usersLoading ? 'Loading…' : 'Refresh'}</Button>
               </div>
+
+              {warnTarget && (
+                <div style={{ border: '1px solid rgba(255,214,10,0.35)', background: 'rgba(255,214,10,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gold)', marginBottom: '8px' }}>
+                    Sending to @{warnTarget} — they'll see it as from <b>Rebuttal Live</b>, not your account
+                  </div>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: '70px', resize: 'vertical', marginBottom: '10px' }}
+                    placeholder="Type the warning or comment…"
+                    value={warnText}
+                    onChange={e => setWarnText(e.target.value)}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button small variant="gold" onClick={sendWarning} disabled={warnSending || !warnText.trim()}>
+                      {warnSending ? 'Sending…' : 'Send'}
+                    </Button>
+                    <Button small onClick={() => { setWarnTarget(null); setWarnText('') }}>Cancel</Button>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {filteredUsers.length === 0 && (
@@ -811,15 +842,16 @@ export default function AdminPanel() {
                 {filteredUsers.map(u => (
                   <div key={u.username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                        @{u.username} {u.banned ? <Badge tone="red">Banned</Badge> : isUserInRoom(u.username) ? <Badge tone="green">In room</Badge> : <Badge>Active</Badge>}
+                      <div style={{ fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: u.online ? 'var(--green)' : 'rgba(255,255,255,0.2)', boxShadow: u.online ? '0 0 6px rgba(34,197,94,0.7)' : 'none', flexShrink: 0 }} />
+                        @{u.username} {u.banned ? <Badge tone="red">Banned</Badge> : isUserInRoom(u.username) ? <Badge tone="green">In room</Badge> : u.online ? <Badge tone="green">Online</Badge> : <Badge>Offline</Badge>}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
                         {u.email ? `${u.email} · ` : ''}{u.elo !== undefined ? `${u.elo} ELO` : ''}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <Button small disabled={!isUserInRoom(u.username)} onClick={() => kickUser(u.username)}>Kick</Button>
+                      <Button small variant="gold" onClick={() => { setWarnTarget(u.username); setWarnText('') }}>Message</Button>
                       <Button small variant={u.banned ? 'green' : 'red'} onClick={() => toggleBan(u)}>{u.banned ? 'Unban' : 'Ban'}</Button>
                     </div>
                   </div>

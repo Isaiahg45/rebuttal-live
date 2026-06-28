@@ -669,6 +669,17 @@ const roomLastBotMessage = {}
 let lastTotdWinner = null
 let activeBotCount = 0
 
+// ─── Online presence ─────────────────────────────────────────────
+// Tracks who currently has the site open in a tab — Nav.tsx (mounted on
+// every page) opens a lightweight socket purely to announce this, separate
+// from the per-room sockets used in debates/admin. Username -> Set of
+// connected socket ids, since one user can have multiple tabs open.
+const onlinePresence = new Map()
+
+function isOnline(username) {
+  return onlinePresence.has(username) && onlinePresence.get(username).size > 0
+}
+
 // ─── Banned users ──────────────────────────────────────────────
 // In-memory cache so every join doesn't need a Supabase round trip.
 // Populated at boot and kept in sync by admin_ban_user.
@@ -1558,8 +1569,20 @@ io.on('connection', (socket) => {
   let currentRoomId = null
   let currentUsername = null
   let isSpectator = false
+  let presenceUsername = null
 
   socket.emit('rooms_update', getRoomList())
+
+  // ── Online presence ─────────────────────────────────────────────
+  // Nav.tsx calls this once on connect for any logged-in user, regardless
+  // of whether they're in a room — this is the only signal that someone is
+  // just "on the site" rather than actively debating.
+  socket.on('presence_identify', ({ username }) => {
+    if (!username) return
+    presenceUsername = username
+    if (!onlinePresence.has(username)) onlinePresence.set(username, new Set())
+    onlinePresence.get(username).add(socket.id)
+  })
 
   // ── Join text room ────────────────────────────────────────────
   socket.on('join_room', ({ instanceId, username, elo = 0, password: joinPassword }) => {
@@ -2513,6 +2536,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
           username: u.username,
           elo: u.elo ?? 0,
           banned: !!u.banned,
+          online: isOnline(u.username),
         }))
       socket.emit('admin_users_list', list)
     } catch (e) {
@@ -2571,6 +2595,19 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     console.log(`🔨 Admin set banned=${!!banned} for ${username}`)
   })
 
+  // ── Admin: send a warning/comment to a user — always attributed to
+  // "Rebuttal Live" in the message itself, never the admin's own username ─
+  socket.on('admin_send_warning', async ({ username, recipientUsername, message, token }) => {
+    if (!(await isAdminToken(token))) return
+    if (!recipientUsername || !message || !message.trim()) return
+    await supabaseRest('notifications', 'POST', {
+      recipient_username: recipientUsername,
+      type: 'admin_warning',
+      message: `⚠️ Rebuttal Live: ${message.trim()}`,
+    })
+    console.log(`📨 Admin ${username} sent a warning/comment to ${recipientUsername}`)
+  })
+
   // ── Admin: watch a room's messages without joining as a player/spectator ─
   socket.on('admin_watch_room', async ({ instanceId, token }) => {
     if (!(await isAdminToken(token))) return
@@ -2582,6 +2619,13 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
 
   // ── Disconnect ────────────────────────────────────────────────
   socket.on('disconnect', () => {
+    // Always run presence cleanup first — this socket might be a Nav-level
+    // presence-only connection that was never in any room at all.
+    if (presenceUsername && onlinePresence.has(presenceUsername)) {
+      onlinePresence.get(presenceUsername).delete(socket.id)
+      if (onlinePresence.get(presenceUsername).size === 0) onlinePresence.delete(presenceUsername)
+    }
+
     if (!currentRoomId || !rooms[currentRoomId]) return
     const room = rooms[currentRoomId]
     const wasActive = room.status === 'active'

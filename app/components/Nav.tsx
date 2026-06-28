@@ -3,8 +3,11 @@ import Link from 'next/link'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { io, Socket } from 'socket.io-client'
 import { useNotifications } from '../hooks/useNotifications'
+
+const PRESENCE_SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
 interface NavProps { active: string }
 
@@ -26,6 +29,25 @@ const avatarUrl = profile?.avatar_url ?? null
   const [showNotifs, setShowNotifs] = useState(false)
   const { notifications, markSeen, markAllSeen } = useNotifications(profile?.username ?? '')
   const pendingBuddyCount = notifications.length
+
+  // Online presence — this is the only signal the server gets that a user
+  // is "on the site" at all (debate/admin pages open their own separate
+  // sockets for room logic). One tiny socket, alive for as long as any page
+  // with Nav mounted is open, reconnecting and re-announcing automatically.
+  const presenceSocketRef = useRef<Socket | null>(null)
+  useEffect(() => {
+    const username = profile?.username
+    if (!username) return
+    const socket = io(PRESENCE_SERVER_URL, { transports: ['websocket', 'polling'] })
+    presenceSocketRef.current = socket
+    const announce = () => socket.emit('presence_identify', { username })
+    socket.on('connect', announce)
+    socket.io.on('reconnect', announce)
+    return () => {
+      socket.disconnect()
+      presenceSocketRef.current = null
+    }
+  }, [profile?.username])
 
   // Cosmetic only — the real admin check lives server-side. Gated by email
   // rather than username since usernames can be changed but auth email can't.
