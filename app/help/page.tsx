@@ -52,11 +52,7 @@ const faqs = [
     q: 'How do I change my username?',
     a: 'Go to your Profile page and click "Edit Username". Usernames must be 3–16 characters and can only contain letters, numbers, and underscores. Your old username is released when you change it.'
   },
-  {
-    q: 'Who is the Rebut Man?',
-    a: "The Rebut Man is Rebuttal live's immortal mascot and the face of the Rebut Shop. Legend has it he won every debate competition he entered throughout history, whether it was  with Plato during 400 BC, the early 1800s or the 90s — undefeated, untouchable, never once on the losing side of an argument. His reputation finally caught up with him in a bar fight after one debate too many, where he lost an eye defending his unbeaten record. Now he wears the eye patch as a badge of honor, still dressed sharp, still ready to argue anyone under the table. He watches over the Rebut Shop today, dealing in Rebut coins and Pro memberships from his dungeon."
-  },
-]
+ ]
 
 export default function HelpPage() {
   const [open, setOpen] = useState<number | null>(null)
@@ -117,22 +113,7 @@ export default function HelpPage() {
             </div>
           </div>
 
-         {/* Who is the Rebut Man */}
-          <div id="who-is-that" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '28px', marginBottom: '32px', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <img src="/shop/rebutman.jpg" alt="The Rebut Man" style={{ width: '110px', height: '110px', objectFit: 'cover', borderRadius: '12px', border: '1px solid rgba(230,57,70,0.3)', flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: '200px' }}>
-                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', marginBottom: '8px', color: 'var(--accent)' }}>
-                  WHO IS THE REBUT MAN?
-                </div>
-                <p style={{ fontSize: '13.5px', color: 'var(--text2)', lineHeight: 1.8, margin: 0 }}>
-                  The Rebut Man is Rebuttal live's immortal mascot and the face of the Rebut Shop. Legend has it he won every debate competition he entered throughout history, whether it was with Plato during 400 BC, the early 1800s or the 90s — undefeated, untouchable, never once on the losing side of an argument. His reputation finally caught up with him in a bar fight after one debate too many, where he lost an eye defending his unbeaten record. Now he wears the eye patch as a badge of honor, still dressed sharp, still ready to argue anyone under the table. He watches over the Rebut Shop today, dealing in Rebut coins and Pro memberships from his dungeon.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* FAQ */}
+        {/* FAQ */}
           <div>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', marginBottom: '16px' }}>
               FREQUENTLY ASKED QUESTIONS

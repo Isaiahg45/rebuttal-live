@@ -142,17 +142,7 @@ export default function ShopPage() {
             </div>
           </div>
 
-          {/* Rebut Man */}
-          <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', border: '1px solid rgba(60,46,40,0.6)' }}>
-            <img src="/shop/rebutman.jpg" alt="The Rebut Man" style={{ width: '100%', display: 'block' }} />
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '60px 32px 28px', background: 'linear-gradient(180deg, transparent, rgba(6,5,6,0.6) 35%, rgba(4,4,4,0.95) 88%)' }}>
-              <a href="/help#who-is-that" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '14px', textDecoration: 'underline', textDecorationColor: 'rgba(230,57,70,0.3)' }}>
-                Who IS that? →
-              </a>
-            </div>
           </div>
-
-        </div>
       </div>
     </>
   )
