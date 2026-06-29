@@ -12,11 +12,12 @@ const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 // NOTE ON BACKEND DEPENDENCIES
 // This file is frontend-only. It assumes these server-side events exist:
 //   admin_get_settings / admin_update_settings
-//   admin_create_skit_room   { username, topic, emoji, proLabel, conLabel,
-//                              debateType, maxPlayers, unlimitedPlayers,
-//                              duration, bots, token }
+//   admin_create_skit_room   { username, topic, debateType, maxPlayers,
+//                              unlimitedPlayers, duration, bots, token }
 //     -> emit back: admin_skit_created { instanceId, topic }
-//   admin_skit_message      { instanceId, username, side, text, score, feedback, token }
+//   admin_skit_message      { instanceId, speakerName, text, score, feedback, token }
+//   admin_broadcast_message { username, message, token } — notifies every
+//     non-guest user, attributed to "Rebuttal Live"
 //   admin_end_debate        { instanceId, username, token }
 //   admin_set_custom_result { instanceId, username, winnerUsername, eloChanges, token }
 //   admin_end_all_skits     { username, token }  — kill switch, force-ends every active skit
@@ -34,11 +35,7 @@ const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
 interface AdminSettings {
   adminEmails: string[]
-  allowUnlimitedForAll: boolean
   multiplayerMaxCap: number
-  skitDefaultEmoji: string
-  skitDefaultProLabel: string
-  skitDefaultConLabel: string
 }
 
 interface RoomSummary {
@@ -86,11 +83,7 @@ type Tab = 'settings' | 'skits' | 'users'
 
 const DEFAULT_SETTINGS: AdminSettings = {
   adminEmails: ['lg@isaiahlive.com', 'zachariussong@gmail.com'],
-  allowUnlimitedForAll: false,
   multiplayerMaxCap: 20,
-  skitDefaultEmoji: '🎭',
-  skitDefaultProLabel: 'Pro',
-  skitDefaultConLabel: 'Con',
 }
 
 function uid() {
@@ -202,13 +195,11 @@ export default function AdminPanel() {
   // ── Skit mode state ──────────────────────────────────────────────
   const [skitTopic, setSkitTopic] = useState('')
   const [skitDebateType, setSkitDebateType] = useState<'text' | 'voice'>('text')
-  const [skitEmoji, setSkitEmoji] = useState('')
-  const [skitProLabel, setSkitProLabel] = useState('')
-  const [skitConLabel, setSkitConLabel] = useState('')
   const [activeSkitRoomId, setActiveSkitRoomId] = useState<string | null>(null)
   const activeSkitRoomIdRef = useRef<string | null>(null)
   useEffect(() => { activeSkitRoomIdRef.current = activeSkitRoomId }, [activeSkitRoomId])
   const [skitMessages, setSkitMessages] = useState<SkitMessage[]>([])
+const [skitSpeakerName, setSkitSpeakerName] = useState('')
   const [skitText, setSkitText] = useState('')
   const [skitScore, setSkitScore] = useState('15')
   const [skitFeedback, setSkitFeedback] = useState('')
@@ -237,6 +228,10 @@ export default function AdminPanel() {
   const [warnTarget, setWarnTarget] = useState<string | null>(null)
   const [warnText, setWarnText] = useState('')
   const [warnSending, setWarnSending] = useState(false)
+
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [broadcastText, setBroadcastText] = useState('')
+  const [broadcastSending, setBroadcastSending] = useState(false)
 
   useEffect(() => {
     if (!myUsername) return
@@ -365,15 +360,11 @@ export default function AdminPanel() {
     setSkitCreating(true)
     const token = await getFreshToken()
     const duration = skitUnlimitedDuration ? 'unlimited' : unitToSeconds(durationValue, skitDurationUnit)
-    socketRef.current?.emit('admin_create_skit_room', {
+   socketRef.current?.emit('admin_create_skit_room', {
       username: myUsername,
       topic: skitTopic.trim(),
       debateType: skitDebateType,
-      emoji: skitEmoji.trim() || undefined,
-      proLabel: skitProLabel.trim() || undefined,
-      conLabel: skitConLabel.trim() || undefined,
-      maxPlayers,
-      unlimitedPlayers: skitUnlimitedPlayers,
+     maxPlayers, unlimitedPlayers: skitUnlimitedPlayers,
       duration,
       bots: isVoice ? [] : skitBots.map(b => ({
         name: b.name.trim() || 'Bot',
@@ -386,13 +377,12 @@ export default function AdminPanel() {
     })
   }
 
-  async function sendSkit(side: 'pro' | 'con') {
-    if (!activeSkitRoomId || !skitText.trim()) return
+  async function sendSkit() {
+    if (!activeSkitRoomId || !skitSpeakerName.trim() || !skitText.trim()) return
     const token = await getFreshToken()
     socketRef.current?.emit('admin_skit_message', {
       instanceId: activeSkitRoomId,
-      username: myUsername,
-      side,
+      speakerName: skitSpeakerName.trim(),
       text: skitText.trim(),
       score: Number(skitScore) || 0,
       feedback: skitFeedback.trim(),
@@ -407,6 +397,7 @@ export default function AdminPanel() {
     setSkitMaxPlayers('10'); setSkitUnlimitedPlayers(true)
     setSkitDurationValue('5'); setSkitUnlimitedDuration(true)
     setSkitWinner(''); setSkitWinnerElo('25'); setSkitLoserElo('25')
+    setSkitSpeakerName(''); setSkitText(''); setSkitFeedback('')
   }
 
   async function closeSkit() {
@@ -491,6 +482,17 @@ export default function AdminPanel() {
     setWarnSending(false)
   }
 
+  async function sendBroadcast() {
+    if (!broadcastText.trim()) return
+    if (!confirm(`Send this to every registered user?\n\n"${broadcastText.trim()}"`)) return
+    setBroadcastSending(true)
+    const token = await getFreshToken()
+    socketRef.current?.emit('admin_broadcast_message', { username: myUsername, message: broadcastText.trim(), token })
+    setBroadcastOpen(false)
+    setBroadcastText('')
+    setBroadcastSending(false)
+  }
+
   function isUserInRoom(username: string) {
     return rooms.some(r => r.players.includes(username))
   }
@@ -564,24 +566,7 @@ export default function AdminPanel() {
               <Field label="Admin emails (comma-separated)">
                 <input style={inputStyle} value={adminEmailsInput} onChange={e => setAdminEmailsInput(e.target.value)} placeholder="lg@isaiahlive.com, zachariussong@gmail.com" />
               </Field>
-              <Field label="Allow unlimited-duration rooms for every user (not just admins)">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text2)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={settings.allowUnlimitedForAll} onChange={e => setSettings(s => ({ ...s, allowUnlimitedForAll: e.target.checked }))} />
-                  Enabled for everyone
-                </label>
-              </Field>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <Field label="Skit default emoji">
-                  <input style={inputStyle} value={settings.skitDefaultEmoji} onChange={e => setSettings(s => ({ ...s, skitDefaultEmoji: e.target.value }))} />
-                </Field>
-                <Field label="Skit default pro label">
-                  <input style={inputStyle} value={settings.skitDefaultProLabel} onChange={e => setSettings(s => ({ ...s, skitDefaultProLabel: e.target.value }))} />
-                </Field>
-                <Field label="Skit default con label">
-                  <input style={inputStyle} value={settings.skitDefaultConLabel} onChange={e => setSettings(s => ({ ...s, skitDefaultConLabel: e.target.value }))} />
-                </Field>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
                 <Button onClick={saveSettings} variant="accent">Save settings</Button>
                 {saveMsg && <span style={{ fontSize: '13px', color: 'var(--green)' }}>{saveMsg}</span>}
               </div>
@@ -664,13 +649,6 @@ export default function AdminPanel() {
                           </div>
                         )}
                       </Field>
-
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <Field label="Emoji (optional)"><input style={inputStyle} value={skitEmoji} onChange={e => setSkitEmoji(e.target.value)} placeholder={settings.skitDefaultEmoji} /></Field>
-                        <Field label="Pro label (optional)"><input style={inputStyle} value={skitProLabel} onChange={e => setSkitProLabel(e.target.value)} placeholder={settings.skitDefaultProLabel} /></Field>
-                        <Field label="Con label (optional)"><input style={inputStyle} value={skitConLabel} onChange={e => setSkitConLabel(e.target.value)} placeholder={settings.skitDefaultConLabel} /></Field>
-                      </div>
-
                       {/* ── Bots — text skits only, no audio synthesis for voice ── */}
                       {skitDebateType === 'text' && (
                         <Field label={`Bots (${skitBots.length}/10)`}>
@@ -761,14 +739,14 @@ export default function AdminPanel() {
                           </div>
                         ))}
                       </div>
+                      <Field label="Speaker name"><input style={inputStyle} value={skitSpeakerName} onChange={e => setSkitSpeakerName(e.target.value)} placeholder="Whatever name this line should show under" /></Field>
                       <Field label="Line"><textarea style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} value={skitText} onChange={e => setSkitText(e.target.value)} /></Field>
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <Field label="Score"><input style={inputStyle} type="number" min={0} max={30} value={skitScore} onChange={e => setSkitScore(e.target.value)} /></Field>
                         <Field label="AI feedback (optional)"><input style={inputStyle} value={skitFeedback} onChange={e => setSkitFeedback(e.target.value)} /></Field>
                       </div>
                       <div style={{ display: 'flex', gap: '10px', marginBottom: '18px' }}>
-                        <Button onClick={() => sendSkit('pro')} variant="green">Send as Pro</Button>
-                        <Button onClick={() => sendSkit('con')} variant="red">Send as Con</Button>
+                        <Button onClick={sendSkit} variant="accent" disabled={!skitSpeakerName.trim() || !skitText.trim()}>Send line</Button>
                         <Button onClick={closeSkit}>End without a winner</Button>
                       </div>
 
@@ -811,7 +789,28 @@ export default function AdminPanel() {
               <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
                 <input style={inputStyle} placeholder="Search username…" value={userSearch} onChange={e => setUserSearch(e.target.value)} />
                 <Button onClick={loadUsers}>{usersLoading ? 'Loading…' : 'Refresh'}</Button>
+                <Button variant="gold" onClick={() => setBroadcastOpen(o => !o)}>📢 Message all users</Button>
               </div>
+
+              {broadcastOpen && (
+                <div style={{ border: '1px solid rgba(255,214,10,0.35)', background: 'rgba(255,214,10,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gold)', marginBottom: '8px' }}>
+                    Sending to every registered user — they'll see it as from <b>Rebuttal Live</b>, not your account
+                  </div>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: '70px', resize: 'vertical', marginBottom: '10px' }}
+                    placeholder="Type the announcement…"
+                    value={broadcastText}
+                    onChange={e => setBroadcastText(e.target.value)}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button small variant="gold" onClick={sendBroadcast} disabled={broadcastSending || !broadcastText.trim()}>
+                      {broadcastSending ? 'Sending…' : 'Send to all'}
+                    </Button>
+                    <Button small onClick={() => { setBroadcastOpen(false); setBroadcastText('') }}>Cancel</Button>
+                  </div>
+                </div>
+              )}
 
               {warnTarget && (
                 <div style={{ border: '1px solid rgba(255,214,10,0.35)', background: 'rgba(255,214,10,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>

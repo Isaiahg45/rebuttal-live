@@ -86,11 +86,7 @@ async function recordDebateResult({ username, opponents = [], topic, roomType, r
 // gets you nothing.
 let adminSettings = {
   adminEmails: ['lg@isaiahlive.com', 'zachariussong@gmail.com'],
-  allowUnlimitedForAll: false,
   multiplayerMaxCap: 20,
-  skitDefaultEmoji: '🎭',
-  skitDefaultProLabel: 'Pro',
-  skitDefaultConLabel: 'Con',
 }
 
 async function loadAdminSettings() {
@@ -148,9 +144,6 @@ async function isAdminToken(token) {
   return !!email && adminSettings.adminEmails.map(e => e.toLowerCase()).includes(email)
 }
 
-function isAdmin(username) {
-  return !!username && adminSettings.adminUsernames.map(u => u.toLowerCase()).includes(username.toLowerCase())
-}
 
 // ─── Constants ─────────────────────────────────────────────────
 const TARGET_AVAILABLE = 4
@@ -1693,9 +1686,9 @@ socket.on('create_custom_room', async ({ username, topic, duration, eloStake, is
     }
 
     // Unlimited-duration rooms: client sends duration: 'unlimited' or 0.
-    // adminSettings.allowUnlimitedForAll is editable live from the /admin panel.
+    // Always admin-only now — there's no toggle to open this up to everyone.
     const wantsUnlimited = duration === 'unlimited' || duration === 0
-    if (wantsUnlimited && !adminSettings.allowUnlimitedForAll && !(await isAdminToken(token))) {
+    if (wantsUnlimited && !(await isAdminToken(token))) {
       socket.emit('error', { message: 'Unlimited-time rooms are admin-only right now.' }); return
     }
     const resolvedDuration = wantsUnlimited ? null : (duration || (debateType === 'vc' ? 480 : 300))
@@ -2282,8 +2275,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   })
 
   // ── Admin: skit mode — scripted debates, no real accounts needed ─
- socket.on('admin_create_skit_room', async ({ username, topic, emoji, proLabel, conLabel, debateType, maxPlayers, unlimitedPlayers, duration, bots, token }) => {
-    if (!(await isAdminToken(token))) return
+socket.on('admin_create_skit_room', async ({ username, topic, emoji, debateType, maxPlayers, unlimitedPlayers, duration, bots, token }) => {    if (!(await isAdminToken(token))) return
     const id = `skit_${++roomCounter}_${Date.now()}`
     const isVoice = debateType === 'voice'
     // IMPORTANT: type is always 'custom' — a value the lobby already knows how to
@@ -2325,8 +2317,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     rooms[id] = {
       instanceId: id, type: 'custom', isSkit: true, isCustom: true,
       skitDebateType: isVoice ? 'voice' : 'text',
-      emoji: emoji || (isVoice ? '🎙️' : adminSettings.skitDefaultEmoji), topic: topic || 'Scripted Debate',
-      duration: resolvedDuration, eloRequired: 0,
+emoji: emoji || (isVoice ? '🎙️' : '🎭'), topic: topic || 'Scripted Debate',      duration: resolvedDuration, eloRequired: 0,
       maxPlayers: resolvedMaxPlayers,
       players,
       spectators: {}, messages: [],
@@ -2338,7 +2329,6 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       debateStartedAt: Date.now(),
       botScripts,
       createdAt: Date.now(),
-      skitSides: { pro: proLabel || adminSettings.skitDefaultProLabel, con: conLabel || adminSettings.skitDefaultConLabel },
       createdBy: username,
     }
 
@@ -2374,14 +2364,16 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     console.log(`🛑 Admin ${username} force-ended ${count} skit room(s)`)
   })
 
-  socket.on('admin_skit_message', async ({ instanceId, username, side, text, score, feedback, token }) => {
+  // speakerName is free text — whatever name should appear above this line.
+  // No more Pro/Con constraint.
+  socket.on('admin_skit_message', async ({ instanceId, speakerName, text, score, feedback, token }) => {
     if (!(await isAdminToken(token))) return
     const room = rooms[instanceId]
     if (!room || !room.isSkit) return
-    if (!['pro', 'con'].includes(side)) return
+    if (!speakerName || !speakerName.trim() || !text) return
     const msg = {
       id: `${Date.now()}-${Math.random()}`,
-      username: room.skitSides[side],
+      username: speakerName.trim(),
       text,
       score: typeof score === 'number' ? score : 0,
       aiFeedback: feedback || '',
@@ -2392,7 +2384,6 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
     room.messages.push(msg)
     io.to(instanceId).emit('new_message', msg)
   })
-
   // ── Admin: force a custom result (skit / custom rooms only) ────
  socket.on('admin_set_custom_result', async ({ instanceId, username, winnerUsername, eloChanges, token }) => {
     if (!(await isAdminToken(token))) return
@@ -2426,7 +2417,7 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
   socket.on('admin_update_settings', async ({ username, settings, token }) => {
     if (!(await isAdminToken(token))) return
     if (!settings || typeof settings !== 'object') return
-    const allowedKeys = ['adminEmails', 'allowUnlimitedForAll', 'multiplayerMaxCap', 'skitDefaultEmoji', 'skitDefaultProLabel', 'skitDefaultConLabel']
+    const allowedKeys = ['adminEmails', 'multiplayerMaxCap']  
     for (const key of allowedKeys) {
       if (key in settings) adminSettings[key] = settings[key]
     }
@@ -2606,6 +2597,27 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       message: `⚠️ Rebuttal Live: ${message.trim()}`,
     })
     console.log(`📨 Admin ${username} sent a warning/comment to ${recipientUsername}`)
+  })
+
+  // ── Admin: broadcast a notification to every registered (non-guest) user ─
+  socket.on('admin_broadcast_message', async ({ username, message, token }) => {
+    if (!(await isAdminToken(token))) return
+    if (!message || !message.trim()) return
+    try {
+      const users = await supabaseRest('profiles?select=username')
+      if (!Array.isArray(users)) return
+      const rows = users
+        .filter(u => u.username && !u.username.startsWith('guest'))
+        .map(u => ({
+          recipient_username: u.username,
+          type: 'admin_broadcast',
+          message: `📢 Rebuttal Live: ${message.trim()}`,
+        }))
+      if (rows.length > 0) await supabaseRest('notifications', 'POST', rows)
+      console.log(`📢 Admin ${username} broadcast to ${rows.length} users: "${message.trim()}"`)
+    } catch (e) {
+      console.log('Broadcast failed:', e.message)
+    }
   })
 
   // ── Admin: watch a room's messages without joining as a player/spectator ─
