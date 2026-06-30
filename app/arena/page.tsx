@@ -27,7 +27,29 @@ export default function ArenaPage() {
   const [myVote, setMyVote] = useState<number | null>(null)
   const [opponentVoted, setOpponentVoted] = useState(false)
   const [resolvedTopic, setResolvedTopic] = useState<string | null>(null)
-  const queueTimerRef = useRef<any>(null)
+const queueTimerRef = useRef<any>(null)
+  const localVideoRef = useRef<HTMLVideoElement>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const [camGranted, setCamGranted] = useState(false)
+
+  // Ask for camera + mic as soon as we know who's asking, so by the time
+  // a match is found there's no permission prompt blocking the vote.
+  useEffect(() => {
+    if (!myUsername) return
+    let cancelled = false
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        localStreamRef.current = stream
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream
+        setCamGranted(true)
+      })
+      .catch(e => console.error('Camera/mic permission denied:', e))
+    return () => {
+      cancelled = true
+      localStreamRef.current?.getTracks().forEach(t => t.stop())
+    }
+  }, [myUsername])
 
   useEffect(() => {
     if (loading) return
@@ -63,12 +85,16 @@ export default function ArenaPage() {
       setOpponentVoted(true)
     })
 
-    socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
+   socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
       setPhase('resolved')
       setResolvedTopic(topic)
       // Brief pause so the player sees which topic won before being dropped
       // into the room — same beat as the rest of the app's transition screens.
       setTimeout(() => {
+        // Release the preview camera/mic before navigating — the VC room
+        // grabs its own via Agora, and holding both open at once is what
+        // causes "camera already in use" hiccups on some browsers.
+        localStreamRef.current?.getTracks().forEach(t => t.stop())
         router.push(`/vc-debate/${roomId}?video=true`)
       }, 1800)
     })
@@ -207,8 +233,15 @@ export default function ArenaPage() {
             </>
           )}
 
-        </div>
+       </div>
       </div>
+
+      {camGranted && (
+        <div style={{ position: 'fixed', bottom: '20px', right: '20px', width: '120px', height: '90px', borderRadius: '10px', overflow: 'hidden', border: '2px solid var(--accent)', boxShadow: '0 0 16px rgba(230,57,70,0.4)', zIndex: 50 }}>
+          <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+        </div>
+      )}
+
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
     </>
   )

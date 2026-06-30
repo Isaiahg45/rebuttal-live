@@ -1229,9 +1229,48 @@ agoraInitializedRef.current = false
         )}
 
       {videoParam && (
-          <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: '#000', flexShrink: 0 }}>
-            <div ref={localVideoElRef} style={{ flex: 1, aspectRatio: '4/3', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${isMyTurn ? 'var(--accent)' : 'var(--border)'}` }} />
-            <div ref={remoteVideoElRef} style={{ flex: 1, aspectRatio: '4/3', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${!isMyTurn ? 'var(--green)' : 'var(--border)'}` }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', background: '#000', flexShrink: 0, overflowY: 'auto', maxHeight: '60vh' }}>
+            {/* You */}
+            <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', background: '#111', border: `2px solid ${isMyTurn ? 'var(--accent)' : 'var(--border)'}` }}>
+              <div ref={localVideoElRef} style={{ width: '100%', height: '100%' }} />
+              <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>You</span>
+                {mySide && (
+                  <span style={{ background: mySide === 'pro' ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
+                    {mySide === 'pro' ? 'FOR' : 'AGAINST'}
+                  </span>
+                )}
+              </div>
+              {isMyTurn && liveTranscript && (
+                <div style={{ position: 'absolute', bottom: '40px', left: '8px', right: '8px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.9)' }}>
+                  {liveTranscript}
+                </div>
+              )}
+              <div style={{ position: 'absolute', bottom: '8px', right: '8px' }}>
+                <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
+              </div>
+            </div>
+
+            {/* Opponent */}
+            <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', background: '#111', border: `2px solid ${!isMyTurn ? 'var(--green)' : 'var(--border)'}` }}>
+              <div ref={remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
+              <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>{opponent?.username ?? 'Opponent'}</span>
+                {opponent && sides[opponent.username] && (
+                  <span style={{ background: sides[opponent.username] === 'pro' ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
+                    {sides[opponent.username] === 'pro' ? 'FOR' : 'AGAINST'}
+                  </span>
+                )}
+              </div>
+              {!isMyTurn && opponentLiveTranscript && (
+                <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.9)' }}>
+                  {opponentLiveTranscript}
+                </div>
+              )}
+              {!remoteAudioActive && (
+                <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.65)', color: 'rgba(255,255,255,0.7)', fontSize: '10px', padding: '3px 8px', borderRadius: '6px' }}>Mic Muted</div>
+              )}
+            </div>
           </div>
         )}
 
