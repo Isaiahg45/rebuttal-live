@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import Nav from '../../components/Nav'
 import { useRouter } from 'next/navigation'
 import AgoraRTC from 'agora-rtc-sdk-ng'
-import type { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from 'agora-rtc-sdk-ng'
+import type { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack, ILocalVideoTrack, IRemoteVideoTrack } from 'agora-rtc-sdk-ng'
 
 function getTierName(elo: number): string {
   if (elo >= 1000) return 'Rebutter'
@@ -161,6 +161,7 @@ export default function VCDebatePage() {
   const instanceId = params.roomId as string
   const guestParam = searchParams.get('guest')
 const passwordParam = searchParams.get('password')
+const videoParam = searchParams.get('video') === 'true'
 const agoraInitializedRef = useRef(false)
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
@@ -205,6 +206,9 @@ const [micGranted, setMicGranted] = useState(false)
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
   const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
+  const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
+  const localVideoElRef = useRef<HTMLDivElement | null>(null)
+  const remoteVideoElRef = useRef<HTMLDivElement | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const localAnalyserRef = useRef<AnalyserNode | null>(null)
   const remoteAnalyserRef = useRef<AnalyserNode | null>(null)
@@ -264,7 +268,7 @@ const initAgora = useCallback(async (channelName: string, uid: string) => {
   try {
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
     agoraClientRef.current = client
-const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoParam })
       localStreamRef.current = stream
       setMicGranted(true)
 
@@ -281,6 +285,17 @@ const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: f
       const localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack()
       localAudioTrackRef.current = localAudioTrack
 
+      let localVideoTrack: ILocalVideoTrack | null = null
+      if (videoParam) {
+        try {
+          localVideoTrack = await AgoraRTC.createCameraVideoTrack()
+          localVideoTrackRef.current = localVideoTrack
+          if (localVideoElRef.current) localVideoTrack.play(localVideoElRef.current)
+        } catch (e) {
+          console.error('Camera init failed:', e)
+        }
+      }
+
       // Join Agora channel — use socket ID as uid (numeric hash)
      if (!agoraUidRef.current) agoraUidRef.current = Math.floor(Math.random() * 100000) + 1
 const numericUid = agoraUidRef.current
@@ -288,10 +303,19 @@ const numericUid = agoraUidRef.current
 const { token } = await tokenRes.json()
 await client.join(AGORA_APP_ID, channelName, token, numericUid)
       console.log('✅ Agora joined, uid:', numericUid, 'channel:', channelName)
-     await client.publish([localAudioTrack])
+     const tracksToPublish: any[] = [localAudioTrack]
+     if (localVideoTrack) tracksToPublish.push(localVideoTrack)
+     await client.publish(tracksToPublish)
 
       // Handle remote user publishing audio
    client.on('user-published', async (remoteUser, mediaType) => {
+  if (mediaType === 'video') {
+    await client.subscribe(remoteUser, 'video')
+    if (remoteVideoElRef.current) {
+      (remoteUser.videoTrack as IRemoteVideoTrack)?.play(remoteVideoElRef.current)
+    }
+    return
+  }
   if (mediaType === 'audio') {
     await client.subscribe(remoteUser, 'audio')
    const remoteTrack = remoteUser.audioTrack as IRemoteAudioTrack
@@ -717,8 +741,9 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       setStandings(s)
       if (draw) setIsDraw(true)
       setTimeout(async () => {
-        try {
+       try {
           await localAudioTrackRef.current?.close()
+          await localVideoTrackRef.current?.close()
           await agoraClientRef.current?.leave()
           agoraClientRef.current = null
         } catch (e) {}
@@ -1029,6 +1054,10 @@ agoraInitializedRef.current = false
                 <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
               )}
 
+              {videoParam && (
+                <div ref={localVideoElRef} style={{ width: '160px', height: '120px', borderRadius: '10px', overflow: 'hidden', background: '#000', border: '1px solid var(--border)' }} />
+              )}
+
               {micGranted && (
                 <>
                 <div style={{ fontSize: '13px', textAlign: 'left', lineHeight: 1.7, color: '#ff8c00', textShadow: '0 0 12px rgba(255,140,0,0.4)', animation: 'orangePulse 1.2s ease-in-out infinite', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,140,0,0.3)', background: 'rgba(255,140,0,0.08)' }}>
@@ -1196,6 +1225,13 @@ agoraInitializedRef.current = false
               SUDDEN DEATH{suddenDeathRound > 1 ? ` — ROUND ${suddenDeathRound}` : ''} · 15 SECONDS EACH
             </div>
             <span style={{ fontSize: '20px' }}>⚡</span>
+          </div>
+        )}
+
+      {videoParam && (
+          <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', background: '#000', flexShrink: 0 }}>
+            <div ref={localVideoElRef} style={{ flex: 1, aspectRatio: '4/3', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${isMyTurn ? 'var(--accent)' : 'var(--border)'}` }} />
+            <div ref={remoteVideoElRef} style={{ flex: 1, aspectRatio: '4/3', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${!isMyTurn ? 'var(--green)' : 'var(--border)'}` }} />
           </div>
         )}
 

@@ -881,6 +881,62 @@ function checkForAutoWin(roomId) {
   if (!room.isCustom) scheduleRoom(room.type)
   return true
 }
+// ─── Rebuttal Arena — video matchmaking ──────────────────────────
+// Strictly political topics only, per spec.
+const ARENA_TOPICS = [
+  'Abortion should be completely illegal — there are no valid exceptions.',
+  'The police should be abolished and replaced with community alternatives.',
+  'The Second Amendment is outdated and guns should be heavily restricted.',
+  'Reparations for slavery are morally necessary and long overdue.',
+  'Illegal immigrants should be deported immediately, no exceptions for family ties.',
+  'The Republican Party has become a fascist movement in everything but name.',
+  'The Democratic Party has abandoned working class Americans entirely.',
+  'Israel has every right to do whatever it takes to eliminate Hamas.',
+  'Palestine is being subjected to genocide and the West is complicit.',
+  "Universal healthcare is a human right and America's refusal to provide it is immoral.",
+  'Capitalism is fundamentally incompatible with democracy.',
+  'Open borders are the only morally consistent position in a globalized world.',
+  'The death penalty should be expanded, not abolished.',
+  'Gender is purely biological and transgender identity is a mental health crisis.',
+  'Affirmative action is just discrimination with better PR.',
+]
+
+const arenaQueue = [] // { socketId, username, elo, joinedAt }
+const arenaMatches = {} // matchId -> { players: [{socketId,username,elo}, ...], topics: [3 strings], votes: {socketId: topicIndex}, resolved }
+
+function tryMatchArena() {
+  while (arenaQueue.length >= 2) {
+    const a = arenaQueue.shift()
+    const b = arenaQueue.shift()
+    const socketA = io.sockets.sockets.get(a.socketId)
+    const socketB = io.sockets.sockets.get(b.socketId)
+    if (!socketA && !socketB) continue
+    if (!socketA) { if (socketB) arenaQueue.unshift(b); continue }
+    if (!socketB) { arenaQueue.unshift(a); continue }
+
+    const matchId = `arena_${++roomCounter}_${Date.now()}`
+    const shuffled = [...ARENA_TOPICS].sort(() => Math.random() - 0.5).slice(0, 3)
+    arenaMatches[matchId] = { players: [a, b], topics: shuffled, votes: {}, resolved: false, createdAt: Date.now() }
+
+    socketA.join(matchId)
+    socketB.join(matchId)
+    io.to(matchId).emit('arena_matched', {
+      matchId,
+      topics: shuffled,
+      opponents: {
+        [a.socketId]: { username: b.username, elo: b.elo },
+        [b.socketId]: { username: a.username, elo: a.elo },
+      },
+    })
+    console.log(`⚔️🎥 Arena matched ${a.username} (${a.elo}) vs ${b.username} (${b.elo})`)
+  }
+}
+
+function removeFromArenaQueue(socketId) {
+  const idx = arenaQueue.findIndex(q => q.socketId === socketId)
+  if (idx !== -1) arenaQueue.splice(idx, 1)
+}
+
 // ─── VC room creator ───────────────────────────────────────────
 function createVCRoom() {
   const topic = getTopicForType('vc')
@@ -1435,6 +1491,15 @@ io.to(room.instanceId).emit('debate_ended', {
     })
 
   if (Math.random() < 0.1) replenishRooms()
+
+  // Clean up arena matches abandoned mid-vote (>2 min old, never resolved)
+  const arenaNow = Date.now()
+  Object.entries(arenaMatches).forEach(([matchId, match]) => {
+    if (!match.resolved && arenaNow - match.createdAt > 120000) {
+      io.to(matchId).emit('arena_expired', { message: 'Match timed out — your opponent never voted.' })
+      delete arenaMatches[matchId]
+    }
+  })
 }, 1000)
 // ─── Redundancy check ──────────────────────────────────────────
 // Returns similarity 0-1 between two strings using word overlap (Jaccard)
@@ -2043,6 +2108,66 @@ if (Object.keys(room.players).length >= 2) {
     })
     console.log(`🎙️ ${room.players[socket.id]?.username} picked ${side} in "${room.topic}"`)
   })
+  // ── Arena: join the video matchmaking queue ─────────────────────
+  socket.on('arena_join_queue', ({ username, elo }) => {
+    if (!username) return
+    if (bannedUsernames.has(username)) { socket.emit('error', { message: 'Your account has been banned.' }); return }
+    if (arenaQueue.some(q => q.username === username)) return
+    removeFromArenaQueue(socket.id)
+    arenaQueue.push({ socketId: socket.id, username, elo: elo || 0, joinedAt: Date.now() })
+    socket.emit('arena_queue_joined')
+    console.log(`⚔️🎥 ${username} joined the Arena queue (${arenaQueue.length} waiting)`)
+    tryMatchArena()
+  })
+
+  // ── Arena: leave the queue voluntarily ──────────────────────────
+  socket.on('arena_leave_queue', () => {
+    removeFromArenaQueue(socket.id)
+  })
+
+  // ── Arena: vote on one of the 3 presented topics ────────────────
+  socket.on('arena_vote_topic', ({ matchId, topicIndex }) => {
+    const match = arenaMatches[matchId]
+    if (!match || match.resolved) return
+    if (typeof topicIndex !== 'number' || topicIndex < 0 || topicIndex > 2) return
+    match.votes[socket.id] = topicIndex
+
+    const [a, b] = match.players
+    if (match.votes[a.socketId] === undefined || match.votes[b.socketId] === undefined) {
+      // tell the room someone voted, so the UI can show "waiting on opponent"
+      io.to(matchId).emit('arena_vote_received', { socketId: socket.id })
+      return
+    }
+
+    match.resolved = true
+    const aVote = match.votes[a.socketId]
+    const bVote = match.votes[b.socketId]
+    // Same pick → that's the topic. Different picks → higher ELO's choice wins.
+    const finalTopicIndex = aVote === bVote ? aVote : (a.elo >= b.elo ? aVote : bVote)
+    const finalTopic = match.topics[finalTopicIndex]
+
+    const roomId = `arena_room_${++roomCounter}_${Date.now()}`
+    rooms[roomId] = {
+      instanceId: roomId, type: 'vc', isVideoArena: true,
+      emoji: '🎥', topic: finalTopic,
+      duration: 8 * 60, eloRequired: 0, maxPlayers: 2,
+      players: {}, spectators: {}, messages: [],
+      status: 'waiting', countdown: 30, startCountdown: null,
+      createdAt: Date.now(),
+      vcState: {
+        currentSpeaker: null, turnNumber: 0, turnStartTime: null,
+        turnDuration: 90, turnCooldown: 5, inCooldown: false,
+        scores: {}, paidToGoFirst: null, firstSpeakerLocked: false,
+        transcripts: [], sides: {},
+      },
+    }
+
+    io.to(matchId).emit('arena_topic_resolved', { matchId, topic: finalTopic, roomId })
+    console.log(`⚔️🎥 Arena resolved — "${finalTopic}" — room ${roomId}`)
+    delete arenaMatches[matchId]
+    io.emit('rooms_update', getRoomList())
+  })
+
   // ── VC override go first ──────────────────────────────────────
   socket.on('vc_override_go_first', ({ instanceId }) => {
     const room = rooms[instanceId]
@@ -2631,6 +2756,8 @@ emoji: emoji || (isVoice ? '🎙️' : '🎭'), topic: topic || 'Scripted Debate
 
   // ── Disconnect ────────────────────────────────────────────────
   socket.on('disconnect', () => {
+    removeFromArenaQueue(socket.id)
+
     // Always run presence cleanup first — this socket might be a Nav-level
     // presence-only connection that was never in any room at all.
     if (presenceUsername && onlinePresence.has(presenceUsername)) {
