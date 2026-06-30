@@ -607,9 +607,31 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
                         </div>
                       </div>
                     )
-                  })}
+                 })}
                 </div>
               )}
+
+              {/* Rebuttal Live Arena entry */}
+              <div
+                onClick={() => router.push('/arena')}
+                className="rebut-card-3d"
+                style={{
+                  marginTop: '28px', position: 'relative', borderRadius: '18px', padding: '24px',
+                  cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
+                  border: '1px solid rgba(0,212,255,0.4)',
+                  background: 'linear-gradient(135deg, rgba(0,212,255,0.08) 0%, rgba(10,10,10,0.97) 60%)',
+                  boxShadow: '0 0 30px rgba(0,212,255,0.12)',
+                }}
+              >
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #00d4ff, #0077b6, #00d4ff)', backgroundSize: '200% 100%', animation: 'shimmer 2s linear infinite' }} />
+                <div style={{ fontSize: '36px', marginBottom: '8px' }}>🎥⚔️</div>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', color: '#00d4ff', marginBottom: '6px', textShadow: '0 0 16px rgba(0,212,255,0.5)' }}>
+                  ENTER THE REBUTTAL LIVE ARENA
+                </div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', maxWidth: '440px', margin: '0 auto', lineHeight: 1.6 }}>
+                  Get matched with a random opponent for a live, face-to-face video debate. Vote on the topic — highest ELO breaks the tie.
+                </div>
+              </div>
             </div>
           )}
         </div>
