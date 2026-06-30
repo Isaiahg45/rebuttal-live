@@ -155,6 +155,11 @@ const queueTimerRef = useRef<any>(null)
               <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '28px', lineHeight: 1.6 }}>
                 Face-to-face video debate. You'll be matched with a random opponent, vote on one of three political topics, and go live on camera.
               </div>
+             {camGranted && (
+                <div style={{ width: '180px', height: '140px', margin: '0 auto 20px', borderRadius: '12px', overflow: 'hidden', border: '2px solid var(--accent)', boxShadow: '0 0 16px rgba(230,57,70,0.4)' }}>
+                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                </div>
+              )}
               <button
                 onClick={joinQueue}
                 style={{ background: 'var(--accent)', border: 'none', borderRadius: '12px', padding: '16px 36px', color: '#fff', fontSize: '16px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 24px rgba(230,57,70,0.35)' }}
@@ -235,12 +240,6 @@ const queueTimerRef = useRef<any>(null)
 
        </div>
       </div>
-
-      {camGranted && (
-        <div style={{ position: 'fixed', bottom: '20px', right: '20px', width: '120px', height: '90px', borderRadius: '10px', overflow: 'hidden', border: '2px solid var(--accent)', boxShadow: '0 0 16px rgba(230,57,70,0.4)', zIndex: 50 }}>
-          <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-        </div>
-      )}
 
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
     </>
