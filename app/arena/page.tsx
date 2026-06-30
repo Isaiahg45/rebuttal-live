@@ -34,14 +34,13 @@ const queueTimerRef = useRef<any>(null)
 
   // Ask for camera + mic as soon as we know who's asking, so by the time
   // a match is found there's no permission prompt blocking the vote.
-  useEffect(() => {
+ useEffect(() => {
     if (!myUsername) return
     let cancelled = false
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then(stream => {
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
         localStreamRef.current = stream
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream
         setCamGranted(true)
       })
       .catch(e => console.error('Camera/mic permission denied:', e))
@@ -50,6 +49,16 @@ const queueTimerRef = useRef<any>(null)
       localStreamRef.current?.getTracks().forEach(t => t.stop())
     }
   }, [myUsername])
+
+  // The <video> element only exists in the DOM once camGranted flips true,
+  // so attaching the stream has to happen in a separate effect that runs
+  // AFTER that render — doing it inside the getUserMedia callback above
+  // races the element's mount and silently attaches to nothing.
+  useEffect(() => {
+    if (camGranted && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current
+    }
+  }, [camGranted])
 
   useEffect(() => {
     if (loading) return
