@@ -206,10 +206,12 @@ const [micGranted, setMicGranted] = useState(false)
 
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
-  const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
+ const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
+  const tickerAudioCtxRef = useRef<AudioContext | null>(null)
   const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
-  const turnStartTimeRef = useRef<number | null>(null)
+const turnStartTimeRef = useRef<number | null>(null)
   const turnTotalDurRef = useRef<number>(90)
+  const turnDeadlineRef = useRef<number | null>(null)
   const localVideoStartRef = useRef<HTMLDivElement | null>(null)
   const remoteVideoStartRef = useRef<HTMLDivElement | null>(null)
   const localVideoElRef = useRef<HTMLDivElement | null>(null)
@@ -538,9 +540,13 @@ console.log('✅ Remote analyser connected')
     socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
       if (count === 4) { try { lobbyAudioRef.current?.pause() } catch (e) {} }
-     if (videoParam && count > 3) {
+    if (videoParam && count > 3) {
         try {
-          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+          if (!tickerAudioCtxRef.current) {
+            tickerAudioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+          }
+          const ctx = tickerAudioCtxRef.current
+          if (ctx.state === 'suspended') ctx.resume()
           const osc = ctx.createOscillator()
           const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination)
@@ -670,6 +676,7 @@ socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) =>
       clearInterval(turnTimerRef.current)
       clearInterval(timerRef.current)
       turnStartTimeRef.current = null
+      turnDeadlineRef.current = null
       setTurnTimeLeft(0)
       // Only mark turn as ended for the speaker, not the listener
       if (speakerSocketId === socket.id) {
@@ -682,6 +689,7 @@ socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) =>
       clearInterval(timerRef.current)
       clearInterval(turnTimerRef.current)
       turnStartTimeRef.current = null
+      turnDeadlineRef.current = null
       setTurnTimeLeft(0)
     })
     socket.on('vc_scoring_end', ({ username }: { username: string }) => {
@@ -899,14 +907,13 @@ agoraInitializedRef.current = false
     return () => clearInterval(speakingIntervalRef.current)
   }, [micGranted])
 
-// Global Date.now()-based turn timer — never affected by re-renders or stale closures
+// Global deadline-based turn timer — most reliable approach
   useEffect(() => {
     const id = setInterval(() => {
-      if (turnStartTimeRef.current === null) return
-      const elapsed = Math.floor((Date.now() - turnStartTimeRef.current) / 1000)
-      const remaining = Math.max(0, turnTotalDurRef.current - elapsed)
+      if (turnDeadlineRef.current === null) return
+      const remaining = Math.max(0, Math.ceil((turnDeadlineRef.current - Date.now()) / 1000))
       setTurnTimeLeft(remaining)
-    }, 300)
+    }, 100)
     return () => clearInterval(id)
   }, [])
 
@@ -915,22 +922,24 @@ agoraInitializedRef.current = false
   }, [transcripts, liveTranscript])
 function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     clearInterval(turnTimerRef.current)
+    const deadline = Date.now() + duration * 1000
+    turnDeadlineRef.current = deadline
     turnStartTimeRef.current = Date.now()
     turnTotalDurRef.current = duration
     setTurnTimeLeft(duration)
     setTurnEnded(false)
     turnEndedRef.current = false
+    // Auto-submit check — runs independently of display
     turnTimerRef.current = setInterval(() => {
-      if (turnStartTimeRef.current === null) { clearInterval(turnTimerRef.current); return }
-      const elapsed = Math.floor((Date.now() - turnStartTimeRef.current) / 1000)
-      const remaining = Math.max(0, duration - elapsed)
-      setTurnTimeLeft(remaining)
+      if (turnDeadlineRef.current === null) { clearInterval(turnTimerRef.current); return }
+      const remaining = Math.max(0, Math.ceil((turnDeadlineRef.current - Date.now()) / 1000))
       if (remaining <= 0) {
         clearInterval(turnTimerRef.current)
+        turnDeadlineRef.current = null
         turnStartTimeRef.current = null
         if (isMine && !turnEndedRef.current) endMyTurn(socket)
       }
-    }, 500)
+    }, 200)
   }
   function endMyTurn(socket: Socket) {
     if (turnEndedRef.current) return
@@ -1351,7 +1360,7 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
             <div style={{ display: 'flex', gap: '4px', padding: '4px', background: '#000', flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
               {/* AGREE — left */}
              <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
-                <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
+               <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} className="agora-video-fill" style={{ width: '100%', height: '100%', position: 'relative' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{leftUsername}</span>
                   <span style={{ background: 'rgba(34,197,94,0.9)', color: '#fff', fontSize: '8px', fontWeight: 800, padding: '2px 5px', borderRadius: '4px' }}>AGREE</span>
@@ -1364,8 +1373,8 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
                 )}
               </div>
               {/* DISAGREE — right */}
-              <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(180px, 28vh, 320px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
-                <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} style={{ width: '100%', height: '100%' }} />
+             <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+                <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} className="agora-video-fill" style={{ width: '100%', height: '100%', position: 'relative' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{rightUsername}</span>
                   <span style={{ background: 'rgba(239,68,68,0.9)', color: '#fff', fontSize: '8px', fontWeight: 800, padding: '2px 5px', borderRadius: '4px' }}>DISAGREE</span>
@@ -1536,6 +1545,7 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
        @keyframes sinisterPulse { 0%,100%{ text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000; } 50%{ text-shadow: 0 0 40px #ff0000, 0 0 80px #cc0000, 0 0 120px #990000; } }
         @keyframes sdFlicker { 0%,100%{ box-shadow: 0 2px 12px rgba(255,50,0,0.3); border-color: rgba(255,50,0,0.7); } 50%{ box-shadow: 0 2px 24px rgba(255,80,0,0.5); border-color: rgba(255,100,0,1); } }
         @keyframes orangePulse { 0%,100%{ opacity:1; text-shadow: 0 0 12px rgba(255,140,0,0.4); } 50%{ opacity:0.75; text-shadow: 0 0 24px rgba(255,140,0,0.8); } }
+        .agora-video-fill div, .agora-video-fill video { width: 100% !important; height: 100% !important; object-fit: cover !important; position: absolute !important; top: 0 !important; left: 0 !important; }
       `}</style>   </>
   )
 }
