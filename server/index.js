@@ -2095,8 +2095,12 @@ if (Object.keys(room.players).length >= 2) {
 
     const [a, b] = match.players
     if (match.votes[a.socketId] === undefined || match.votes[b.socketId] === undefined) {
-      // tell the room someone voted, so the UI can show "waiting on opponent"
-      io.to(matchId).emit('arena_vote_received', { socketId: socket.id })
+      const voter = match.players.find(p => p.socketId === socket.id)
+      io.to(matchId).emit('arena_vote_received', {
+        socketId: socket.id,
+        topicIndex,
+        username: voter?.username ?? 'Someone',
+      })
       return
     }
 

@@ -27,6 +27,7 @@ export default function ArenaPage() {
   const [opponent, setOpponent] = useState<Opponent | null>(null)
   const [myVote, setMyVote] = useState<number | null>(null)
   const [opponentVoted, setOpponentVoted] = useState(false)
+  const [firstVote, setFirstVote] = useState<{ username: string; topicIndex: number } | null>(null)
   const [resolvedTopic, setResolvedTopic] = useState<string | null>(null)
 const queueTimerRef = useRef<any>(null)
  const localVideoRef = useRef<HTMLVideoElement>(null)
@@ -120,15 +121,17 @@ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
       setTopics(t)
       const opp = socket.id ? opponents[socket.id] : undefined
       setOpponent(opp || null)
-      setMyVote(null)
+     setMyVote(null)
       setOpponentVoted(false)
+      setFirstVote(null)
       setResolvedTopic(null)
       // Join a temporary Agora channel so both players can see each other during voting
       joinAgoraPreview(`arena_preview_${mid}`)
     })
 
-    socket.on('arena_vote_received', () => {
+   socket.on('arena_vote_received', ({ socketId, topicIndex, username }: { socketId: string; topicIndex: number; username: string }) => {
       setOpponentVoted(true)
+      setFirstVote({ username, topicIndex })
     })
 
    socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
@@ -233,6 +236,7 @@ function submitCustomTopic() {
     if (myVote !== null || !matchId) return
     setMyVote(i)
     setPhase('voted')
+    setFirstVote({ username: myUsername, topicIndex: i })
     socketRef.current?.emit('arena_vote_topic', { matchId, topicIndex: i })
   }
 
@@ -340,14 +344,9 @@ function submitCustomTopic() {
                     }}
                   >
                     {t}
-                    {myVote === i && (
+                   {firstVote?.topicIndex === i && (
                       <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>
-                        ✓ {myUsername} voted for this topic
-                      </div>
-                    )}
-                    {myVote !== null && myVote !== i && opponentVoted && (
-                      <div style={{ marginTop: '6px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
-                        {opponent?.username} voted
+                        ✓ {firstVote.username} voted for this topic
                       </div>
                     )}
                   </button>
