@@ -31,6 +31,10 @@ const queueTimerRef = useRef<any>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const [camGranted, setCamGranted] = useState(false)
+ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
+  const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
+  const [customTopicText, setCustomTopicText] = useState('')
+  const [customTopicAdded, setCustomTopicAdded] = useState(false)
 
   // Ask for camera + mic as soon as we know who's asking, so by the time
   // a match is found there's no permission prompt blocking the vote.
@@ -50,16 +54,14 @@ const queueTimerRef = useRef<any>(null)
     }
   }, [myUsername])
 
-  // The <video> element only exists in the DOM once camGranted flips true,
-  // so attaching the stream has to happen in a separate effect that runs
-  // AFTER that render — doing it inside the getUserMedia callback above
-  // races the element's mount and silently attaches to nothing.
+  // Re-attach the stream whenever the video element remounts. The idle and
+  // matched phases use the SAME ref but DIFFERENT DOM elements — every phase
+  // transition unmounts one and mounts another, so we must reattach each time.
   useEffect(() => {
-    if (camGranted && localVideoRef.current && localStreamRef.current) {
+    if (localStreamRef.current && localVideoRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current
     }
-  }, [camGranted])
-
+  }, [camGranted, phase])
   useEffect(() => {
     if (loading) return
     if (profile?.username) { setMyUsername(profile.username); setMyElo(profile.elo ?? 0); return }
@@ -71,16 +73,26 @@ const queueTimerRef = useRef<any>(null)
     const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
-    socket.on('arena_queue_joined', () => {
+   socket.on('arena_queue_joined', () => {
       setPhase('queueing')
       setQueueSeconds(0)
       clearInterval(queueTimerRef.current)
       queueTimerRef.current = setInterval(() => setQueueSeconds(s => s + 1), 1000)
+      // Play lobby music while searching
+      if (!lobbyAudioRef.current) {
+        lobbyAudioRef.current = new Audio('/sounds/lobby.mp3')
+        lobbyAudioRef.current.loop = true
+        lobbyAudioRef.current.volume = 0.35
+      }
+      lobbyAudioRef.current.play().catch(() => {})
     })
 
     socket.on('arena_matched', ({ matchId: mid, topics: t, opponents }: { matchId: string; topics: string[]; opponents: Record<string, Opponent> }) => {
       clearInterval(queueTimerRef.current)
+      lobbyAudioRef.current?.pause()
       setPhase('matched')
+      setCustomTopicText('')
+      setCustomTopicAdded(false)
       setMatchId(mid)
       setTopics(t)
      const opp = socket.id ? opponents[socket.id] : undefined
@@ -97,19 +109,24 @@ const queueTimerRef = useRef<any>(null)
    socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
       setPhase('resolved')
       setResolvedTopic(topic)
-      // Brief pause so the player sees which topic won before being dropped
-      // into the room — same beat as the rest of the app's transition screens.
+      // Play the 3-2-1 countdown audio then navigate
+      if (!countdownAudioRef.current) {
+        countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
+      }
+      countdownAudioRef.current.currentTime = 0
+      countdownAudioRef.current.play().catch(() => {})
       setTimeout(() => {
-        // Release the preview camera/mic before navigating — the VC room
-        // grabs its own via Agora, and holding both open at once is what
-        // causes "camera already in use" hiccups on some browsers.
+        countdownAudioRef.current?.pause()
         localStreamRef.current?.getTracks().forEach(t => t.stop())
         router.push(`/vc-debate/${roomId}?video=true`)
-      }, 1800)
+      }, 3200)
     })
 
-    socket.on('arena_expired', ({ message }: { message: string }) => {
-      alert(message)
+socket.on('arena_topics_updated', ({ topics: t }: { topics: string[] }) => {
+      setTopics(t)
+    })
+
+    socket.on('arena_expired', ({ message }: { message: string }) => {      alert(message)
       setPhase('idle')
       setMatchId(null)
       setTopics([])
@@ -123,6 +140,8 @@ const queueTimerRef = useRef<any>(null)
 
     return () => {
       clearInterval(queueTimerRef.current)
+      lobbyAudioRef.current?.pause()
+      countdownAudioRef.current?.pause()
       socket.disconnect()
     }
   }, [myUsername, router])
@@ -131,8 +150,14 @@ const queueTimerRef = useRef<any>(null)
     socketRef.current?.emit('arena_join_queue', { username: myUsername, elo: myElo })
   }
 
-  function leaveQueue() {
-    socketRef.current?.emit('arena_leave_queue')
+function submitCustomTopic() {
+    if (!customTopicText.trim() || customTopicText.trim().length < 10 || !matchId || customTopicAdded) return
+    setCustomTopicAdded(true)
+    socketRef.current?.emit('arena_add_custom_topic', { matchId, topic: customTopicText.trim() })
+    setCustomTopicText('')
+  }
+
+  function leaveQueue() {    socketRef.current?.emit('arena_leave_queue')
     clearInterval(queueTimerRef.current)
     setPhase('idle')
   }
@@ -195,6 +220,13 @@ const queueTimerRef = useRef<any>(null)
 
           {(phase === 'matched' || phase === 'voted') && opponent && (
             <>
+              {/* Blurred cam background */}
+              {camGranted && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: -1, overflow: 'hidden' }}>
+                 <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(24px) brightness(0.25)', transform: 'scaleX(-1) scale(1.1)' }} />
+                </div>
+              )}
+
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '26px', letterSpacing: '2px', marginBottom: '4px' }}>
                 OPPONENT FOUND
               </div>
@@ -205,7 +237,7 @@ const queueTimerRef = useRef<any>(null)
               <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '12px' }}>
                 Pick your topic
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
                 {topics.map((t, i) => (
                   <button
                     key={i}
@@ -214,7 +246,7 @@ const queueTimerRef = useRef<any>(null)
                     style={{
                       textAlign: 'left', padding: '14px 18px', borderRadius: '10px',
                       border: `1px solid ${myVote === i ? 'var(--accent)' : 'var(--border)'}`,
-                      background: myVote === i ? 'rgba(230,57,70,0.1)' : 'var(--surface)',
+                      background: myVote === i ? 'rgba(230,57,70,0.1)' : 'rgba(10,10,10,0.8)',
                       color: 'var(--text)', fontSize: '13px', lineHeight: 1.5,
                       cursor: myVote !== null ? 'default' : 'pointer',
                       opacity: myVote !== null && myVote !== i ? 0.4 : 1,
@@ -226,6 +258,33 @@ const queueTimerRef = useRef<any>(null)
                 ))}
               </div>
 
+              {/* Custom topic — one shot per player */}
+              {!customTopicAdded && myVote === null && (
+                <div style={{ background: 'rgba(10,10,10,0.8)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    + Add your own topic (once only)
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      value={customTopicText}
+                      onChange={e => setCustomTopicText(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && submitCustomTopic()}
+                      placeholder="Type a political topic (min 10 chars)…"
+                      style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '12px', fontFamily: 'DM Sans, sans-serif', outline: 'none' }}
+                    />
+                    <button
+                      onClick={submitCustomTopic}
+                      disabled={customTopicText.trim().length < 10}
+                      style={{ background: 'rgba(230,57,70,0.15)', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '8px', padding: '8px 14px', color: 'var(--accent)', fontSize: '12px', fontWeight: 700, cursor: customTopicText.trim().length < 10 ? 'not-allowed' : 'pointer', opacity: customTopicText.trim().length < 10 ? 0.4 : 1, fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+              {customTopicAdded && myVote === null && (
+                <div style={{ fontSize: '12px', color: 'var(--green)', marginBottom: '12px' }}>✓ Your topic was added — now vote on one above</div>
+              )}
+
               {myVote !== null && (
                 <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
                   {opponentVoted ? 'Resolving the topic…' : `Waiting on ${opponent.username} to vote…`}
@@ -233,7 +292,6 @@ const queueTimerRef = useRef<any>(null)
               )}
             </>
           )}
-
           {phase === 'resolved' && resolvedTopic && (
             <>
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎬</div>

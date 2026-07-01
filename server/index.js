@@ -1114,11 +1114,11 @@ setInterval(() => {
             for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
           } else {
             room.status = 'starting'
-            room.startCountdown = 10
-            io.to(room.instanceId).emit('vc_starting', {
-              startCountdown: 10,
-              players: Object.values(room.players),
-            })
+            room.startCountdown = 3
+          io.to(instanceId).emit('vc_starting', {
+            startCountdown: 3,
+            players: Object.values(room.players),
+          })
           }
         }
       }
@@ -2046,9 +2046,9 @@ if (Object.keys(room.players).length >= 2) {
 
     if (Object.keys(room.players).length === 2) {
   room.status = 'starting'
-  room.startCountdown = 10
+  room.startCountdown = 3
   io.to(instanceId).emit('vc_starting', {
-    startCountdown: 10,
+    startCountdown: 3,
     players: Object.values(room.players),
   })
   if (!room.isCustom) scheduleVCRoom()
@@ -2123,6 +2123,18 @@ if (Object.keys(room.players).length >= 2) {
   // ── Arena: leave the queue voluntarily ──────────────────────────
   socket.on('arena_leave_queue', () => {
     removeFromArenaQueue(socket.id)
+  })
+
+  // ── Arena: add one custom topic (one per player per match) ───────
+  socket.on('arena_add_custom_topic', ({ matchId, topic }) => {
+    const match = arenaMatches[matchId]
+    if (!match || match.resolved) return
+    if (!topic || !topic.trim() || topic.trim().length < 10) return
+    if (!match.customTopicsAdded) match.customTopicsAdded = {}
+    if (match.customTopicsAdded[socket.id]) return // already used their one
+    match.customTopicsAdded[socket.id] = true
+    match.topics.push(topic.trim().slice(0, 200))
+    io.to(matchId).emit('arena_topics_updated', { topics: match.topics })
   })
 
   // ── Arena: vote on one of the 3 presented topics ────────────────

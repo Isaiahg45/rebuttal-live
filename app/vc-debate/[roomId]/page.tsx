@@ -206,9 +206,11 @@ const [micGranted, setMicGranted] = useState(false)
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
   const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
-  const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
+ const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
   const localVideoElRef = useRef<HTMLDivElement | null>(null)
   const remoteVideoElRef = useRef<HTMLDivElement | null>(null)
+  const localVideoPreviewElRef = useRef<HTMLDivElement | null>(null)
+  const remoteVideoPreviewElRef = useRef<HTMLDivElement | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const localAnalyserRef = useRef<AnalyserNode | null>(null)
   const remoteAnalyserRef = useRef<AnalyserNode | null>(null)
@@ -290,7 +292,8 @@ const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: v
         try {
           localVideoTrack = await AgoraRTC.createCameraVideoTrack()
           localVideoTrackRef.current = localVideoTrack
-          if (localVideoElRef.current) localVideoTrack.play(localVideoElRef.current)
+          // Play into preview element — re-played into debate element on active
+          if (localVideoPreviewElRef.current) localVideoTrack.play(localVideoPreviewElRef.current)
         } catch (e) {
           console.error('Camera init failed:', e)
         }
@@ -311,9 +314,8 @@ await client.join(AGORA_APP_ID, channelName, token, numericUid)
    client.on('user-published', async (remoteUser, mediaType) => {
   if (mediaType === 'video') {
     await client.subscribe(remoteUser, 'video')
-    if (remoteVideoElRef.current) {
-      (remoteUser.videoTrack as IRemoteVideoTrack)?.play(remoteVideoElRef.current)
-    }
+    const el = remoteVideoPreviewElRef.current || remoteVideoElRef.current
+    if (el) (remoteUser.videoTrack as IRemoteVideoTrack)?.play(el)
     return
   }
   if (mediaType === 'audio') {
@@ -925,6 +927,38 @@ agoraInitializedRef.current = false
     })
   }
 
+  // Re-play video tracks into the correct DOM elements whenever the mounting
+  // context changes — refs point to different elements across status transitions.
+  useEffect(() => {
+    if (!videoParam) return
+    const t = setTimeout(() => {
+      if (status === 'active') {
+        if (localVideoTrackRef.current && localVideoElRef.current) {
+          localVideoTrackRef.current.play(localVideoElRef.current)
+        }
+        if (agoraClientRef.current) {
+          agoraClientRef.current.remoteUsers.forEach(u => {
+            if (u.videoTrack && remoteVideoElRef.current) {
+              ;(u.videoTrack as IRemoteVideoTrack).play(remoteVideoElRef.current)
+            }
+          })
+        }
+      } else {
+        if (localVideoTrackRef.current && localVideoPreviewElRef.current) {
+          localVideoTrackRef.current.play(localVideoPreviewElRef.current)
+        }
+        if (agoraClientRef.current) {
+          agoraClientRef.current.remoteUsers.forEach(u => {
+            if (u.videoTrack && remoteVideoPreviewElRef.current) {
+              ;(u.videoTrack as IRemoteVideoTrack).play(remoteVideoPreviewElRef.current)
+            }
+          })
+        }
+      }
+    }, 150)
+    return () => clearTimeout(t)
+  }, [status, videoParam, players.length])
+
   // Mute/unmute is only ever allowed in the lobby (waiting/starting) or
   // during your own turn to speak — sudden death reuses isMyTurn too, so
   // this covers that automatically without extra cases.
@@ -975,6 +1009,11 @@ agoraInitializedRef.current = false
                 </div>
               )}
             </div>
+            {!user && standings[0]?.username === myUsername && (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: 'var(--red)', fontWeight: 600, textAlign: 'center' }}>
+                You won the game, but you didn't win anything. Make an account to gain ELO!
+              </div>
+            )}
             {eloChange !== null && !isDraw && (
               <div style={{ background: eloChange >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${eloChange >= 0 ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '13px', color: 'var(--text2)' }}>Placement: <b style={{ color: 'var(--text)' }}>#{myPlace + 1} of 2</b></div>
@@ -1043,7 +1082,19 @@ agoraInitializedRef.current = false
             }}>{startCountdown}</div>          ) : (
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: 'var(--text)', marginBottom: '16px' }}>{fmt(lobbyCountdown)}</div>
           )}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
+          {/* Blurred full-screen camera background when opponent is present */}
+          {videoParam && players.length >= 2 && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 0, display: 'flex', pointerEvents: 'none' }}>
+              <div style={{ flex: 1, overflow: 'hidden', filter: 'blur(28px) brightness(0.22)', transform: 'scale(1.1)' }}>
+                <div ref={localVideoPreviewElRef} style={{ width: '100%', height: '100%' }} />
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden', filter: 'blur(28px) brightness(0.22)', transform: 'scale(1.1)' }}>
+                <div ref={remoteVideoPreviewElRef} style={{ width: '100%', height: '100%' }} />
+              </div>
+            </div>
+          )}
+
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
               <div style={{ fontSize: '13px', color: micGranted ? 'var(--green)' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>{micGranted ? '✅' : '⏳'}</span>
@@ -1054,8 +1105,9 @@ agoraInitializedRef.current = false
                 <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
               )}
 
-              {videoParam && (
-                <div ref={localVideoElRef} style={{ width: '160px', height: '120px', borderRadius: '10px', overflow: 'hidden', background: '#000', border: '1px solid var(--border)' }} />
+              {/* Only show small preview when alone in lobby — background takes over with 2+ players */}
+              {videoParam && players.length < 2 && (
+                <div ref={localVideoPreviewElRef} style={{ width: '160px', height: '120px', borderRadius: '10px', overflow: 'hidden', background: '#000', border: '1px solid var(--border)' }} />
               )}
 
               {micGranted && (
@@ -1073,9 +1125,9 @@ agoraInitializedRef.current = false
                 </div>
                 </>
               )}
-            </div>
+           </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
+          <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
             {players.map((p) => {
               const isMe = p.username === myUsername
               const speaking = isMe ? isSpeaking : opponentSpeaking
@@ -1102,8 +1154,8 @@ agoraInitializedRef.current = false
               </div>
             )}
           </div>
-          {status === 'waiting' && players.length >= 1 && (
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
+         {status === 'waiting' && players.length >= 1 && (
+            <div style={{ position: 'relative', zIndex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Pick Your Side</div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 {(['pro', 'con'] as const).map(side => {
@@ -1124,7 +1176,7 @@ agoraInitializedRef.current = false
                         opacity: isTaken && !isMine ? 0.5 : 1,
                       }}
                     >
-                      {side === 'pro' ? '👍 PRO' : '👎 CON'}
+                      {side === 'pro' ? '✅ AGREE' : '❌ DISAGREE'}
                       {takenBy && <div style={{ fontSize: '11px', fontWeight: 400, marginTop: '3px' }}>{takenBy}</div>}
                       {!takenBy && <div style={{ fontSize: '11px', fontWeight: 400, marginTop: '3px', color: 'var(--muted)' }}>Available</div>}
                     </button>
@@ -1134,7 +1186,7 @@ agoraInitializedRef.current = false
             </div>
           )}
           {status === 'starting' && players.length === 2 && (
-            <div style={{ background: 'rgba(255,214,10,0.06)', border: '1px solid rgba(255,214,10,0.2)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
+            <div style={{ position: 'relative', zIndex: 1, background: 'rgba(255,214,10,0.06)', border: '1px solid rgba(255,214,10,0.2)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>⚡ Go First?</div>
               {!paidToGoFirst ? (
                 <button onClick={() => socketRef.current?.emit('vc_pay_to_go_first', { instanceId })} style={{ background: 'rgba(255,214,10,0.15)', border: '1px solid rgba(255,214,10,0.4)', borderRadius: '8px', padding: '8px 20px', color: 'var(--gold)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
@@ -1162,15 +1214,16 @@ agoraInitializedRef.current = false
               🗑️ Cancel Room
             </button>
           )}
-          <button onClick={() => router.push('/rebut')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 20px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+          <button onClick={() => router.push('/rebut')} style={{ position: 'relative', zIndex: 1, background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 20px', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
             Leave
           </button>
         </div>
       </div>
 <style>{`
+        @keyframes sinisterPulse { 0%,100%{ text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #990000; } 50%{ text-shadow: 0 0 40px #ff0000, 0 0 80px #cc0000, 0 0 120px #990000; } }
         @keyframes orangePulse { 0%,100%{ opacity:1; text-shadow: 0 0 12px rgba(255,140,0,0.4); } 50%{ opacity:0.75; text-shadow: 0 0 24px rgba(255,140,0,0.8); } }
         @keyframes redPulse { 0%,100%{ opacity:1; text-shadow: 0 0 10px rgba(255,50,50,0.6); } 50%{ opacity:0.85; text-shadow: 0 0 20px rgba(255,50,50,1); } }
-      `}</style>    </>
+      `}</style>   </>
   )
   // ── ACTIVE DEBATE ──
   return (
@@ -1203,10 +1256,10 @@ agoraInitializedRef.current = false
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                {myUsername} (you){mySide && <span style={{ fontSize: '10px', marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: mySide === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: mySide === 'pro' ? 'var(--green)' : 'var(--red)' }}>{mySide.toUpperCase()}</span>} — {myScore} pts
+                {myUsername} (you){mySide && <span style={{ fontSize: '10px', marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: mySide === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: mySide === 'pro' ? 'var(--green)' : 'var(--red)' }}>{mySide === 'pro' ? 'AGREE' : 'DISAGREE'}</span>} — {myScore} pts
               </span>
               <span style={{ color: 'var(--text2)' }}>
-                {opponent?.username}{opponent && sides[opponent.username] && <span style={{ fontSize: '10px', marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: sides[opponent.username] === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: sides[opponent.username] === 'pro' ? 'var(--green)' : 'var(--red)' }}>{sides[opponent.username].toUpperCase()}</span>} — {opponentScore} pts
+                {opponent?.username}{opponent && sides[opponent.username] && <span style={{ fontSize: '10px', marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: sides[opponent.username] === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: sides[opponent.username] === 'pro' ? 'var(--green)' : 'var(--red)' }}>{sides[opponent.username] === 'pro' ? 'AGREE' : 'DISAGREE'}</span>} — {opponentScore} pts
               </span>
             </div>
             <div style={{ height: '6px', background: 'var(--surface2)', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
@@ -1237,7 +1290,7 @@ agoraInitializedRef.current = false
                 <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>You</span>
                 {mySide && (
                   <span style={{ background: mySide === 'pro' ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
-                    {mySide === 'pro' ? 'FOR' : 'AGAINST'}
+                    {mySide === 'pro' ? 'AGREE' : 'DISAGREE'}
                   </span>
                 )}
               </div>
@@ -1258,7 +1311,7 @@ agoraInitializedRef.current = false
                 <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>{opponent?.username ?? 'Opponent'}</span>
                 {opponent && sides[opponent.username] && (
                   <span style={{ background: sides[opponent.username] === 'pro' ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
-                    {sides[opponent.username] === 'pro' ? 'FOR' : 'AGAINST'}
+                    {sides[opponent.username] === 'pro' ? 'AGREE' : 'DISAGREE'}
                   </span>
                 )}
               </div>
