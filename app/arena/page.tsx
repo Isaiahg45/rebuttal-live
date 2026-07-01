@@ -32,7 +32,6 @@ const queueTimerRef = useRef<any>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const [camGranted, setCamGranted] = useState(false)
  const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
-  const countdownAudioRef = useRef<HTMLAudioElement | null>(null)
   const [customTopicText, setCustomTopicText] = useState('')
   const [customTopicAdded, setCustomTopicAdded] = useState(false)
 
@@ -109,17 +108,10 @@ const queueTimerRef = useRef<any>(null)
    socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
       setPhase('resolved')
       setResolvedTopic(topic)
-      // Play the 3-2-1 countdown audio then navigate
-      if (!countdownAudioRef.current) {
-        countdownAudioRef.current = new Audio('/sounds/countdown.mp3')
-      }
-      countdownAudioRef.current.currentTime = 0
-      countdownAudioRef.current.play().catch(() => {})
       setTimeout(() => {
-        countdownAudioRef.current?.pause()
         localStreamRef.current?.getTracks().forEach(t => t.stop())
         router.push(`/vc-debate/${roomId}?video=true`)
-      }, 3200)
+      }, 1800)
     })
 
 socket.on('arena_topics_updated', ({ topics: t }: { topics: string[] }) => {
@@ -141,7 +133,6 @@ socket.on('arena_topics_updated', ({ topics: t }: { topics: string[] }) => {
     return () => {
       clearInterval(queueTimerRef.current)
       lobbyAudioRef.current?.pause()
-      countdownAudioRef.current?.pause()
       socket.disconnect()
     }
   }, [myUsername, router])
