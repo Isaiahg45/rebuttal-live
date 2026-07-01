@@ -1282,56 +1282,43 @@ agoraInitializedRef.current = false
         )}
 
       {videoParam && (() => {
-          // AGREE always left, DISAGREE always right
           const iAgreeLeft = !mySide || mySide === 'pro'
           const leftIsMe = iAgreeLeft
-          const leftLabel = 'AGREE'
-          const rightLabel = 'DISAGREE'
           const leftUsername = leftIsMe ? 'You' : (opponent?.username ?? 'Opponent')
           const rightUsername = leftIsMe ? (opponent?.username ?? 'Opponent') : 'You'
           const leftTalking = leftIsMe ? isMyTurn : !isMyTurn
-          const rightTalking = leftIsMe ? !isMyTurn : isMyTurn
+          const rightTalking = !leftTalking
           return (
-            <div style={{ display: 'flex', gap: '6px', padding: '6px 8px', background: '#000', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: '4px', padding: '4px', background: '#000', flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
               {/* AGREE — left */}
-              <div style={{ position: 'relative', flex: 1, height: '160px', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}` }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(120px, 22vw, 200px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
-                <div style={{ position: 'absolute', top: '6px', left: '6px', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <span style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px' }}>{leftUsername}</span>
-                  <span style={{ background: 'rgba(34,197,94,0.85)', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '5px' }}>{leftLabel}</span>
+                <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
+                  <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{leftUsername}</span>
+                  <span style={{ background: 'rgba(34,197,94,0.9)', color: '#fff', fontSize: '8px', fontWeight: 800, padding: '2px 5px', borderRadius: '4px' }}>AGREE</span>
                 </div>
                 {leftIsMe && isMyTurn && liveTranscript && (
-                  <div style={{ position: 'absolute', bottom: '30px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{liveTranscript}</div>
+                  <div style={{ position: 'absolute', bottom: '32px', left: '4px', right: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)', zIndex: 2 }}>{liveTranscript}</div>
                 )}
                 {!leftIsMe && !isMyTurn && opponentLiveTranscript && (
-                  <div style={{ position: 'absolute', bottom: '6px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{opponentLiveTranscript}</div>
-                )}
-                {leftIsMe && (
-                  <div style={{ position: 'absolute', bottom: '4px', right: '4px' }}>
-                    <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
-                  </div>
+                  <div style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)', zIndex: 2 }}>{opponentLiveTranscript}</div>
                 )}
               </div>
               {/* DISAGREE — right */}
-              <div style={{ position: 'relative', flex: 1, height: '160px', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}` }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(120px, 22vw, 200px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} style={{ width: '100%', height: '100%' }} />
-                <div style={{ position: 'absolute', top: '6px', left: '6px', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <span style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px' }}>{rightUsername}</span>
-                  <span style={{ background: 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '5px' }}>{rightLabel}</span>
+                <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
+                  <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{rightUsername}</span>
+                  <span style={{ background: 'rgba(239,68,68,0.9)', color: '#fff', fontSize: '8px', fontWeight: 800, padding: '2px 5px', borderRadius: '4px' }}>DISAGREE</span>
                 </div>
                 {!leftIsMe && isMyTurn && liveTranscript && (
-                  <div style={{ position: 'absolute', bottom: '30px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{liveTranscript}</div>
+                  <div style={{ position: 'absolute', bottom: '32px', left: '4px', right: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)', zIndex: 2 }}>{liveTranscript}</div>
                 )}
                 {leftIsMe && !isMyTurn && opponentLiveTranscript && (
-                  <div style={{ position: 'absolute', bottom: '6px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{opponentLiveTranscript}</div>
-                )}
-                {!leftIsMe && (
-                  <div style={{ position: 'absolute', bottom: '4px', right: '4px' }}>
-                    <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
-                  </div>
+                  <div style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)', zIndex: 2 }}>{opponentLiveTranscript}</div>
                 )}
                 {!remoteAudioActive && (
-                  <div style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.65)', color: 'rgba(255,255,255,0.6)', fontSize: '9px', padding: '2px 6px', borderRadius: '5px' }}>Mic Muted</div>
+                  <div style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.6)', fontSize: '8px', padding: '2px 5px', borderRadius: '4px', zIndex: 2 }}>Mic Muted</div>
                 )}
               </div>
             </div>
