@@ -1,6 +1,6 @@
 'use client'
 import Nav from '../components/Nav'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from 'next/navigation'
 import { io } from 'socket.io-client'
@@ -23,6 +23,7 @@ interface RoomData {
   timeLeft: number | null
   isCustom?: boolean
   isPrivate?: boolean
+  isVideoArena?: boolean
   createdBy?: string
   eloStake?: number
   requiresPassword?: boolean
@@ -112,6 +113,36 @@ const ELO_LABELS: Record<string, string> = {
 }
 
 const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
+
+function RoomCard({ room, onJoin }: { room: RoomData; onJoin: () => void }) {
+  const c = TYPE_CONFIG[room.type] || TYPE_CONFIG.casual
+  return (
+    <div
+      onClick={onJoin}
+      className="rebut-card-3d"
+      style={{
+        position: 'relative', borderRadius: '14px', padding: '16px', cursor: 'pointer',
+        border: `1px solid ${c.border}`,
+        background: 'linear-gradient(160deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,0.99) 100%)',
+        boxShadow: c.glow, overflow: 'hidden',
+      }}
+    >
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: c.gradient }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+        <div style={{ fontSize: '22px' }}>{room.emoji}</div>
+        <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '4px', background: c.badgeBg, color: c.badge }}>{c.label}</span>
+      </div>
+      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', lineHeight: 1.4, marginBottom: '8px' }}>{room.topic}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+        <span>{room.playerCount}{room.maxPlayers ? `/${room.maxPlayers}` : ''} debaters</span>
+        <span style={{ color: c.badge, fontWeight: 700 }}>
+          {room.status === 'active' ? (room.timeLeft != null ? fmt(room.timeLeft) : 'LIVE') : fmt(room.countdown)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function RebutPage() {
   const router = useRouter()
   const { user, profile, loading } = useAuth()
@@ -230,8 +261,8 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
   const cfg = (type: string) => TYPE_CONFIG[type] || TYPE_CONFIG.casual
   const placeLabel = (n: number) => n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`
 
-  const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(12px)', padding: '20px' }
-  const MODAL: React.CSSProperties = { background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '32px 28px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 0 80px rgba(0,0,0,0.8)' }
+  const OVERLAY: CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(12px)', padding: '20px' }
+  const MODAL: CSSProperties = { background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '32px 28px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 0 80px rgba(0,0,0,0.8)' }
 
   return (
     <>
@@ -347,7 +378,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
             </div>
           )}
 
-          {/* Arena matchmaking card — always at top */}
+         {/* ── 1. ARENA MATCHMAKING — always at top ──────────── */}
           {connected && (
             <div
               onClick={() => router.push('/arena')}
@@ -366,34 +397,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
                 <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', color: 'var(--accent)', textShadow: '0 0 16px rgba(230,57,70,0.6)' }}>
                   ENTER THE REBUTTAL LIVE ARENA
                 </div>
-                <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.5)', color: 'var(--green)', padding: '2px 8px', borderRadius: '20px', letterSpacing: '1px', flexShrink: 0 }}>BETA</span>
-              </div>
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', maxWidth: '440px', margin: '0 auto', lineHeight: 1.6 }}>
-                Get matched with a random opponent for a live, face-to-face video debate. Vote on the topic — highest ELO breaks the tie.
-              </div>
-            </div>
-          )}
-
-        {/* ── 1. ARENA MATCHMAKING ───────────────────────────── */}
-          {connected && (
-            <div
-              onClick={() => router.push('/arena')}
-              className="rebut-card-3d"
-              style={{
-                marginBottom: '28px', position: 'relative', borderRadius: '18px', padding: '24px',
-                cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
-                border: '1px solid rgba(230,57,70,0.5)',
-                background: 'linear-gradient(135deg, rgba(230,57,70,0.1) 0%, rgba(10,10,10,0.97) 60%)',
-                boxShadow: '0 0 30px rgba(230,57,70,0.15)',
-              }}
-            >
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #e63946, #ff6b35, #e63946)', backgroundSize: '200% 100%', animation: 'shimmer 2s linear infinite' }} />
-              <div style={{ fontSize: '36px', marginBottom: '8px' }}>🎥⚔️</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', color: 'var(--accent)', textShadow: '0 0 16px rgba(230,57,70,0.6)' }}>
-                  ENTER THE REBUTTAL LIVE ARENA
-                </div>
-                <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.5)', color: 'var(--green)', padding: '2px 8px', borderRadius: '20px', letterSpacing: '1px', flexShrink: 0 }}>BETA</span>
+                <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.5)',color: '#22c55e', padding: '2px 8px', borderRadius: '20px', letterSpacing: '1px', flexShrink: 0 }}>BETA</span>
               </div>
               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', maxWidth: '440px', margin: '0 auto', lineHeight: 1.6 }}>
                 Get matched with a random opponent for a live, face-to-face video debate. Vote on the topic — highest ELO breaks the tie.
@@ -484,141 +488,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
             </div>
           )}
 
-          {/* ── 6. OPEN TEXT ROOMS ─────────────────────────────── */}
-          {connected && openText.length > 0 && (
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 OPEN ROOMS</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-                {openText.map(room => (
-                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} />
-                ))}
-              </div>
-            </div>
-          )}
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e63946', animation: 'liveFlash 1s infinite', boxShadow: '0 0 8px #e63946' }} />
-                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '3px', color: '#e63946' }}>LIVE NOW — {live.length} DEBATE{live.length !== 1 ? 'S' : ''}</span>
-                <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(230,57,70,0.4) 0%, transparent 100%)' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
-
-                {/* Ended ghost cards */}
-                {Object.entries(endedRooms).map(([id, ended]) => (
-                  <div key={`ended-${id}`} className="ended-card" style={{ position: 'relative', borderRadius: '18px', padding: '24px', border: '1px solid rgba(255,214,10,0.4)', background: 'linear-gradient(135deg, rgba(255,214,10,0.06) 0%, rgba(0,0,0,0.95) 100%)', overflow: 'hidden', minHeight: '200px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 0 30px rgba(255,214,10,0.15)' }}>
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #ffd60a, #ff9500)' }} />
-                    <div style={{ fontSize: '40px', animation: 'winnerPop 0.4s ease forwards' }}>🏆</div>
-                    <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', color: '#ffd60a', textAlign: 'center', textShadow: '0 0 16px rgba(255,214,10,0.6)' }}>
-                      {ended.winner ? `${ended.winner} got #${placeLabel(ended.place)}!` : 'Debate Ended!'}
-                    </div>
-                    {ended.room?.topic && <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', textAlign: 'center', maxWidth: '200px', lineHeight: 1.4 }}>{ended.room.topic}</div>}
-                    <div style={{ fontSize: '9px', color: 'rgba(255,214,10,0.5)', letterSpacing: '2px', fontWeight: 700 }}>DEBATE OVER</div>
-                  </div>
-                ))}
-
-                {/* Live debate cards */}
-                {live.map(room => {
-                  const c = cfg(room.type)
-                  const isVC = room.type === 'vc'
-                  const msgs = roomMessages[room.instanceId] || []
-                  const p1 = room.players[0] || '?'
-                  const p2 = room.players[1] || '?'
-                  const showVs = room.players.length >= 2
-
-                  return (
-                    <div
-                      key={room.instanceId}
-                      onClick={() => !isVC && handleSpectate(room)}
-                      className="rebut-card-3d fire-card scanline-overlay"
-                      style={{
-                        position: 'relative', borderRadius: '18px',
-                        border: '1px solid rgba(255,80,0,0.7)',
-                        background: 'linear-gradient(160deg, rgba(20,5,0,0.98) 0%, rgba(10,0,0,0.99) 100%)',
-                        cursor: isVC ? 'default' : 'pointer',
-                        overflow: 'hidden',
-                        display: 'flex', flexDirection: 'column',
-                      }}
-                    >
-                      {/* Top shimmer bar */}
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #ff4500, #ff8c00, #ff4500)', backgroundSize: '200% 100%', animation: 'shimmer 2s linear infinite' }} />
-
-                      {/* LIVE badge */}
-                      <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(255,50,0,0.2)', border: '1px solid rgba(255,80,0,0.6)', borderRadius: '20px', padding: '2px 8px', fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', color: '#ff6030', animation: 'liveFlash 1.2s infinite', zIndex: 2 }}>
-                        🔴 LIVE
-                      </div>
-
-                      {/* VS Header */}
-<div style={{ padding: '14px 14px 4px', paddingRight: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        {showVs ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 800 }}>
-                            <span style={{ color: '#ff8c00', textShadow: '0 0 8px rgba(255,140,0,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px', whiteSpace: 'nowrap' }}>{p1}</span>
-                            <span style={{ fontSize: '14px', filter: 'drop-shadow(0 0 4px rgba(255,100,0,0.6))' }}>⚔️</span>
-                            <span style={{ color: 'rgba(255,80,0,0.8)', fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '2px' }}>VS</span>
-                            <span style={{ fontSize: '14px', filter: 'drop-shadow(0 0 4px rgba(255,100,0,0.6))' }}>⚔️</span>
-                            <span style={{ color: 'rgba(255,200,150,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px', whiteSpace: 'nowrap' }}>{p2}</span>
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
-                            {room.players.length > 2 ? `${room.players.length} debaters` : 'Debate in progress...'}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Topic */}
-                      <div style={{ padding: '6px 14px 8px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', lineHeight: 1.4, textShadow: '0 1px 8px rgba(255,80,0,0.2)' }}>{room.topic}</div>
-                      </div>
-
-                      {/* Live chat preview */}
-                      <div style={{ margin: '0 10px 8px', borderRadius: '10px', overflow: 'hidden', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,80,0,0.12)', minHeight: '72px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '20px', background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%)', zIndex: 1, pointerEvents: 'none' }} />
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '20px', background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%)', zIndex: 1, pointerEvents: 'none' }} />
-                        <div className="chat-scroll" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto', flex: 1 }}>
-                          {msgs.length === 0 ? (
-                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.18)', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
-                              {isVC ? '🎙 Voice debate in progress...' : '💬 Arguments loading...'}
-                            </div>
-                          ) : msgs.map((m, i) => (
-                            <div key={i} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <span style={{ color: '#ff8c00', fontWeight: 700, marginRight: '4px' }}>{m.user}:</span>
-                              <span>{m.text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Footer */}
-                      <div style={{ padding: '4px 12px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          {room.players.slice(0, 5).map((username, i) => (
-                            <div
-                              key={i}
-                              onMouseEnter={e => setHoveredPlayer({ username, elo: playerElos[username], x: e.clientX, y: e.clientY })}
-                              onMouseLeave={() => setHoveredPlayer(null)}
-                              style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid rgba(255,80,0,0.4)', background: `hsl(${i * 47 + room.instanceId.length * 7}, 65%, 55%)`, marginLeft: i === 0 ? 0 : '-4px', cursor: 'default', flexShrink: 0 }}
-                            />
-                          ))}
-                          {room.playerCount > 5 && <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.35)', marginLeft: '4px' }}>+{room.playerCount - 5}</div>}
-                          {room.spectatorCount > 0 && <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)', marginLeft: '5px' }}>· {room.spectatorCount} 👁</span>}
-                        </div>
-                        <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '14px', color: '#ff6030', letterSpacing: '1px', textShadow: '0 0 8px rgba(255,80,0,0.5)' }}>
-                          {room.timeLeft != null ? fmt(room.timeLeft) : '—'}
-                        </span>
-                      </div>
-
-                      {!isVC && (
-                        <div style={{ margin: '0 10px 10px', background: 'rgba(255,60,0,0.08)', border: '1px solid rgba(255,80,0,0.3)', borderRadius: '8px', padding: '6px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#ff6030', letterSpacing: '1px' }}>
-                          👁 WATCH LIVE
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* JOIN */}
+         {/* JOIN */}
           {connected && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
