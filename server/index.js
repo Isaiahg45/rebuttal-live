@@ -2279,6 +2279,45 @@ socket.on('vc_turn_ended_early', ({ instanceId }) => {
       room.vcState.turnNumber++
       room.vcState.turnStartTime = Date.now()
 
+      // End after 5 rounds each (10 total turns)
+      if (!room.inSuddenDeath && room.vcState.turnNumber > 10) {
+        room.status = 'ended'
+        const sorted = Object.values(room.players).sort((a, b) => b.score - a.score)
+        const isTie = sorted.length === 2 && sorted[0].score === sorted[1].score
+        if (isTie) {
+          // Trigger sudden death instead of ending
+          room.inSuddenDeath = true
+          room.suddenDeathRound = 1
+          room.suddenDeathScores = {}
+          sorted.forEach(p => { room.suddenDeathScores[p.username] = 0 })
+          const playerIds = Object.keys(room.players)
+          const firstId = playerIds[Math.floor(Math.random() * playerIds.length)]
+          const secondId = playerIds.find(id => id !== firstId)
+          room.suddenDeathFirst = firstId
+          room.suddenDeathSecond = secondId
+          room.vcState.currentSpeaker = firstId
+          room.vcState.turnDuration = 15
+          io.to(instanceId).emit('vc_sudden_death_start', {
+            round: 1,
+            firstSpeakerSocketId: firstId,
+            firstSpeakerUsername: room.players[firstId]?.username,
+            secondSpeakerUsername: room.players[secondId]?.username,
+            turnDuration: 15,
+          })
+        } else {
+          const eloChanges = calculateEloChanges('vc', sorted.length, room.duration, sorted[0]?.elo ?? 0, sorted[1]?.elo ?? 0)
+          io.to(instanceId).emit('vc_debate_ended', {
+            standings: sorted,
+            transcripts: room.vcState.transcripts,
+            eloChanges,
+          })
+          const vcNeeded = TARGET_VC_AVAILABLE - getVCWaitingCount()
+          for (let i = 0; i < Math.max(1, vcNeeded); i++) scheduleVCRoom()
+          io.emit('rooms_update', getRoomList())
+        }
+        return
+      }
+
       if (room.inSuddenDeath) {
         const myUsername = room.players[socket.id]?.username
         const isFirst = room.suddenDeathFirst === socket.id

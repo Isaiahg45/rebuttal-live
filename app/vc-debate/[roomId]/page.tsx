@@ -1011,7 +1011,7 @@ agoraInitializedRef.current = false
             </div>
             {!user && standings[0]?.username === myUsername && (
               <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: 'var(--red)', fontWeight: 600, textAlign: 'center' }}>
-                You won the game, but you didn't win anything. Make an account to gain ELO!
+                You won the game, but you didn't earn any ELO. Make an account to gain ELO and rank up!
               </div>
             )}
             {eloChange !== null && !isDraw && (
@@ -1281,51 +1281,62 @@ agoraInitializedRef.current = false
           </div>
         )}
 
-      {videoParam && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', background: '#000', flexShrink: 0, overflowY: 'auto', maxHeight: '60vh' }}>
-            {/* You */}
-            <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', background: '#111', border: `2px solid ${isMyTurn ? 'var(--accent)' : 'var(--border)'}` }}>
-              <div ref={localVideoElRef} style={{ width: '100%', height: '100%' }} />
-              <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>You</span>
-                {mySide && (
-                  <span style={{ background: mySide === 'pro' ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
-                    {mySide === 'pro' ? 'AGREE' : 'DISAGREE'}
-                  </span>
+      {videoParam && (() => {
+          // AGREE always left, DISAGREE always right
+          const iAgreeLeft = !mySide || mySide === 'pro'
+          const leftIsMe = iAgreeLeft
+          const leftLabel = 'AGREE'
+          const rightLabel = 'DISAGREE'
+          const leftUsername = leftIsMe ? 'You' : (opponent?.username ?? 'Opponent')
+          const rightUsername = leftIsMe ? (opponent?.username ?? 'Opponent') : 'You'
+          const leftTalking = leftIsMe ? isMyTurn : !isMyTurn
+          const rightTalking = leftIsMe ? !isMyTurn : isMyTurn
+          return (
+            <div style={{ display: 'flex', gap: '6px', padding: '6px 8px', background: '#000', flexShrink: 0 }}>
+              {/* AGREE — left */}
+              <div style={{ position: 'relative', flex: 1, height: '160px', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}` }}>
+                <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
+                <div style={{ position: 'absolute', top: '6px', left: '6px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <span style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px' }}>{leftUsername}</span>
+                  <span style={{ background: 'rgba(34,197,94,0.85)', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '5px' }}>{leftLabel}</span>
+                </div>
+                {leftIsMe && isMyTurn && liveTranscript && (
+                  <div style={{ position: 'absolute', bottom: '30px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{liveTranscript}</div>
+                )}
+                {!leftIsMe && !isMyTurn && opponentLiveTranscript && (
+                  <div style={{ position: 'absolute', bottom: '6px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{opponentLiveTranscript}</div>
+                )}
+                {leftIsMe && (
+                  <div style={{ position: 'absolute', bottom: '4px', right: '4px' }}>
+                    <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
+                  </div>
                 )}
               </div>
-              {isMyTurn && liveTranscript && (
-                <div style={{ position: 'absolute', bottom: '40px', left: '8px', right: '8px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.9)' }}>
-                  {liveTranscript}
+              {/* DISAGREE — right */}
+              <div style={{ position: 'relative', flex: 1, height: '160px', borderRadius: '10px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}` }}>
+                <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} style={{ width: '100%', height: '100%' }} />
+                <div style={{ position: 'absolute', top: '6px', left: '6px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <span style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px' }}>{rightUsername}</span>
+                  <span style={{ background: 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '5px' }}>{rightLabel}</span>
                 </div>
-              )}
-              <div style={{ position: 'absolute', bottom: '8px', right: '8px' }}>
-                <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
-              </div>
-            </div>
-
-            {/* Opponent */}
-            <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', background: '#111', border: `2px solid ${!isMyTurn ? 'var(--green)' : 'var(--border)'}` }}>
-              <div ref={remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
-              <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>{opponent?.username ?? 'Opponent'}</span>
-                {opponent && sides[opponent.username] && (
-                  <span style={{ background: sides[opponent.username] === 'pro' ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
-                    {sides[opponent.username] === 'pro' ? 'AGREE' : 'DISAGREE'}
-                  </span>
+                {!leftIsMe && isMyTurn && liveTranscript && (
+                  <div style={{ position: 'absolute', bottom: '30px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{liveTranscript}</div>
+                )}
+                {leftIsMe && !isMyTurn && opponentLiveTranscript && (
+                  <div style={{ position: 'absolute', bottom: '6px', left: '4px', right: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', textShadow: '0 0 8px rgba(0,0,0,1)' }}>{opponentLiveTranscript}</div>
+                )}
+                {!leftIsMe && (
+                  <div style={{ position: 'absolute', bottom: '4px', right: '4px' }}>
+                    <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
+                  </div>
+                )}
+                {!remoteAudioActive && (
+                  <div style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.65)', color: 'rgba(255,255,255,0.6)', fontSize: '9px', padding: '2px 6px', borderRadius: '5px' }}>Mic Muted</div>
                 )}
               </div>
-              {!isMyTurn && opponentLiveTranscript && (
-                <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.9)' }}>
-                  {opponentLiveTranscript}
-                </div>
-              )}
-              {!remoteAudioActive && (
-                <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.65)', color: 'rgba(255,255,255,0.7)', fontSize: '10px', padding: '3px 8px', borderRadius: '6px' }}>Mic Muted</div>
-              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Audio visualizers */}
         <div style={{ background: suddenDeath ? 'rgba(180,0,0,0.08)' : 'rgba(0,0,0,0.3)', borderBottom: '1px solid var(--border)', padding: '10px 20px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
@@ -1367,8 +1378,8 @@ agoraInitializedRef.current = false
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite' }} />
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>YOUR TURN — SPEAK NOW</span>
               </div>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '48px', color: turnTimeLeft <= 10 ? 'var(--red)' : 'var(--accent)', letterSpacing: '2px', lineHeight: 1 }}>
-                {turnTimeLeft}s
+             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '48px', color: turnTimeLeft <= 10 ? 'var(--red)' : 'var(--accent)', letterSpacing: '2px', lineHeight: 1 }}>
+                {fmt(turnTimeLeft)}
               </div>
               <MuteButton muted={isMuted} disabled={!canToggleMute} onClick={handleToggleMute} />
               <button onClick={handleEndTurnEarly} style={{ background: 'rgba(230,57,70,0.1)', border: '1px solid rgba(230,57,70,0.3)', borderRadius: '8px', padding: '6px 16px', color: 'var(--accent)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
@@ -1384,7 +1395,7 @@ agoraInitializedRef.current = false
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1s infinite' }} />
                 <span style={{ fontSize: '14px', color: 'var(--text2)' }}>{currentSpeakerUsername} is speaking...</span>
               </div>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '36px', color: 'var(--text2)', letterSpacing: '2px' }}>{turnTimeLeft}s</div>
+             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '36px', color: 'var(--text2)', letterSpacing: '2px' }}>{fmt(turnTimeLeft)}</div>
               <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Listen carefully — you'll respond next</div>
               <button onClick={() => setShowForfeitModal(true)} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '4px 12px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginTop: '4px' }}>
                 🏳️ Forfeit

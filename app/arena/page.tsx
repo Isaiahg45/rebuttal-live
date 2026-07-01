@@ -220,10 +220,15 @@ function submitCustomTopic() {
 
           {(phase === 'matched' || phase === 'voted') && opponent && (
             <>
-              {/* Blurred cam background */}
+             {/* Split blurred background — you on left, opponent placeholder on right */}
               {camGranted && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: -1, overflow: 'hidden' }}>
-                 <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(24px) brightness(0.25)', transform: 'scaleX(-1) scale(1.1)' }} />
+                <div style={{ position: 'fixed', inset: 0, zIndex: -1, display: 'flex', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(24px) brightness(0.22)', transform: 'scaleX(-1) scale(1.1)' }} />
+                  </div>
+                  <div style={{ flex: 1, background: 'rgba(8,4,8,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ fontSize: '72px', opacity: 0.2 }}>👤</div>
+                  </div>
                 </div>
               )}
 
