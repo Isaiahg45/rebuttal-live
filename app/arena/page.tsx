@@ -4,7 +4,6 @@ import { io, Socket } from 'socket.io-client'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import Nav from '../components/Nav'
-import AgoraRTC from 'agora-rtc-sdk-ng'
 import type { IAgoraRTCClient, ILocalVideoTrack, IRemoteVideoTrack } from 'agora-rtc-sdk-ng'
 
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
@@ -152,6 +151,7 @@ socket.on('arena_topics_updated', ({ topics: t }: { topics: string[] }) => {
 
 const joinAgoraPreview = useCallback(async (channelName: string) => {
     try {
+      const { default: AgoraRTC } = await import('agora-rtc-sdk-ng')
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       agoraClientRef.current = client
       const uid = Math.floor(Math.random() * 100000) + 1
