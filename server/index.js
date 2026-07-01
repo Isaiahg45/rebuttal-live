@@ -3368,12 +3368,10 @@ async function runBot(botName, personality) {
   room.type,
   priorBotMessages
 )
-const baseCap = 15
-const bonusCap = 20
-const randomCap = Math.floor(Math.random() * baseCap) + 1
-const score = botRawScore >= 25
-  ? Math.min(Math.round(botRawScore * 0.8), bonusCap)
-  : Math.min(Math.round(botRawScore * 0.6), randomCap)
+// Continuous random jitter instead of clustering onto a small set of
+// repeating values — keeps bot scores feeling as varied as real players'.
+const jitter = 0.55 + Math.random() * 0.55 // 0.55x – 1.10x
+const score = Math.max(1, Math.min(30, Math.round(botRawScore * jitter)))
         const msg = {
           id: `${Date.now()}-${Math.random()}`,
           username: botName,

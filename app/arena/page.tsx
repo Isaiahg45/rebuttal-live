@@ -38,7 +38,8 @@ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   const [customTopicAdded, setCustomTopicAdded] = useState(false)
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
   const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
-  const remoteVideoRef = useRef<HTMLDivElement | null>(null)
+ const remoteVideoRef = useRef<HTMLDivElement | null>(null)
+  const remoteVideoTrackRef = useRef<IRemoteVideoTrack | null>(null)
   const [remoteVideoReady, setRemoteVideoReady] = useState(false)
   const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!
 
@@ -64,11 +65,17 @@ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   // matched phases use the SAME ref but DIFFERENT DOM elements — every phase
   // transition unmounts one and mounts another, so we must reattach each time.
   // Attach stream to every video element that's currently mounted
-  useEffect(() => {
+ useEffect(() => {
     if (!localStreamRef.current) return
     if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
     if (localPreviewRef.current) localPreviewRef.current.srcObject = localStreamRef.current
   }, [camGranted, phase])
+
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteVideoTrackRef.current) {
+      remoteVideoTrackRef.current.play(remoteVideoRef.current)
+    }
+  }, [phase])
   useEffect(() => {
     if (loading) return
     if (profile?.username) { setMyUsername(profile.username); setMyElo(profile.elo ?? 0); return }
@@ -164,12 +171,18 @@ const joinAgoraPreview = useCallback(async (channelName: string) => {
       client.on('user-published', async (remoteUser, mediaType) => {
         if (mediaType === 'video') {
           await client.subscribe(remoteUser, 'video')
+          remoteVideoTrackRef.current = remoteUser.videoTrack as IRemoteVideoTrack
           setRemoteVideoReady(true)
-          setTimeout(() => {
-            if (remoteVideoRef.current) {
-              (remoteUser.videoTrack as IRemoteVideoTrack)?.play(remoteVideoRef.current)
+          let attempts = 0
+          const tryPlay = () => {
+            attempts++
+            if (remoteVideoRef.current && remoteVideoTrackRef.current) {
+              remoteVideoTrackRef.current.play(remoteVideoRef.current)
+            } else if (attempts < 15) {
+              setTimeout(tryPlay, 200)
             }
-          }, 200)
+          }
+          tryPlay()
         }
       })
     } catch (e) {
@@ -230,11 +243,11 @@ function submitCustomTopic() {
       )}
       {camGranted && (phase === 'matched' || phase === 'voted') && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 0, display: 'flex', overflow: 'hidden', pointerEvents: 'none' }}>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
             <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.22)', transform: 'scaleX(-1) scale(1.1)' }} />
           </div>
-          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-            <div ref={remoteVideoRef} style={{ width: '100%', height: '100%' }} />
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
+            <div ref={remoteVideoRef} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.3)', transform: 'scale(1.1)' }} />
             {!remoteVideoReady && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(8,4,8,0.85)' }}>
                 <div style={{ fontSize: '64px', opacity: 0.25 }}>👤</div>
