@@ -20,16 +20,20 @@ export default function ArenaPage() {
 
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
-  const [phase, setPhase] = useState<'idle' | 'queueing' | 'matched' | 'voted' | 'resolved'>('idle')
-  const [queueSeconds, setQueueSeconds] = useState(0)
+const [phase, setPhase] = useState<'idle' | 'queueing' | 'matched' | 'voted' | 'side_select' | 'resolved'>('idle')  
+const [queueSeconds, setQueueSeconds] = useState(0)
   const [matchId, setMatchId] = useState<string | null>(null)
   const [topics, setTopics] = useState<string[]>([])
   const [opponent, setOpponent] = useState<Opponent | null>(null)
   const [myVote, setMyVote] = useState<number | null>(null)
   const [opponentVoted, setOpponentVoted] = useState(false)
   const [firstVote, setFirstVote] = useState<{ username: string; topicIndex: number } | null>(null)
-  const [resolvedTopic, setResolvedTopic] = useState<string | null>(null)
-const queueTimerRef = useRef<any>(null)
+const [resolvedTopic, setResolvedTopic] = useState<string | null>(null)
+  const [resolvedRoomId, setResolvedRoomId] = useState<string | null>(null)
+  const [sideSelectMatchId, setSideSelectMatchId] = useState<string | null>(null)
+  const [mySideChoice, setMySideChoice] = useState<'pro' | 'con' | null>(null)
+  const [arenaSidesMap, setArenaSidesMap] = useState<Record<string, 'pro' | 'con'>>({})
+  const queueTimerRef = useRef<any>(null)
  const localVideoRef = useRef<HTMLVideoElement>(null)
   const localPreviewRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -125,6 +129,10 @@ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
       setOpponentVoted(false)
       setFirstVote(null)
       setResolvedTopic(null)
+      setResolvedRoomId(null)
+      setSideSelectMatchId(null)
+      setMySideChoice(null)
+      setArenaSidesMap({})
       // Join a temporary Agora channel so both players can see each other during voting
       joinAgoraPreview(`arena_preview_${mid}`)
     })
@@ -135,13 +143,23 @@ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
     })
 
    socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
-      setPhase('resolved')
+      setPhase('side_select')
       setResolvedTopic(topic)
+      setResolvedRoomId(roomId)
+      setSideSelectMatchId(mid)
+      setMySideChoice(null)
+      setArenaSidesMap({})
+    })
+
+    socket.on('arena_sides_locked', ({ sides, roomId }: { sides: Record<string, 'pro' | 'con'>; roomId: string }) => {
+      setArenaSidesMap(sides)
+      setPhase('resolved')
+      const mySide = sides[myUsername] || 'pro'
       setTimeout(async () => {
         await leaveAgoraPreview()
         localStreamRef.current?.getTracks().forEach(t => t.stop())
-        router.push(`/vc-debate/${roomId}?video=true`)
-      }, 1800)
+        router.push(`/vc-debate/${roomId}?video=true&side=${mySide}`)
+      }, 1000)
     })
 
 socket.on('arena_topics_updated', ({ topics: t }: { topics: string[] }) => {
@@ -230,6 +248,12 @@ function submitCustomTopic() {
     if (lobbyAudioRef.current) lobbyAudioRef.current.currentTime = 0
     setPhase('idle')
     setQueueSeconds(0)
+  }
+
+  function pickSide(side: 'pro' | 'con') {
+    if (mySideChoice || !sideSelectMatchId) return
+    setMySideChoice(side)
+    socketRef.current?.emit('arena_select_side', { matchId: sideSelectMatchId, side })
   }
 
   function castVote(i: number) {
@@ -400,6 +424,56 @@ function submitCustomTopic() {
               )}
             </>
           )}
+          {phase === 'side_select' && resolvedTopic && (
+            <>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '6px' }}>TOPIC LOCKED IN</div>
+              <div style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '20px', fontWeight: 600, padding: '0 8px' }}>{resolvedTopic}</div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>Pick your side — first to choose gets priority</div>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <button
+                  onClick={() => pickSide('pro')}
+                  disabled={!!mySideChoice}
+                  style={{
+                    flex: 1, padding: '18px 12px', borderRadius: '12px', cursor: mySideChoice ? 'default' : 'pointer',
+                    border: `2px solid ${mySideChoice === 'pro' ? 'rgba(34,197,94,0.8)' : 'rgba(34,197,94,0.3)'}`,
+                    background: mySideChoice === 'pro' ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.06)',
+                    color: '#22c55e', fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px',
+                    opacity: mySideChoice && mySideChoice !== 'pro' ? 0.3 : 1,
+                  }}
+                >
+                  ✅ AGREE
+                  {arenaSidesMap[myUsername] === 'pro' && <div style={{ fontSize: '11px', fontWeight: 700, marginTop: '4px', fontFamily: 'DM Sans, sans-serif' }}>You</div>}
+                  {Object.entries(arenaSidesMap).find(([u, s]) => u !== myUsername && s === 'pro') && (
+                    <div style={{ fontSize: '11px', marginTop: '4px', fontFamily: 'DM Sans, sans-serif' }}>{Object.entries(arenaSidesMap).find(([u, s]) => u !== myUsername && s === 'pro')![0]}</div>
+                  )}
+                </button>
+                <button
+                  onClick={() => pickSide('con')}
+                  disabled={!!mySideChoice}
+                  style={{
+                    flex: 1, padding: '18px 12px', borderRadius: '12px', cursor: mySideChoice ? 'default' : 'pointer',
+                    border: `2px solid ${mySideChoice === 'con' ? 'rgba(230,57,70,0.8)' : 'rgba(230,57,70,0.3)'}`,
+                    background: mySideChoice === 'con' ? 'rgba(230,57,70,0.2)' : 'rgba(230,57,70,0.06)',
+                    color: 'var(--accent)', fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px',
+                    opacity: mySideChoice && mySideChoice !== 'con' ? 0.3 : 1,
+                  }}
+                >
+                  ❌ DISAGREE
+                  {arenaSidesMap[myUsername] === 'con' && <div style={{ fontSize: '11px', fontWeight: 700, marginTop: '4px', fontFamily: 'DM Sans, sans-serif' }}>You</div>}
+                  {Object.entries(arenaSidesMap).find(([u, s]) => u !== myUsername && s === 'con') && (
+                    <div style={{ fontSize: '11px', marginTop: '4px', fontFamily: 'DM Sans, sans-serif' }}>{Object.entries(arenaSidesMap).find(([u, s]) => u !== myUsername && s === 'con')![0]}</div>
+                  )}
+                </button>
+              </div>
+              {mySideChoice && (
+                <div style={{ fontSize: '13px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite', display: 'inline-block' }} />
+                  Entering the arena…
+                </div>
+              )}
+            </>
+          )}
+
           {phase === 'resolved' && resolvedTopic && (
             <>
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎬</div>

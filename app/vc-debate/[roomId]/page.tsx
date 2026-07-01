@@ -162,6 +162,7 @@ export default function VCDebatePage() {
   const guestParam = searchParams.get('guest')
 const passwordParam = searchParams.get('password')
 const videoParam = searchParams.get('video') === 'true'
+const sideParam = searchParams.get('side') as 'pro' | 'con' | null
 const agoraInitializedRef = useRef(false)
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
@@ -514,6 +515,10 @@ console.log('✅ Remote analyser connected')
       setLobbyCountdown(info.countdown || 1200)
       if (info.status === 'waiting' || info.status === 'starting') {
         try { if (musicOn) lobbyAudioRef.current?.play() } catch (e) {}
+      }
+      // Auto-pick side for arena debates
+      if (videoParam && sideParam) {
+        setTimeout(() => socket.emit('vc_pick_side', { instanceId, side: sideParam }), 600)
       }
     })
 
@@ -905,19 +910,18 @@ agoraInitializedRef.current = false
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [transcripts, liveTranscript])
- function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
+function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     clearInterval(turnTimerRef.current)
-    // Seed the stable refs so the global interval can display the countdown
     turnStartTimeRef.current = Date.now()
     turnTotalDurRef.current = duration
     setTurnTimeLeft(duration)
     setTurnEnded(false)
     turnEndedRef.current = false
-    // Auto-submit check — separate from display
     turnTimerRef.current = setInterval(() => {
       if (turnStartTimeRef.current === null) { clearInterval(turnTimerRef.current); return }
       const elapsed = Math.floor((Date.now() - turnStartTimeRef.current) / 1000)
       const remaining = Math.max(0, duration - elapsed)
+      setTurnTimeLeft(remaining)
       if (remaining <= 0) {
         clearInterval(turnTimerRef.current)
         turnStartTimeRef.current = null
@@ -1206,7 +1210,7 @@ agoraInitializedRef.current = false
               </div>
             )}
           </div>
-         {status === 'waiting' && players.length >= 1 && (
+        {status === 'waiting' && players.length >= 1 && !videoParam && (
             <div style={{ position: 'relative', zIndex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Pick Your Side</div>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -1343,7 +1347,7 @@ agoraInitializedRef.current = false
           return (
             <div style={{ display: 'flex', gap: '4px', padding: '4px', background: '#000', flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
               {/* AGREE — left */}
-             <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(180px, 28vh, 320px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{leftUsername}</span>

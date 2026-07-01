@@ -892,6 +892,7 @@ const ARENA_TOPICS = [
 
 const arenaQueue = [] // { socketId, username, elo, joinedAt }
 const arenaMatches = {} // matchId -> { players: [{socketId,username,elo}, ...], topics: [3 strings], votes: {socketId: topicIndex}, resolved }
+const arenaSideSelections = {} // matchId -> { pro: socketId|null, con: socketId|null, players, roomId }
 
 function tryMatchArena() {
   while (arenaQueue.length >= 2) {
@@ -2095,12 +2096,8 @@ if (Object.keys(room.players).length >= 2) {
 
     const [a, b] = match.players
     if (match.votes[a.socketId] === undefined || match.votes[b.socketId] === undefined) {
-      const voter = match.players.find(p => p.socketId === socket.id)
-      io.to(matchId).emit('arena_vote_received', {
-        socketId: socket.id,
-        topicIndex,
-        username: voter?.username ?? 'Someone',
-      })
+      // tell the room someone voted, so the UI can show "waiting on opponent"
+      io.to(matchId).emit('arena_vote_received', { socketId: socket.id })
       return
     }
 
@@ -2127,10 +2124,31 @@ if (Object.keys(room.players).length >= 2) {
       },
     }
 
-    io.to(matchId).emit('arena_topic_resolved', { matchId, topic: finalTopic, roomId })
+   io.to(matchId).emit('arena_topic_resolved', { matchId, topic: finalTopic, roomId })
+    arenaSideSelections[matchId] = { pro: null, con: null, players: [a, b], roomId }
     console.log(`⚔️🎥 Arena resolved — "${finalTopic}" — room ${roomId}`)
     delete arenaMatches[matchId]
     io.emit('rooms_update', getRoomList())
+  })
+
+ // ── Arena: side selection after topic vote ───────────────────────
+  socket.on('arena_select_side', ({ matchId, side }) => {
+    const record = arenaSideSelections[matchId]
+    if (!record || (side !== 'pro' && side !== 'con')) return
+    if (record[side]) return // already taken
+    record[side] = socket.id
+    // Auto-assign the other side to the other player
+    const otherSide = side === 'pro' ? 'con' : 'pro'
+    const otherPlayer = record.players.find(p => p.socketId !== socket.id)
+    if (otherPlayer) record[otherSide] = otherPlayer.socketId
+    const sidesMap = {}
+    record.players.forEach(p => {
+      if (record.pro === p.socketId) sidesMap[p.username] = 'pro'
+      if (record.con === p.socketId) sidesMap[p.username] = 'con'
+    })
+    io.to(matchId).emit('arena_sides_locked', { sides: sidesMap, roomId: record.roomId })
+    delete arenaSideSelections[matchId]
+    console.log(`⚔️🎥 Arena sides locked — ${JSON.stringify(sidesMap)}`)
   })
 
   // ── VC override go first ──────────────────────────────────────
