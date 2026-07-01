@@ -114,30 +114,52 @@ const ELO_LABELS: Record<string, string> = {
 
 const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
 
-function RoomCard({ room, onJoin }: { room: RoomData; onJoin: () => void }) {
+function RoomCard({ room, onJoin, onSpectate }: { room: RoomData; onJoin: () => void; onSpectate?: () => void }) {
   const c = TYPE_CONFIG[room.type] || TYPE_CONFIG.casual
+  const isLive = room.status === 'active'
   return (
     <div
       onClick={onJoin}
-      className="rebut-card-3d"
+      className={`rebut-card-3d ${isLive ? 'fire-card' : ''}`}
       style={{
-        position: 'relative', borderRadius: '14px', padding: '16px', cursor: 'pointer',
+        position: 'relative', borderRadius: '14px', padding: '18px', cursor: 'pointer',
         border: `1px solid ${c.border}`,
         background: 'linear-gradient(160deg, rgba(10,10,10,0.97) 0%, rgba(5,5,5,0.99) 100%)',
-        boxShadow: c.glow, overflow: 'hidden',
+        boxShadow: c.glow, overflow: 'hidden', minHeight: '150px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       }}
     >
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: c.gradient }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-        <div style={{ fontSize: '22px' }}>{room.emoji}</div>
-        <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '4px', background: c.badgeBg, color: c.badge }}>{c.label}</span>
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+          <div style={{ fontSize: '24px' }}>{room.emoji}</div>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            {isLive && (
+              <span style={{ fontSize: '9px', fontWeight: 800, background: 'rgba(230,57,70,0.9)', color: '#fff', padding: '3px 7px', borderRadius: '20px', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fff', animation: 'pulse 1s infinite', display: 'inline-block' }} />
+                LIVE
+              </span>
+            )}
+            <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '4px', background: c.badgeBg, color: c.badge }}>{c.label}</span>
+          </div>
+        </div>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', lineHeight: 1.4, marginBottom: '10px' }}>{room.topic}</div>
       </div>
-      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', lineHeight: 1.4, marginBottom: '8px' }}>{room.topic}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
-        <span>{room.playerCount}{room.maxPlayers ? `/${room.maxPlayers}` : ''} debaters</span>
-        <span style={{ color: c.badge, fontWeight: 700 }}>
-          {room.status === 'active' ? (room.timeLeft != null ? fmt(room.timeLeft) : 'LIVE') : fmt(room.countdown)}
-        </span>
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: onSpectate ? '10px' : 0 }}>
+          <span>{room.playerCount}{room.maxPlayers ? `/${room.maxPlayers}` : ''} debaters</span>
+          <span style={{ color: c.badge, fontWeight: 700 }}>
+            {room.status === 'active' ? (room.timeLeft != null ? fmt(room.timeLeft) : 'LIVE') : fmt(room.countdown)}
+          </span>
+        </div>
+        {onSpectate && (
+          <button
+            onClick={e => { e.stopPropagation(); onSpectate() }}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: `1px solid ${c.border}`, borderRadius: '8px', padding: '7px', color: c.badge, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+          >
+            👁 Spectate
+          </button>
+        )}
       </div>
     </div>
   )
@@ -468,9 +490,9 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
           {connected && liveText.length > 0 && (
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 LIVE NOW</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
                 {liveText.map(room => (
-                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} />
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} onSpectate={() => handleSpectate(room)} />
                 ))}
               </div>
             </div>
