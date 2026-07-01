@@ -206,8 +206,11 @@ const [micGranted, setMicGranted] = useState(false)
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
   const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
-const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
-  const tickerAudioRef = useRef<HTMLAudioElement | null>(null)
+  const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
+  const turnStartTimeRef = useRef<number | null>(null)
+  const turnTotalDurRef = useRef<number>(90)
+  const localVideoStartRef = useRef<HTMLDivElement | null>(null)
+  const remoteVideoStartRef = useRef<HTMLDivElement | null>(null)
   const localVideoElRef = useRef<HTMLDivElement | null>(null)
   const remoteVideoElRef = useRef<HTMLDivElement | null>(null)
   const localVideoPreviewElRef = useRef<HTMLDivElement | null>(null)
@@ -530,33 +533,25 @@ console.log('✅ Remote analyser connected')
     socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
       if (count === 4) { try { lobbyAudioRef.current?.pause() } catch (e) {} }
-      if (videoParam) {
-        if (count > 3) {
-          if (!tickerAudioRef.current) {
-            tickerAudioRef.current = new Audio('/sounds/ticker.mp3')
-            tickerAudioRef.current.loop = true
-            tickerAudioRef.current.volume = 0.5
+     if (videoParam && count > 3) {
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.frequency.value = count <= 10 ? 1000 : 750
+          gain.gain.setValueAtTime(0.18, ctx.currentTime)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08)
+          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08)
+        } catch (e) {}
+      }
+      if (count === 3) {
+        try {
+          if (sfxOn && countdownAudioRef.current) {
+            countdownAudioRef.current.currentTime = 0
+            countdownAudioRef.current.play()
           }
-          tickerAudioRef.current.play().catch(() => {})
-        }
-        if (count === 3) {
-          try { tickerAudioRef.current?.pause(); if (tickerAudioRef.current) tickerAudioRef.current.currentTime = 0 } catch (e) {}
-          try {
-            if (sfxOn && countdownAudioRef.current) {
-              countdownAudioRef.current.currentTime = 0
-              countdownAudioRef.current.play()
-            }
-          } catch (e) {}
-        }
-      } else {
-        if (count === 3) {
-          try {
-            if (sfxOn && countdownAudioRef.current) {
-              countdownAudioRef.current.currentTime = 0
-              countdownAudioRef.current.play()
-            }
-          } catch (e) {}
-        }
+        } catch (e) {}
       }
     })
 
@@ -667,9 +662,9 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
       } catch (e) {}
     })
 socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) => {
-      // Stop BOTH the turn timer AND the overall debate timer instantly on all clients
       clearInterval(turnTimerRef.current)
       clearInterval(timerRef.current)
+      turnStartTimeRef.current = null
       setTurnTimeLeft(0)
       // Only mark turn as ended for the speaker, not the listener
       if (speakerSocketId === socket.id) {
@@ -677,10 +672,11 @@ socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) =>
         turnEndedRef.current = true
       }
     })
-    socket.on('vc_scoring_start', ({ username }: { username: string }) => {
+   socket.on('vc_scoring_start', ({ username }: { username: string }) => {
       setScoringUsername(username)
       clearInterval(timerRef.current)
       clearInterval(turnTimerRef.current)
+      turnStartTimeRef.current = null
       setTurnTimeLeft(0)
     })
     socket.on('vc_scoring_end', ({ username }: { username: string }) => {
@@ -892,27 +888,40 @@ agoraInitializedRef.current = false
     return () => clearInterval(speakingIntervalRef.current)
   }, [micGranted])
 
+// Global Date.now()-based turn timer — never affected by re-renders or stale closures
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (turnStartTimeRef.current === null) return
+      const elapsed = Math.floor((Date.now() - turnStartTimeRef.current) / 1000)
+      const remaining = Math.max(0, turnTotalDurRef.current - elapsed)
+      setTurnTimeLeft(remaining)
+    }, 300)
+    return () => clearInterval(id)
+  }, [])
+
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [transcripts, liveTranscript])
-
-  function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
+ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     clearInterval(turnTimerRef.current)
-    const startTime = Date.now()
+    // Seed the stable refs so the global interval can display the countdown
+    turnStartTimeRef.current = Date.now()
+    turnTotalDurRef.current = duration
     setTurnTimeLeft(duration)
     setTurnEnded(false)
     turnEndedRef.current = false
+    // Auto-submit check — separate from display
     turnTimerRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      if (turnStartTimeRef.current === null) { clearInterval(turnTimerRef.current); return }
+      const elapsed = Math.floor((Date.now() - turnStartTimeRef.current) / 1000)
       const remaining = Math.max(0, duration - elapsed)
-      setTurnTimeLeft(remaining)
       if (remaining <= 0) {
         clearInterval(turnTimerRef.current)
+        turnStartTimeRef.current = null
         if (isMine && !turnEndedRef.current) endMyTurn(socket)
       }
     }, 500)
   }
-
   function endMyTurn(socket: Socket) {
     if (turnEndedRef.current) return
     setTurnEnded(true)
@@ -968,14 +977,16 @@ agoraInitializedRef.current = false
             }
           })
         }
-      } else {
-        if (localVideoTrackRef.current && localVideoPreviewElRef.current) {
-          localVideoTrackRef.current.play(localVideoPreviewElRef.current)
+     } else {
+        const localEl = (status === 'starting' && videoParam) ? localVideoStartRef.current : localVideoPreviewElRef.current
+        const remoteEl = (status === 'starting' && videoParam) ? remoteVideoStartRef.current : remoteVideoPreviewElRef.current
+        if (localVideoTrackRef.current && localEl) {
+          localVideoTrackRef.current.play(localEl)
         }
         if (agoraClientRef.current) {
           agoraClientRef.current.remoteUsers.forEach(u => {
-            if (u.videoTrack && remoteVideoPreviewElRef.current) {
-              ;(u.videoTrack as IRemoteVideoTrack).play(remoteVideoPreviewElRef.current)
+            if (u.videoTrack && remoteEl) {
+              ;(u.videoTrack as IRemoteVideoTrack).play(remoteEl)
             }
           })
         }
@@ -1094,7 +1105,20 @@ agoraInitializedRef.current = false
           <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '28px', letterSpacing: '2px', marginBottom: '4px' }}>
             {status === 'starting' ? 'GET READY!' : 'WAITING FOR OPPONENT'}
           </div>
-          <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '24px' }}>{roomInfo?.topic}</div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: '12px', textShadow: '0 1px 6px rgba(0,0,0,0.9)', padding: '0 8px' }}>{roomInfo?.topic}</div>
+          {/* Camera preview tiles during 30s arena countdown */}
+          {videoParam && status === 'starting' && (
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '12px', position: 'relative', zIndex: 1 }}>
+              <div style={{ position: 'relative', width: '140px', height: '105px', borderRadius: '8px', overflow: 'hidden', border: '2px solid rgba(34,197,94,0.8)', background: '#111', flexShrink: 0 }}>
+                <div ref={localVideoStartRef} style={{ width: '100%', height: '100%' }} />
+                <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(34,197,94,0.9)', borderRadius: '4px', padding: '1px 6px', fontSize: '9px', fontWeight: 800, color: '#fff' }}>YOU</span>
+              </div>
+              <div style={{ position: 'relative', width: '140px', height: '105px', borderRadius: '8px', overflow: 'hidden', border: '2px solid rgba(230,57,70,0.8)', background: '#111', flexShrink: 0 }}>
+                <div ref={remoteVideoStartRef} style={{ width: '100%', height: '100%' }} />
+                <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(230,57,70,0.9)', borderRadius: '4px', padding: '1px 6px', fontSize: '9px', fontWeight: 800, color: '#fff' }}>OPP</span>
+              </div>
+            </div>
+          )}
           {status === 'starting' ? (
 <div style={{
               fontFamily: 'var(--font-bebas)',
@@ -1107,8 +1131,8 @@ agoraInitializedRef.current = false
             }}>{startCountdown}</div>          ) : (
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '52px', color: 'var(--text)', marginBottom: '16px' }}>{fmt(lobbyCountdown)}</div>
           )}
-          {/* Blurred full-screen camera background when opponent is present */}
-          {videoParam && players.length >= 2 && (
+         {/* Blurred full-screen camera background — waiting phase only, tiles handle starting */}
+          {videoParam && players.length >= 2 && status === 'waiting' && (
             <div style={{ position: 'fixed', inset: 0, zIndex: 0, display: 'flex', pointerEvents: 'none' }}>
               <div style={{ flex: 1, overflow: 'hidden', filter: 'blur(28px) brightness(0.22)', transform: 'scale(1.1)' }}>
                 <div ref={localVideoPreviewElRef} style={{ width: '100%', height: '100%' }} />
