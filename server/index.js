@@ -830,36 +830,25 @@ function createRoom(type) {
   return id
 }
 function calculateEloChanges(type, playerCount, duration, winnerEloVal = null, loserEloVal = null) {
-  // World Cup rooms have a fixed +80 winner bonus, regular loss for loser
   if (type === 'worldcup') return { winnerElo: 80, secondElo: 0, thirdElo: 0, loserBase: 22 }
- const ranges = {
-  casual:      { min: 15, max: 25 },
-  random:      { min: 10, max: 20 },
-  serious:     { min: 20, max: 30 },
-  competitive: { min: 45, max: 80 },
-  vc:          { min: 10, max: 35 },
-}
-  const { min, max } = ranges[type] ?? { min: 20, max: 40 }
 
-  // Chess-style expected score — how likely was the winner to win?
+  // K-factor by room type — higher stakes for more serious rooms
+  const K = { casual: 16, random: 16, serious: 24, competitive: 32, vc: 20 }[type] ?? 20
+
+  // Chess-style expected score: favorite wins less, underdog wins more
   let expectedWinner = 0.5
   if (winnerEloVal !== null && loserEloVal !== null) {
     expectedWinner = 1 / (1 + Math.pow(10, (loserEloVal - winnerEloVal) / 400))
   }
 
-  // Underdog winners get more Elo, favorite winners get less
-  const winnerAmount = Math.round(min + (max - min) * (1 - expectedWinner))
-  // Favorites lose more when they lose, underdogs lose less
-  const loserAmount  = Math.round(min + (max - min) * expectedWinner)
-
-  const cappedWinner = Math.min(max, Math.max(min, winnerAmount))
-  const cappedLoser  = Math.min(max, Math.max(min, loserAmount))
+  const winnerElo = Math.max(1, Math.round(K * (1 - expectedWinner)))
+  const loserBase = Math.max(1, Math.round(K * expectedWinner))
 
   return {
-    winnerElo: cappedWinner,
-    secondElo: Math.round(cappedWinner * 0.4),
-    thirdElo:  Math.round(cappedWinner * 0.2),
-    loserBase: cappedLoser,
+    winnerElo,
+    secondElo: Math.round(winnerElo * 0.4),
+    thirdElo:  Math.round(winnerElo * 0.2),
+    loserBase,
   }
 }
 function checkForAutoWin(roomId) {

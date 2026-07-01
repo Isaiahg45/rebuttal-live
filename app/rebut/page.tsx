@@ -204,8 +204,12 @@ const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
 })
 
   const available = sortRooms(rooms.filter(r => r.status === 'waiting' && matchFilter(r)))
-  const live = sortRooms(rooms.filter(r => (r.status === 'active' || r.status === 'starting') && matchFilter(r)))
-
+const live = rooms.filter(r => r.status === 'active')
+  const liveArena = live.filter(r => r.isVideoArena)
+  const liveVC = live.filter(r => r.type === 'vc' && !r.isVideoArena)
+  const liveText = live.filter(r => r.type !== 'vc' && !r.isVideoArena)
+  const openVC = rooms.filter(r => r.status === 'waiting' && r.type === 'vc' && !r.isCustom)
+  const openText = rooms.filter(r => r.status === 'waiting' && r.type !== 'vc')
   const routeRoom = (room: RoomData, pw?: string) => {
     const base = room.type === 'vc' ? `/vc-debate/${room.instanceId}` : `/debate/${room.instanceId}`
     router.push(base + (pw ? `?password=${encodeURIComponent(pw)}` : ''))
@@ -370,8 +374,127 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
             </div>
           )}
 
-          {/* LIVE NOW */}
-          {connected && (live.length > 0 || Object.keys(endedRooms).length > 0) && (
+        {/* ── 1. ARENA MATCHMAKING ───────────────────────────── */}
+          {connected && (
+            <div
+              onClick={() => router.push('/arena')}
+              className="rebut-card-3d"
+              style={{
+                marginBottom: '28px', position: 'relative', borderRadius: '18px', padding: '24px',
+                cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
+                border: '1px solid rgba(230,57,70,0.5)',
+                background: 'linear-gradient(135deg, rgba(230,57,70,0.1) 0%, rgba(10,10,10,0.97) 60%)',
+                boxShadow: '0 0 30px rgba(230,57,70,0.15)',
+              }}
+            >
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #e63946, #ff6b35, #e63946)', backgroundSize: '200% 100%', animation: 'shimmer 2s linear infinite' }} />
+              <div style={{ fontSize: '36px', marginBottom: '8px' }}>🎥⚔️</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '24px', letterSpacing: '2px', color: 'var(--accent)', textShadow: '0 0 16px rgba(230,57,70,0.6)' }}>
+                  ENTER THE REBUTTAL LIVE ARENA
+                </div>
+                <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.5)', color: 'var(--green)', padding: '2px 8px', borderRadius: '20px', letterSpacing: '1px', flexShrink: 0 }}>BETA</span>
+              </div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', maxWidth: '440px', margin: '0 auto', lineHeight: 1.6 }}>
+                Get matched with a random opponent for a live, face-to-face video debate. Vote on the topic — highest ELO breaks the tie.
+              </div>
+            </div>
+          )}
+
+          {/* ── 2. LIVE ARENA DEBATES ──────────────────────────── */}
+          {connected && liveArena.length > 0 && (
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', color: 'var(--accent)' }}>🎥 LIVE ARENA DEBATES</div>
+                <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(230,57,70,0.15)', border: '1px solid rgba(230,57,70,0.4)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '20px' }}>LIVE</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                {liveArena.map(room => (
+                  <div
+                    key={room.instanceId}
+                    onClick={() => router.push(`/vc-debate/${room.instanceId}`)}
+                    className="rebut-card-3d"
+                    style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(230,57,70,0.5)', minHeight: '140px' }}
+                  >
+                    {/* Blurred camera background */}
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(20,0,0,0.92) 0%, rgba(40,10,10,0.95) 100%)', backdropFilter: 'blur(2px)' }}>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+                        <div style={{ flex: 1, background: 'linear-gradient(180deg, rgba(60,20,20,0.6) 0%, rgba(10,0,0,0.8) 100%)', borderRight: '1px solid rgba(255,255,255,0.05)' }} />
+                        <div style={{ flex: 1, background: 'linear-gradient(180deg, rgba(20,20,60,0.6) 0%, rgba(0,0,10,0.8) 100%)' }} />
+                      </div>
+                    </div>
+                    {/* Content overlay */}
+                    <div style={{ position: 'relative', zIndex: 1, padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(230,57,70,0.9)', color: '#fff', padding: '3px 8px', borderRadius: '20px', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff', animation: 'pulse 1s infinite', display: 'inline-block' }} />
+                          LIVE
+                        </span>
+                        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>🎥 Arena</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5, marginBottom: '10px', fontWeight: 600 }}>{room.topic}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {room.players?.map((p: string) => (
+                            <span key={p} style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>{p}</span>
+                          ))}
+                        </div>
+                        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '6px' }}>Spectate →</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 3. LIVE VOICE DEBATES ──────────────────────────── */}
+          {connected && liveVC.length > 0 && (
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>🎙️ LIVE VOICE DEBATES</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                {liveVC.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => router.push(`/vc-debate/${room.instanceId}`)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 4. LIVE TEXT DEBATES ───────────────────────────── */}
+          {connected && liveText.length > 0 && (
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 LIVE NOW</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                {liveText.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 5. OPEN VOICE ROOMS ────────────────────────────── */}
+          {connected && openVC.length > 0 && (
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>🎙️ OPEN VOICE ROOMS</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                {openVC.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => router.push(`/vc-debate/${room.instanceId}`)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 6. OPEN TEXT ROOMS ─────────────────────────────── */}
+          {connected && openText.length > 0 && (
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 OPEN ROOMS</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                {openText.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} />
+                ))}
+              </div>
+            </div>
+          )}
             <div style={{ marginBottom: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e63946', animation: 'liveFlash 1s infinite', boxShadow: '0 0 8px #e63946' }} />
