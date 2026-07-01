@@ -256,7 +256,7 @@ const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
   return score(b) - score(a)
 })
 
-  const available = sortRooms(rooms.filter(r => r.status === 'waiting' && matchFilter(r)))
+  const available = sortRooms(rooms.filter(r => r.status === 'waiting' && r.type !== 'vc' && matchFilter(r)))
 const live = rooms.filter(r => r.status === 'active')
   const liveArena = live.filter(r => r.isVideoArena)
   const liveVC = live.filter(r => r.type === 'vc' && !r.isVideoArena)
@@ -514,7 +514,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
           {connected && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)' }}>OPEN ROOMS — {available.length} AVAILABLE</span>
+             <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '13px', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)' }}>OPEN TEXT ROOMS — {available.length} AVAILABLE</span>
                 <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.06)' }} />
               </div>
 
