@@ -1,9 +1,11 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
 import Nav from '../components/Nav'
+import AgoraRTC from 'agora-rtc-sdk-ng'
+import type { IAgoraRTCClient, ILocalVideoTrack, IRemoteVideoTrack } from 'agora-rtc-sdk-ng'
 
 const SERVER_URL = 'https://rebuttal-live-production-3388.up.railway.app'
 
@@ -32,9 +34,14 @@ const queueTimerRef = useRef<any>(null)
   const localPreviewRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const [camGranted, setCamGranted] = useState(false)
- const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
+const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
   const [customTopicText, setCustomTopicText] = useState('')
   const [customTopicAdded, setCustomTopicAdded] = useState(false)
+  const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
+  const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
+  const remoteVideoRef = useRef<HTMLDivElement | null>(null)
+  const [remoteVideoReady, setRemoteVideoReady] = useState(false)
+  const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!
 
   // Ask for camera + mic as soon as we know who's asking, so by the time
   // a match is found there's no permission prompt blocking the vote.
@@ -88,7 +95,7 @@ const queueTimerRef = useRef<any>(null)
       lobbyAudioRef.current.play().catch(() => {})
     })
 
-    socket.on('arena_matched', ({ matchId: mid, topics: t, opponents }: { matchId: string; topics: string[]; opponents: Record<string, Opponent> }) => {
+   socket.on('arena_matched', ({ matchId: mid, topics: t, opponents }: { matchId: string; topics: string[]; opponents: Record<string, Opponent> }) => {
       clearInterval(queueTimerRef.current)
       lobbyAudioRef.current?.pause()
       setPhase('matched')
@@ -96,11 +103,13 @@ const queueTimerRef = useRef<any>(null)
       setCustomTopicAdded(false)
       setMatchId(mid)
       setTopics(t)
-     const opp = socket.id ? opponents[socket.id] : undefined
+      const opp = socket.id ? opponents[socket.id] : undefined
       setOpponent(opp || null)
       setMyVote(null)
       setOpponentVoted(false)
       setResolvedTopic(null)
+      // Join a temporary Agora channel so both players can see each other during voting
+      joinAgoraPreview(`arena_preview_${mid}`)
     })
 
     socket.on('arena_vote_received', () => {
@@ -110,7 +119,8 @@ const queueTimerRef = useRef<any>(null)
    socket.on('arena_topic_resolved', ({ matchId: mid, topic, roomId }: { matchId: string; topic: string; roomId: string }) => {
       setPhase('resolved')
       setResolvedTopic(topic)
-      setTimeout(() => {
+      setTimeout(async () => {
+        await leaveAgoraPreview()
         localStreamRef.current?.getTracks().forEach(t => t.stop())
         router.push(`/vc-debate/${roomId}?video=true`)
       }, 1800)
@@ -135,9 +145,47 @@ socket.on('arena_topics_updated', ({ topics: t }: { topics: string[] }) => {
     return () => {
       clearInterval(queueTimerRef.current)
       lobbyAudioRef.current?.pause()
+      leaveAgoraPreview()
       socket.disconnect()
     }
   }, [myUsername, router])
+
+const joinAgoraPreview = useCallback(async (channelName: string) => {
+    try {
+      const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
+      agoraClientRef.current = client
+      const uid = Math.floor(Math.random() * 100000) + 1
+      const tokenRes = await fetch(`${SERVER_URL}/api/agora-token?channelName=${channelName}&uid=${uid}`)
+      const { token } = await tokenRes.json()
+      await client.join(AGORA_APP_ID, channelName, token, uid)
+      const localVideoTrack = await AgoraRTC.createCameraVideoTrack()
+      localVideoTrackRef.current = localVideoTrack
+      await client.publish([localVideoTrack])
+      client.on('user-published', async (remoteUser, mediaType) => {
+        if (mediaType === 'video') {
+          await client.subscribe(remoteUser, 'video')
+          setRemoteVideoReady(true)
+          setTimeout(() => {
+            if (remoteVideoRef.current) {
+              (remoteUser.videoTrack as IRemoteVideoTrack)?.play(remoteVideoRef.current)
+            }
+          }, 200)
+        }
+      })
+    } catch (e) {
+      console.error('Arena Agora preview failed:', e)
+    }
+  }, [AGORA_APP_ID])
+
+  const leaveAgoraPreview = useCallback(async () => {
+    try {
+      await localVideoTrackRef.current?.close()
+      await agoraClientRef.current?.leave()
+      agoraClientRef.current = null
+      localVideoTrackRef.current = null
+      setRemoteVideoReady(false)
+    } catch (e) {}
+  }, [])
 
   function joinQueue() {
     socketRef.current?.emit('arena_join_queue', { username: myUsername, elo: myElo })
@@ -185,8 +233,13 @@ function submitCustomTopic() {
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.22)', transform: 'scaleX(-1) scale(1.1)' }} />
           </div>
-          <div style={{ flex: 1, background: 'rgba(8,4,8,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '72px', opacity: 0.2 }}>👤</div>
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            <div ref={remoteVideoRef} style={{ width: '100%', height: '100%' }} />
+            {!remoteVideoReady && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(8,4,8,0.85)' }}>
+                <div style={{ fontSize: '64px', opacity: 0.25 }}>👤</div>
+              </div>
+            )}
           </div>
         </div>
       )}
