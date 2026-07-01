@@ -28,7 +28,8 @@ export default function ArenaPage() {
   const [opponentVoted, setOpponentVoted] = useState(false)
   const [resolvedTopic, setResolvedTopic] = useState<string | null>(null)
 const queueTimerRef = useRef<any>(null)
-  const localVideoRef = useRef<HTMLVideoElement>(null)
+ const localVideoRef = useRef<HTMLVideoElement>(null)
+  const localPreviewRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const [camGranted, setCamGranted] = useState(false)
  const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -56,10 +57,11 @@ const queueTimerRef = useRef<any>(null)
   // Re-attach the stream whenever the video element remounts. The idle and
   // matched phases use the SAME ref but DIFFERENT DOM elements — every phase
   // transition unmounts one and mounts another, so we must reattach each time.
+  // Attach stream to every video element that's currently mounted
   useEffect(() => {
-    if (localStreamRef.current && localVideoRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current
-    }
+    if (!localStreamRef.current) return
+    if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
+    if (localPreviewRef.current) localPreviewRef.current.srcObject = localStreamRef.current
   }, [camGranted, phase])
   useEffect(() => {
     if (loading) return
@@ -167,8 +169,24 @@ function submitCustomTopic() {
 
   return (
     <>
-      <Nav active="rebut" />
-      <div style={{ minHeight: 'calc(100vh - 56px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+     <Nav active="rebut" />
+      {/* Persistent blurred camera background — always shown when cam is granted */}
+      {camGranted && (phase === 'queueing' || phase === 'idle') && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+          <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.2)', transform: 'scaleX(-1) scale(1.1)' }} />
+        </div>
+      )}
+      {camGranted && (phase === 'matched' || phase === 'voted') && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 0, display: 'flex', overflow: 'hidden', pointerEvents: 'none' }}>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.22)', transform: 'scaleX(-1) scale(1.1)' }} />
+          </div>
+          <div style={{ flex: 1, background: 'rgba(8,4,8,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ fontSize: '72px', opacity: 0.2 }}>👤</div>
+          </div>
+        </div>
+      )}
+      <div style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100vh - 56px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div style={{ textAlign: 'center', maxWidth: '560px', width: '100%' }}>
 
           {phase === 'idle' && (
@@ -182,7 +200,7 @@ function submitCustomTopic() {
               </div>
              {camGranted && (
                 <div style={{ width: '180px', height: '140px', margin: '0 auto 20px', borderRadius: '12px', overflow: 'hidden', border: '2px solid var(--accent)', boxShadow: '0 0 16px rgba(230,57,70,0.4)' }}>
-                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                  <video ref={localPreviewRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
                 </div>
               )}
               <button
@@ -211,17 +229,7 @@ function submitCustomTopic() {
 
           {(phase === 'matched' || phase === 'voted') && opponent && (
             <>
-             {/* Split blurred background — you on left, opponent placeholder on right */}
-              {camGranted && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: -1, display: 'flex', overflow: 'hidden' }}>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(24px) brightness(0.22)', transform: 'scaleX(-1) scale(1.1)' }} />
-                  </div>
-                  <div style={{ flex: 1, background: 'rgba(8,4,8,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ fontSize: '72px', opacity: 0.2 }}>👤</div>
-                  </div>
-                </div>
-              )}
+            
 
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '26px', letterSpacing: '2px', marginBottom: '4px' }}>
                 OPPONENT FOUND
@@ -303,7 +311,6 @@ function submitCustomTopic() {
 
        </div>
       </div>
-
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
     </>
   )
