@@ -324,7 +324,7 @@ function submitCustomTopic() {
                 ⚠️ If your opponent chooses a different topic than you, the debater with higher ELO gets priority.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
-                {topics.map((t, i) => (
+               {topics.map((t, i) => (
                   <button
                     key={i}
                     onClick={() => castVote(i)}
@@ -340,6 +340,16 @@ function submitCustomTopic() {
                     }}
                   >
                     {t}
+                    {myVote === i && (
+                      <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>
+                        ✓ {myUsername} voted for this topic
+                      </div>
+                    )}
+                    {myVote !== null && myVote !== i && opponentVoted && (
+                      <div style={{ marginTop: '6px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+                        {opponent?.username} voted
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -371,9 +381,22 @@ function submitCustomTopic() {
                 <div style={{ fontSize: '12px', color: 'var(--green)', marginBottom: '12px' }}>✓ Your topic was added — now vote on one above</div>
               )}
 
-              {myVote !== null && (
+             {myVote !== null && (
                 <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-                  {opponentVoted ? 'Resolving the topic…' : `Waiting on ${opponent.username} to vote…`}
+                  {opponentVoted
+                    ? 'Both voted — resolving the topic…'
+                    : (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite', display: 'inline-block' }} />
+                        Waiting on {opponent?.username} to vote…
+                      </span>
+                    )
+                  }
+                </div>
+              )}
+              {myVote === null && opponentVoted && opponent && (
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>
+                  ⚡ {opponent.username} already voted — pick yours
                 </div>
               )}
             </>

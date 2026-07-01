@@ -760,12 +760,15 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       setStandings(s)
       if (draw) setIsDraw(true)
       setTimeout(async () => {
-       try {
+        try {
           await localAudioTrackRef.current?.close()
           await localVideoTrackRef.current?.close()
           await agoraClientRef.current?.leave()
           agoraClientRef.current = null
         } catch (e) {}
+        // Stop the raw MediaStream so the camera/mic light turns off on the device
+        localStreamRef.current?.getTracks().forEach(t => t.stop())
+        localStreamRef.current = null
         if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
       }, 1000)
 
