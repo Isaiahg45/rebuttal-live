@@ -1994,9 +1994,10 @@ if (Object.keys(room.players).length >= 2) {
 
     if (Object.keys(room.players).length === 2) {
   room.status = 'starting'
-  room.startCountdown = 3
+  const startCount = room.isVideoArena ? 30 : 3
+  room.startCountdown = startCount
   io.to(instanceId).emit('vc_starting', {
-    startCountdown: 3,
+    startCountdown: startCount,
     players: Object.values(room.players),
   })
   if (!room.isCustom) scheduleVCRoom()

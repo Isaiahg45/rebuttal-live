@@ -61,14 +61,23 @@ const lobbyAudioRef = useRef<HTMLAudioElement | null>(null)
     }
   }, [myUsername])
 
-  // Re-attach the stream whenever the video element remounts. The idle and
-  // matched phases use the SAME ref but DIFFERENT DOM elements — every phase
-  // transition unmounts one and mounts another, so we must reattach each time.
-  // Attach stream to every video element that's currently mounted
- useEffect(() => {
+// Attach stream to every video element that's currently mounted.
+  // On mobile (iOS Safari), fixed-position video elements need an explicit
+  // play() call after srcObject is set — especially when phase transitions
+  // mount new DOM elements.
+  useEffect(() => {
     if (!localStreamRef.current) return
-    if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
-    if (localPreviewRef.current) localPreviewRef.current.srcObject = localStreamRef.current
+    const attach = (el: HTMLVideoElement | null) => {
+      if (!el) return
+      el.srcObject = localStreamRef.current
+      el.play().catch(() => {})
+    }
+    // Small delay so the DOM element is fully mounted before we try to attach
+    const t = setTimeout(() => {
+      attach(localVideoRef.current)
+      attach(localPreviewRef.current)
+    }, 80)
+    return () => clearTimeout(t)
   }, [camGranted, phase])
 
   useEffect(() => {
@@ -308,8 +317,11 @@ function submitCustomTopic() {
                 <b style={{ color: 'var(--accent)' }}>{opponent.username}</b> · {opponent.elo} ELO
               </div>
 
-              <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '12px' }}>
-                Pick your topic
+             <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>
+                Vote your topic
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--accent)', marginBottom: '12px', fontStyle: 'italic', padding: '0 4px' }}>
+                ⚠️ If your opponent chooses a different topic than you, the debater with higher ELO gets priority.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
                 {topics.map((t, i) => (

@@ -206,7 +206,8 @@ const [micGranted, setMicGranted] = useState(false)
   // Agora refs
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null)
   const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null)
- const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
+const localVideoTrackRef = useRef<ILocalVideoTrack | null>(null)
+  const tickerAudioRef = useRef<HTMLAudioElement | null>(null)
   const localVideoElRef = useRef<HTMLDivElement | null>(null)
   const remoteVideoElRef = useRef<HTMLDivElement | null>(null)
   const localVideoPreviewElRef = useRef<HTMLDivElement | null>(null)
@@ -529,13 +530,33 @@ console.log('✅ Remote analyser connected')
     socket.on('vc_start_countdown_tick', ({ count }: { count: number }) => {
       setStartCountdown(count)
       if (count === 4) { try { lobbyAudioRef.current?.pause() } catch (e) {} }
-      if (count === 3) {
-        try {
-          if (sfxOn && countdownAudioRef.current) {
-            countdownAudioRef.current.currentTime = 0
-            countdownAudioRef.current.play()
+      if (videoParam) {
+        if (count > 3) {
+          if (!tickerAudioRef.current) {
+            tickerAudioRef.current = new Audio('/sounds/ticker.mp3')
+            tickerAudioRef.current.loop = true
+            tickerAudioRef.current.volume = 0.5
           }
-        } catch (e) {}
+          tickerAudioRef.current.play().catch(() => {})
+        }
+        if (count === 3) {
+          try { tickerAudioRef.current?.pause(); if (tickerAudioRef.current) tickerAudioRef.current.currentTime = 0 } catch (e) {}
+          try {
+            if (sfxOn && countdownAudioRef.current) {
+              countdownAudioRef.current.currentTime = 0
+              countdownAudioRef.current.play()
+            }
+          } catch (e) {}
+        }
+      } else {
+        if (count === 3) {
+          try {
+            if (sfxOn && countdownAudioRef.current) {
+              countdownAudioRef.current.currentTime = 0
+              countdownAudioRef.current.play()
+            }
+          } catch (e) {}
+        }
       }
     })
 
@@ -877,15 +898,19 @@ agoraInitializedRef.current = false
 
   function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     clearInterval(turnTimerRef.current)
-    let remaining = duration
-    setTurnTimeLeft(remaining)
+    const startTime = Date.now()
+    setTurnTimeLeft(duration)
     setTurnEnded(false)
     turnEndedRef.current = false
     turnTimerRef.current = setInterval(() => {
-      remaining--
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      const remaining = Math.max(0, duration - elapsed)
       setTurnTimeLeft(remaining)
-      if (remaining <= 0) { clearInterval(turnTimerRef.current); if (isMine) endMyTurn(socket) }
-    }, 1000)
+      if (remaining <= 0) {
+        clearInterval(turnTimerRef.current)
+        if (isMine && !turnEndedRef.current) endMyTurn(socket)
+      }
+    }, 500)
   }
 
   function endMyTurn(socket: Socket) {
@@ -1251,7 +1276,7 @@ agoraInitializedRef.current = false
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '18px' }}>🎙️</span>
             <div style={{ flex: 1, fontSize: '14px', fontWeight: 600 }}>{roomInfo?.topic}</div>
-            <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '26px', color: timeLeft < 30 ? 'var(--red)' : 'var(--accent)' }}>{fmt(timeLeft)}</div>
+           {!videoParam && <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '26px', color: timeLeft < 30 ? 'var(--red)' : 'var(--accent)' }}>{fmt(timeLeft)}</div>}
           </div>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
@@ -1291,7 +1316,7 @@ agoraInitializedRef.current = false
           return (
             <div style={{ display: 'flex', gap: '4px', padding: '4px', background: '#000', flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
               {/* AGREE — left */}
-              <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(120px, 22vw, 200px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+             <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(180px, 28vh, 320px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} style={{ width: '100%', height: '100%' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{leftUsername}</span>
@@ -1305,7 +1330,7 @@ agoraInitializedRef.current = false
                 )}
               </div>
               {/* DISAGREE — right */}
-              <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(120px, 22vw, 200px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(180px, 28vh, 320px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} style={{ width: '100%', height: '100%' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{rightUsername}</span>
