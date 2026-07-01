@@ -853,11 +853,14 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
     })
 
     socket.on('error', ({ message }: { message: string }) => { alert(message); router.push('/rebut') })
-    socket.on('vc_expired', () => {
+   socket.on('vc_expired', ({ message, leftUsername }: { message?: string; leftUsername?: string }) => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
-      setStatus('expired'); router.push('/rebut')
+      setStatus('expired')
+      if (leftUsername) {
+        alert(`${leftUsername} has left the debate.`)
+      }
+      router.push('/rebut')
     })
-
     return () => {
       try { lobbyAudioRef.current?.pause() } catch (e) {}
       try { countdownAudioRef.current?.pause() } catch (e) {}

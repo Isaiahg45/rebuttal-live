@@ -1995,7 +1995,7 @@ if (Object.keys(room.players).length >= 2) {
 
     if (Object.keys(room.players).length === 2) {
   room.status = 'starting'
-  const startCount = room.isVideoArena ? 30 : 3
+const startCount = room.isVideoArena ? 15 : 3
   room.startCountdown = startCount
   io.to(instanceId).emit('vc_starting', {
     startCountdown: startCount,
@@ -2132,23 +2132,29 @@ if (Object.keys(room.players).length >= 2) {
   })
 
  // ── Arena: side selection after topic vote ───────────────────────
-  socket.on('arena_select_side', ({ matchId, side }) => {
+ socket.on('arena_select_side', ({ matchId, side }) => {
     const record = arenaSideSelections[matchId]
     if (!record || (side !== 'pro' && side !== 'con')) return
-    if (record[side]) return // already taken
+    if (record[side]) return // side already taken
+    // Don't let same player pick both sides
+    const alreadyPicked = (record.pro === socket.id || record.con === socket.id)
+    if (alreadyPicked) return
     record[side] = socket.id
-    // Auto-assign the other side to the other player
-    const otherSide = side === 'pro' ? 'con' : 'pro'
-    const otherPlayer = record.players.find(p => p.socketId !== socket.id)
-    if (otherPlayer) record[otherSide] = otherPlayer.socketId
-    const sidesMap = {}
+
+    // Build partial map and broadcast so both see who picked what
+    const partialMap = {}
     record.players.forEach(p => {
-      if (record.pro === p.socketId) sidesMap[p.username] = 'pro'
-      if (record.con === p.socketId) sidesMap[p.username] = 'con'
+      if (record.pro === p.socketId) partialMap[p.username] = 'pro'
+      if (record.con === p.socketId) partialMap[p.username] = 'con'
     })
-    io.to(matchId).emit('arena_sides_locked', { sides: sidesMap, roomId: record.roomId })
-    delete arenaSideSelections[matchId]
-    console.log(`⚔️🎥 Arena sides locked — ${JSON.stringify(sidesMap)}`)
+    io.to(matchId).emit('arena_side_selected', { sides: partialMap })
+
+    // Only lock + navigate when both sides are filled
+    if (record.pro && record.con) {
+      io.to(matchId).emit('arena_sides_locked', { sides: partialMap, roomId: record.roomId })
+      delete arenaSideSelections[matchId]
+      console.log(`⚔️🎥 Arena sides locked — ${JSON.stringify(partialMap)}`)
+    }
   })
 
   // ── VC override go first ──────────────────────────────────────
@@ -2969,10 +2975,15 @@ io.to(currentRoomId).emit('debate_ended', {
       room.status = 'ended'
       io.to(currentRoomId).emit('room_expired', { message: 'Game expired: less than 2 debaters in server.' })
       console.log(`💨 Room expired (all left during countdown): "${room.topic}"`)
-    } else if (room.status === 'starting' && remainingCount < 2) {
+   } else if (room.status === 'starting' && remainingCount < 2) {
       room.status = 'ended'
       room.startCountdown = 0
-      io.to(currentRoomId).emit('room_expired', { message: 'Your opponent left before the debate started.' })
+      const msg = currentUsername ? `${currentUsername} left before the debate started.` : 'Your opponent left before the debate started.'
+      if (room.type === 'vc') {
+        io.to(currentRoomId).emit('vc_expired', { message: msg, leftUsername: currentUsername })
+      } else {
+        io.to(currentRoomId).emit('room_expired', { message: msg })
+      }
       console.log(`💨 Opponent left during countdown: "${room.topic}"`)
       if (!room.isCustom) scheduleRoom(room.type)
     }
