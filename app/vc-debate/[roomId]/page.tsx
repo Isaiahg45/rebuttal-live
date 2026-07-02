@@ -907,14 +907,22 @@ agoraInitializedRef.current = false
     return () => clearInterval(speakingIntervalRef.current)
   }, [micGranted])
 
-// Global deadline-based turn timer — most reliable approach
+// Global deadline-based turn timer via rAF — immune to browser throttling
   useEffect(() => {
-    const id = setInterval(() => {
-      if (turnDeadlineRef.current === null) return
-      const remaining = Math.max(0, Math.ceil((turnDeadlineRef.current - Date.now()) / 1000))
-      setTurnTimeLeft(remaining)
-    }, 100)
-    return () => clearInterval(id)
+    let rafId: number
+    let lastDisplayed = -1
+    function tick() {
+      if (turnDeadlineRef.current !== null) {
+        const remaining = Math.max(0, Math.ceil((turnDeadlineRef.current - Date.now()) / 1000))
+        if (remaining !== lastDisplayed) {
+          lastDisplayed = remaining
+          setTurnTimeLeft(remaining)
+        }
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
   }, [])
 
   useEffect(() => {
@@ -982,9 +990,9 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
 
   // Re-play video tracks into the correct DOM elements whenever the mounting
   // context changes — refs point to different elements across status transitions.
-  useEffect(() => {
+ useEffect(() => {
     if (!videoParam) return
-    const t = setTimeout(() => {
+    const playTracks = () => {
       if (status === 'active') {
         if (localVideoTrackRef.current && localVideoElRef.current) {
           localVideoTrackRef.current.play(localVideoElRef.current)
@@ -996,12 +1004,10 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
             }
           })
         }
-     } else {
+      } else {
         const localEl = (status === 'starting' && videoParam) ? localVideoStartRef.current : localVideoPreviewElRef.current
         const remoteEl = (status === 'starting' && videoParam) ? remoteVideoStartRef.current : remoteVideoPreviewElRef.current
-        if (localVideoTrackRef.current && localEl) {
-          localVideoTrackRef.current.play(localEl)
-        }
+        if (localVideoTrackRef.current && localEl) localVideoTrackRef.current.play(localEl)
         if (agoraClientRef.current) {
           agoraClientRef.current.remoteUsers.forEach(u => {
             if (u.videoTrack && remoteEl) {
@@ -1010,8 +1016,11 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
           })
         }
       }
-    }, 150)
-    return () => clearTimeout(t)
+    }
+    const t1 = setTimeout(playTracks, 150)
+    const t2 = setTimeout(playTracks, 500)
+    const t3 = setTimeout(playTracks, 1200)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [status, videoParam, players.length])
 
   // Mute/unmute is only ever allowed in the lobby (waiting/starting) or
