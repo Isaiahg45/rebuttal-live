@@ -395,18 +395,26 @@ console.log('✅ Remote analyser connected')
   }, [])
 
   // MediaRecorder
-  const startMediaRecorder = useCallback((stream: MediaStream) => {
-    audioChunksRef.current = []
-    let mimeType = ''
-    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus'
-    else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm'
-    else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4'
-    else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg'
-    const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
-    mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-    mr.start(250)
-    mediaRecorderRef.current = mr
-    console.log('🎙️ MediaRecorder started, mimeType:', mimeType || 'default')
+ const startMediaRecorder = useCallback((stream: MediaStream) => {
+    try {
+      audioChunksRef.current = []
+      // Use audio-only stream — video tracks cause NotSupportedError with audio mimeTypes
+      const audioTracks = stream.getAudioTracks()
+      if (audioTracks.length === 0) { console.warn('🎙️ No audio tracks found'); return }
+      const audioOnlyStream = new MediaStream(audioTracks)
+      let mimeType = ''
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus'
+      else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm'
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4'
+      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg'
+      const mr = mimeType ? new MediaRecorder(audioOnlyStream, { mimeType }) : new MediaRecorder(audioOnlyStream)
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      mr.start(250)
+      mediaRecorderRef.current = mr
+      console.log('🎙️ MediaRecorder started, mimeType:', mimeType || 'default')
+    } catch (e) {
+      console.error('🎙️ MediaRecorder failed to start:', e)
+    }
   }, [])
 
   const stopMediaRecorderAndTranscribe = useCallback(async (): Promise<string> => {
