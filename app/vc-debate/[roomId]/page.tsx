@@ -1387,7 +1387,7 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
           return (
             <div style={{ display: 'flex', gap: '4px', padding: '4px', background: '#000', flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
               {/* AGREE — left */}
-             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(160px, 28vh, 280px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} className="agora-video-fill" style={{ width: '100%', height: '100%', position: 'relative' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{leftUsername}</span>
@@ -1401,7 +1401,7 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
                 )}
               </div>
               {/* DISAGREE — right */}
-             <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(160px, 28vh, 280px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} className="agora-video-fill" style={{ width: '100%', height: '100%', position: 'relative' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{rightUsername}</span>
