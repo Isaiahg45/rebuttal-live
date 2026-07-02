@@ -937,8 +937,8 @@ agoraInitializedRef.current = false
     return () => cancelAnimationFrame(rafId)
   }, [])
 
-  useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+ useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' })
   }, [transcripts, liveTranscript])
 function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     clearInterval(turnTimerRef.current)
@@ -1341,7 +1341,7 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
         </div>
       )}
 
-      <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+     <div style={{ minHeight: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -1387,7 +1387,7 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
           return (
             <div style={{ display: 'flex', gap: '4px', padding: '4px', background: '#000', flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
               {/* AGREE — left */}
-             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(160px, 28vh, 280px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${leftTalking ? 'rgba(34,197,94,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                <div ref={leftIsMe ? localVideoElRef : remoteVideoElRef} className="agora-video-fill" style={{ width: '100%', height: '100%', position: 'relative' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{leftUsername}</span>
@@ -1401,7 +1401,7 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
                 )}
               </div>
               {/* DISAGREE — right */}
-             <div style={{ position: 'relative', flex: 1, minWidth: 0,height: 'clamp(160px, 28vh, 280px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
+             <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 'clamp(280px, 45vh, 520px)', borderRadius: '8px', overflow: 'hidden', background: '#111', border: `2px solid ${rightTalking ? 'rgba(230,57,70,0.8)' : 'rgba(255,255,255,0.1)'}`, flexShrink: 1 }}>
                 <div ref={leftIsMe ? remoteVideoElRef : localVideoElRef} className="agora-video-fill" style={{ width: '100%', height: '100%', position: 'relative' }} />
                 <div style={{ position: 'absolute', top: '4px', left: '4px', display: 'flex', gap: '3px', alignItems: 'center', zIndex: 2 }}>
                   <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{rightUsername}</span>
@@ -1506,8 +1506,8 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
   </div>
 )}
 
-        {/* Transcripts feed */}
-        <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    {/* Transcripts feed */}
+        <div ref={chatRef} style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {transcripts.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '13px', marginTop: '40px' }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎙️</div>
