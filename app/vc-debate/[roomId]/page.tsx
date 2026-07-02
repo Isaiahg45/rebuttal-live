@@ -212,6 +212,7 @@ const [micGranted, setMicGranted] = useState(false)
 const turnStartTimeRef = useRef<number | null>(null)
   const turnTotalDurRef = useRef<number>(90)
   const turnDeadlineRef = useRef<number | null>(null)
+  const displayTimerRef = useRef<any>(null)
   const localVideoStartRef = useRef<HTMLDivElement | null>(null)
   const remoteVideoStartRef = useRef<HTMLDivElement | null>(null)
   const localVideoElRef = useRef<HTMLDivElement | null>(null)
@@ -674,6 +675,7 @@ socket.on('vc_live_transcript', ({ text, username }: { text: string; username: s
     })
 socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) => {
       clearInterval(turnTimerRef.current)
+      clearInterval(displayTimerRef.current)
       clearInterval(timerRef.current)
       turnStartTimeRef.current = null
       turnDeadlineRef.current = null
@@ -688,6 +690,7 @@ socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) =>
       setScoringUsername(username)
       clearInterval(timerRef.current)
       clearInterval(turnTimerRef.current)
+      clearInterval(displayTimerRef.current)
       turnStartTimeRef.current = null
       turnDeadlineRef.current = null
       setTurnTimeLeft(0)
@@ -879,6 +882,7 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       socket.disconnect()
       clearInterval(timerRef.current)
       clearInterval(turnTimerRef.current)
+      clearInterval(displayTimerRef.current)
       clearInterval(cooldownTimerRef.current)
       clearInterval(speakingIntervalRef.current)
       document.removeEventListener('click', unlockAudio)
@@ -930,6 +934,7 @@ agoraInitializedRef.current = false
   }, [transcripts, liveTranscript])
 function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     clearInterval(turnTimerRef.current)
+    clearInterval(displayTimerRef.current)
     const deadline = Date.now() + duration * 1000
     turnDeadlineRef.current = deadline
     turnStartTimeRef.current = Date.now()
@@ -937,12 +942,20 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     setTurnTimeLeft(duration)
     setTurnEnded(false)
     turnEndedRef.current = false
-    // Auto-submit check — runs independently of display
+
+    // Display timer — captures `deadline` locally so external nulling of
+    // turnDeadlineRef cannot stop it. This is what the user sees.
+    displayTimerRef.current = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+      setTurnTimeLeft(remaining)
+    }, 250)
+
+    // Auto-submit check — separate concern
     turnTimerRef.current = setInterval(() => {
-      if (turnDeadlineRef.current === null) { clearInterval(turnTimerRef.current); return }
-      const remaining = Math.max(0, Math.ceil((turnDeadlineRef.current - Date.now()) / 1000))
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
       if (remaining <= 0) {
         clearInterval(turnTimerRef.current)
+        clearInterval(displayTimerRef.current)
         turnDeadlineRef.current = null
         turnStartTimeRef.current = null
         if (isMine && !turnEndedRef.current) endMyTurn(socket)
@@ -955,9 +968,6 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
     turnEndedRef.current = true
     stopListening()
     socket.emit('vc_turn_ended_early', { instanceId })
-    clearInterval(timerRef.current)
-    clearInterval(turnTimerRef.current)
-    setTurnTimeLeft(0)
     // Use SR transcript immediately — don't wait for Whisper
     const srTranscript = finalTranscriptRef.current.trim()
     if (srTranscript) {
@@ -1026,8 +1036,9 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
   // Mute/unmute is only ever allowed in the lobby (waiting/starting) or
   // during your own turn to speak — sudden death reuses isMyTurn too, so
   // this covers that automatically without extra cases.
-  const canToggleMute = (status === 'waiting' || status === 'starting') || (status === 'active' && isMyTurn && !inCooldown)
-  const prevCanToggleMuteRef = useRef(false)
+const canToggleMute = (status === 'waiting' || status === 'starting') ||
+    (status === 'active' && !inCooldown && (isMyTurn || videoParam)) 
+     const prevCanToggleMuteRef = useRef(false)
 
   // Default to unmuted every time you re-enter an allowed window.
   useEffect(() => {
@@ -1461,6 +1472,7 @@ function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
               </div>
              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '36px', color: 'var(--text2)', letterSpacing: '2px' }}>{fmt(turnTimeLeft)}</div>
               <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Listen carefully — you'll respond next</div>
+              {videoParam && <MuteButton muted={isMuted} disabled={false} onClick={handleToggleMute} />}
               <button onClick={() => setShowForfeitModal(true)} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '4px 12px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginTop: '4px' }}>
                 🏳️ Forfeit
               </button>
