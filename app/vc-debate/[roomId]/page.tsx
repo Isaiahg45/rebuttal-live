@@ -937,7 +937,8 @@ agoraInitializedRef.current = false
     return () => cancelAnimationFrame(rafId)
   }, [])
 
- useEffect(() => {
+useEffect(() => {
+    if (videoParam) return // arena: no autoscroll, user scrolls manually
     if (chatRef.current) chatRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' })
   }, [transcripts, liveTranscript])
 function startTurnTimer(duration: number, isMine: boolean, socket: Socket) {
