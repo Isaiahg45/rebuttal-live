@@ -1341,7 +1341,7 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
         </div>
       )}
 
-     <div style={{ minHeight: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+    <div style={{ minHeight: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -1442,6 +1442,12 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
           </div>
         </div>
 
+      {/* Scroll hint — only for video arena debates */}
+        {videoParam && (
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', padding: '6px 20px', textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px' }}>
+            ↓ Scroll down to see the chat
+          </div>
+        )}
        {/* Turn indicator */}
         <div style={{ background: isMyTurn ? 'rgba(230,57,70,0.08)' : 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', padding: '12px 20px', flexShrink: 0, textAlign: 'center' }}>
           {scoringUsername && (
