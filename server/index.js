@@ -1293,7 +1293,7 @@ setInterval(() => {
                   type: room.type,
                   draw: true,
                 })
-                if (!room.isCustom) scheduleRoom(room.type)
+              if (!room.isCustom) scheduleRoom(room.type)
               } else {
                 room.suddenDeathRound++
                 room.suddenDeathScores = {}
@@ -1301,6 +1301,7 @@ setInterval(() => {
                 const players = Object.values(room.players)
                 const firstPlayer = players[Math.floor(Math.random() * players.length)]
                 const secondPlayer = players.find(p => p.username !== firstPlayer.username)
+                if (!firstPlayer || !secondPlayer) return
                 room.suddenDeathPhase = 'first'
                 room.suddenDeathFirst = firstPlayer.username
                 room.suddenDeathSecond = secondPlayer.username
@@ -3449,13 +3450,17 @@ function startBots() {
 const botElos = {}
 
 async function loadBotElos() {
-  const data = await supabaseRest(
-    `profiles?username=in.(${BOT_NAMES.map(n => `"${n}"`).join(',')})&select=username,elo,wins,debates`
-  )
-  if (data) {
-    data.forEach(p => { botElos[p.username] = { elo: p.elo ?? 100, wins: p.wins ?? 0, debates: p.debates ?? 0 } })
+  try {
+    const data = await supabaseRest(
+      `profiles?username=in.(${BOT_NAMES.map(n => `"${n}"`).join(',')})&select=username,elo,wins,debates`
+    )
+    if (Array.isArray(data)) {
+      data.forEach(p => { botElos[p.username] = { elo: p.elo ?? 100, wins: p.wins ?? 0, debates: p.debates ?? 0 } })
+    }
+    console.log(`🤖 Loaded ELOs for ${Object.keys(botElos).length} bots`)
+  } catch (e) {
+    console.log('Could not load bot ELOs, using defaults:', e.message)
   }
-  console.log(`🤖 Loaded ELOs for ${Object.keys(botElos).length} bots`)
 }
 
 async function boot() {
