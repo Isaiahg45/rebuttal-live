@@ -623,8 +623,9 @@ socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, du
       }
       startTurnTimer(turnDuration, isMine, socket)
     })
-    socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
+   socket.on('vc_turn_start', ({ speakerSocketId, speakerUsername, turnNumber: tn, turnDuration }: any) => {
       console.log('🎯 vc_turn_start — speakerSocketId:', speakerSocketId, 'socket.id:', socket.id)
+      clearInterval(cooldownTimerRef.current)
       setInCooldown(false)
       setCurrentSpeakerUsername(speakerUsername)
       const isMine = speakerSocketId === socket.id
@@ -638,12 +639,12 @@ socket.on('vc_debate_started', ({ firstSpeakerSocketId, firstSpeakerUsername, du
       setLiveTranscript('')
       setOpponentLiveTranscript('')
 
-      if (isMine) {
+     if (isMine) {
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         if (SR) startListening()
         if (localStreamRef.current) startMediaRecorder(localStreamRef.current)
-localAudioTrackRef.current?.setEnabled(true) 
-        } else {
+        try { localAudioTrackRef.current?.setEnabled(true) } catch (e) { console.warn('setEnabled failed:', e) }
+      } else {
         stopListening()
         if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
         // Manually subscribe to any already-publishing remote users
@@ -697,11 +698,8 @@ socket.on('vc_turn_ended', ({ speakerSocketId }: { speakerSocketId: string }) =>
    socket.on('vc_scoring_start', ({ username }: { username: string }) => {
       setScoringUsername(username)
       clearInterval(timerRef.current)
-      clearInterval(turnTimerRef.current)
-      clearInterval(displayTimerRef.current)
-      turnStartTimeRef.current = null
-      turnDeadlineRef.current = null
-      setTurnTimeLeft(0)
+      // vc_turn_ended always fires before this and already clears the turn timer.
+      // Clearing here again risks nuking the NEW turn's timer if events arrive slightly out of order.
     })
     socket.on('vc_scoring_end', ({ username }: { username: string }) => {
       setScoringUsername(null)
