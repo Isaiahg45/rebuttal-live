@@ -439,7 +439,7 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '20px' }}>🎁</span>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#22c55e', marginBottom: '2px' }}>200 Free Rebut Coins every month</div>
+             <div style={{ fontSize: '13px', fontWeight: 700, color: '#22c55e', marginBottom: '2px' }}>100 Free Rebut Coins every month</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>Automatically credited at the start of each month. Buy more in the Shop.</div>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>

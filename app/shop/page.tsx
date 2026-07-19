@@ -79,7 +79,7 @@ export default function ShopPage() {
           <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: '14px', padding: '14px 20px', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '20px' }}>🎁</span>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#22c55e', marginBottom: '2px' }}>200 Free Rebut Coins every month</div>
+             <div style={{ fontSize: '13px', fontWeight: 700, color: '#22c55e', marginBottom: '2px' }}>100 Free Rebut Coins every month</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Automatically credited to your account at the start of each month. No purchase needed.</div>
             </div>
           </div>

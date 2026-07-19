@@ -3499,6 +3499,28 @@ async function boot() {
     console.log('Could not load stats:', e.message)
   }
  await loadBotElos()
+ // Monthly coin grant — 100 coins to every user at start of each month
+  const grantMonthlyCoins = async () => {
+    const now = new Date()
+    const thisMonth = `${now.getFullYear()}-${now.getMonth() + 1}`
+    try {
+      const data = await supabaseRest(`profiles?select=id,username,coins,last_coin_grant`)
+      if (!Array.isArray(data)) return
+      for (const user of data) {
+        const lastGrant = user.last_coin_grant ? user.last_coin_grant.slice(0, 7) : null
+        if (lastGrant === thisMonth) continue
+        const newCoins = (user.coins ?? 0) + 100
+        await supabaseRest(`profiles?id=eq.${user.id}`, 'PATCH', {
+          coins: newCoins,
+          last_coin_grant: now.toISOString(),
+        })
+        console.log(`🪙 Granted 100 monthly coins to ${user.username}`)
+      }
+    } catch (e) {
+      console.log('Monthly coin grant error:', e.message)
+    }
+  }
+  await grantMonthlyCoins()
   await loadBannedUsernames()
   replenishRooms(true)
   console.log(`✅ Server booting with ${TARGET_AVAILABLE} text rooms + 1 VC room`)
