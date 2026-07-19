@@ -75,7 +75,7 @@ function MessagesInner() {
 
   // Search users as you type
   useEffect(() => {
-    if (!newRecipient.trim() || newRecipient.length < 2) { setUserSuggestions([]); return }
+    if (!newRecipient.trim()) { setUserSuggestions([]); return }
     const timeout = setTimeout(async () => {
       const { data } = await supabase.from('profiles')
         .select('username, avatar_url')
