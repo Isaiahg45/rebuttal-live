@@ -512,9 +512,6 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) {
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 LIVE NOW</div>
              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-               {onBet && (
-              <button
-                onClick={e => { e.stopPropagation(); onBet() }}
               </div>
             </div>
           )}
