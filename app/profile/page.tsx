@@ -30,115 +30,153 @@ const [bio, setBio] = useState('')
   const [badges, setBadges] = useState<string[]>([])
   const [badgeSaving, setBadgeSaving] = useState(false)
   const [adminMessages, setAdminMessages] = useState<any[]>([])
-  const BADGE_OPTIONS = [
-    // Politics — US
-    'Conservative', 'Liberal', 'Libertarian', 'Socialist', 'Progressive', 'Moderate', 'Centrist',
-    'Apolitical', 'Democrat', 'Republican', 'Independent', 'Green Party', 'Anarchist', 'Populist',
-    'Constitutionalist', 'MAGA', 'Never Trump', 'Bernie Bro', 'Blue Dog Democrat', 'Tea Party',
-    'Swing Voter', 'Third Party Voter', 'Non-Voter',
-
-    // Politics — Global
-    'Labour', 'Tory', 'Social Democrat', 'Christian Democrat', 'Far Left', 'Far Right',
-    'Centrist Right', 'Centrist Left', 'Civic Nationalist', 'Ethno-Nationalist',
-
-    // Religion — Christianity
-    'Christian', 'Catholic', 'Protestant', 'Evangelical', 'Baptist', 'Methodist', 'Lutheran',
-    'Presbyterian', 'Pentecostal', 'Anglican', 'Episcopal', 'Eastern Orthodox', 'Coptic',
-    'Mormon', 'Jehovah\'s Witness', 'Seventh-day Adventist', 'Non-Denominational Christian',
-
-    // Religion — Islam
-    'Muslim', 'Sunni', 'Shia', 'Sufi', 'Ahmadi', 'Secular Muslim',
-
-    // Religion — Judaism
-    'Jewish', 'Orthodox Jewish', 'Conservative Jewish', 'Reform Jewish', 'Secular Jewish',
-
-    // Religion — Other
-    'Hindu', 'Buddhist', 'Theravada Buddhist', 'Zen Buddhist', 'Sikh', 'Jain', 'Zoroastrian',
-    'Baha\'i', 'Shinto', 'Taoist', 'Confucian', 'Pagan', 'Wiccan', 'Druid', 'Animist',
-    'Rastafarian', 'Scientologist', 'Unitarian Universalist',
-
-    // Non-religion
-    'Atheist', 'Agnostic', 'Spiritual but not Religious', 'Secular Humanist', 'Anti-Theist',
-    'Deist', 'Pantheist',
-
-    // Ideology — Economic
-    'Capitalist', 'Free Market', 'Laissez-Faire', 'Keynesian', 'Marxist', 'Communist',
-    'Leninist', 'Maoist', 'Trotskyist', 'Market Socialist', 'Democratic Socialist',
-    'Anarcho-Capitalist', 'Anarcho-Communist', 'Mutualist', 'Distributist', 'Georgist',
-    'Post-Capitalist', 'Accelerationist',
-
-    // Ideology — Social/Political
-    'Fascist', 'Neo-Fascist', 'Alt-Right', 'Neoconservative', 'Paleoconservative',
-    'Classical Liberal', 'Neoliberal', 'Feminist', 'Liberal Feminist', 'Radical Feminist',
-    'Anti-Feminist', 'Men\'s Rights', 'Traditionalist', 'Social Conservative',
-    'Nationalist', 'Globalist', 'Technocrat', 'Meritocrat', 'Authoritarian',
-    'Anti-Authoritarian', 'Statist', 'Minarchist', 'Anarchist', 'Syndicalist',
-    'Transhumanist', 'Luddite', 'Primitivist', 'Militarist', 'Pacifist',
-    'Isolationist', 'Interventionist', 'Imperialist', 'Anti-Imperialist',
-    'Zionist', 'Anti-Zionist', 'Pan-Africanist', 'Black Nationalist',
-
-    // Environmentalism
-    'Environmentalist', 'Climate Activist', 'Naturalist', 'Deep Ecologist',
-    'Eco-Socialist', 'Eco-Fascist', 'Green New Deal', 'Nuclear Energy Support',
-    'Renewable Energy Only', 'Anti-Nuclear', 'Climate Doomer', 'Climate Skeptic',
-    'Vegan', 'Vegetarian', 'Animal Rights', 'Anti-Factory Farming',
-
-    // Advocacy — Social Issues
-    'Pro-Life', 'Pro-Choice', 'Gun Rights', 'Gun Control', 'Abolish Police',
-    'Back the Blue', 'Prison Abolition', 'Death Penalty Support', 'Death Penalty Opposition',
-    'Drug Legalization', 'Drug Prohibition', 'Sex Work Legalization',
-    'Free Speech Absolutist', 'Anti-Hate Speech Laws', 'Pro-Censorship',
-    'LGBTQ+ Ally', 'LGBTQ+', 'Trans Rights', 'Gender Critical',
-    'Pro-Affirmative Action', 'Anti-Affirmative Action',
-    'Reparations Support', 'Reparations Opposition',
-    'Defund the Media', 'Anti-Mainstream Media',
-
-    // Advocacy — Economic Policy
-    'Universal Healthcare', 'Free Market Healthcare', 'Medicare for All',
-    'UBI Support', 'Anti-UBI', 'Raise the Minimum Wage', 'Abolish Minimum Wage',
-    'Open Borders', 'Immigration Restrictionist', 'Deportation Support',
-    'Wealth Tax', 'Flat Tax', 'Abolish the IRS', 'Anti-Globalization',
-    'Pro-Union', 'Anti-Union', 'Student Debt Forgiveness', 'Against Debt Forgiveness',
-
-    // Technology & Future
-    'AI Optimist', 'AI Doomer', 'Crypto Believer', 'Crypto Skeptic',
-    'Web3 Supporter', 'Privacy Absolutist', 'Surveillance Skeptic',
-    'Space Colonization', 'Effective Altruist', 'Long-Termist',
-    'Biohacker', 'Anti-GMO', 'Pro-GMO', 'Lab Meat Supporter',
-
-    // Lifestyle & Identity
-    'Introvert', 'Extrovert', 'City Person', 'Rural Person', 'Suburban',
-    'College Educated', 'Trade School', 'Self-Taught', 'High School Only',
-    'Working Class', 'Middle Class', 'Upper Class', 'First-Gen Immigrant',
-    'Second-Gen Immigrant', 'Military Veteran', 'First Responder',
-    'Small Business Owner', 'Corporate Employee', 'Freelancer', 'Gig Worker',
-    'Stay-at-Home Parent', 'Single Parent', 'Childfree by Choice',
-
-    // Race/Ethnicity
-    'Black', 'African American', 'Afro-Caribbean', 'Afro-Latino',
-    'White', 'White European', 'Eastern European', 'Western European',
-    'Hispanic', 'Latino', 'Mexican', 'Puerto Rican', 'Cuban', 'Dominican',
-    'Central American', 'South American',
-    'Indigenous', 'Native American', 'First Nations',
-    'Asian', 'East Asian', 'Chinese', 'Japanese', 'Korean',
-    'South Asian', 'Indian', 'Pakistani', 'Bangladeshi', 'Sri Lankan',
-    'Southeast Asian', 'Filipino', 'Vietnamese', 'Thai', 'Indonesian',
-    'Middle Eastern', 'Arab', 'Persian', 'Turkish', 'Kurdish',
-    'North African', 'Sub-Saharan African', 'West African', 'East African',
-    'Pacific Islander', 'Hawaiian', 'Samoan',
-    'Mixed', 'Multiracial', 'Biracial',
-
-    // Sports & Fandoms (non-WC)
-    'NFL Fan', 'NBA Fan', 'MLB Fan', 'NHL Fan', 'MLS Fan', 'Soccer Fan',
-    'Combat Sports Fan', 'College Football Fan', 'Golf Fan', 'Tennis Fan',
-
-    // Generational
-    'Gen Z', 'Millennial', 'Gen X', 'Boomer', 'Gen Alpha',
-
-    // Debate Style
-    'Logic Over Emotion', 'Emotion Matters', 'Data Driven', 'Philosophical',
-    'Devil\'s Advocate', 'Always Plays Con', 'Always Plays Pro',
-    'Trash Talker', 'Respectful Debater', 'No Mercy',
+  const BADGE_SECTIONS: { title: string; badges: string[] }[] = [
+    {
+      title: 'Politics — US',
+      badges: [
+        'Conservative', 'Liberal', 'Libertarian', 'Socialist', 'Progressive', 'Moderate', 'Centrist',
+        'Apolitical', 'Democrat', 'Republican', 'Independent', 'Green Party', 'Anarchist', 'Populist',
+        'Constitutionalist', 'MAGA', 'Never Trump', 'Bernie Bro', 'Blue Dog Democrat', 'Tea Party',
+        'Swing Voter', 'Third Party Voter', 'Non-Voter',
+      ],
+    },
+    {
+      title: 'Politics — Global',
+      badges: [
+        'Labour', 'Tory', 'Social Democrat', 'Christian Democrat', 'Far Left', 'Far Right',
+        'Centrist Right', 'Centrist Left', 'Civic Nationalist', 'Ethno-Nationalist',
+      ],
+    },
+    {
+      title: 'Religion & Belief',
+      badges: [
+        // Christianity
+        'Christian', 'Catholic', 'Protestant', 'Evangelical', 'Baptist', 'Methodist', 'Lutheran',
+        'Presbyterian', 'Pentecostal', 'Anglican', 'Episcopal', 'Eastern Orthodox', 'Coptic',
+        'Mormon', 'Jehovah\'s Witness', 'Seventh-day Adventist', 'Non-Denominational Christian',
+        // Islam
+        'Muslim', 'Sunni', 'Shia', 'Sufi', 'Ahmadi', 'Secular Muslim',
+        // Judaism
+        'Jewish', 'Orthodox Jewish', 'Conservative Jewish', 'Reform Jewish', 'Secular Jewish',
+        // Other faiths
+        'Hindu', 'Buddhist', 'Theravada Buddhist', 'Zen Buddhist', 'Sikh', 'Jain', 'Zoroastrian',
+        'Baha\'i', 'Shinto', 'Taoist', 'Confucian', 'Pagan', 'Wiccan', 'Druid', 'Animist',
+        'Rastafarian', 'Scientologist', 'Unitarian Universalist',
+        // Non-religion
+        'Atheist', 'Agnostic', 'Spiritual but not Religious', 'Secular Humanist', 'Anti-Theist',
+        'Deist', 'Pantheist',
+      ],
+    },
+    {
+      title: 'Ideology — Economic',
+      badges: [
+        'Capitalist', 'Free Market', 'Laissez-Faire', 'Keynesian', 'Marxist', 'Communist',
+        'Leninist', 'Maoist', 'Trotskyist', 'Market Socialist', 'Democratic Socialist',
+        'Anarcho-Capitalist', 'Anarcho-Communist', 'Mutualist', 'Distributist', 'Georgist',
+        'Post-Capitalist', 'Accelerationist',
+      ],
+    },
+    {
+      title: 'Ideology — Social & Political',
+      badges: [
+        'Fascist', 'Neo-Fascist', 'Alt-Right', 'Neoconservative', 'Paleoconservative',
+        'Classical Liberal', 'Neoliberal', 'Feminist', 'Liberal Feminist', 'Radical Feminist',
+        'Anti-Feminist', 'Men\'s Rights', 'Traditionalist', 'Social Conservative',
+        'Nationalist', 'Globalist', 'Technocrat', 'Meritocrat', 'Authoritarian',
+        'Anti-Authoritarian', 'Statist', 'Minarchist', 'Anarchist', 'Syndicalist',
+        'Transhumanist', 'Luddite', 'Primitivist', 'Militarist', 'Pacifist',
+        'Isolationist', 'Interventionist', 'Imperialist', 'Anti-Imperialist',
+        'Zionist', 'Anti-Zionist', 'Pan-Africanist', 'Black Nationalist',
+      ],
+    },
+    {
+      title: 'Environmentalism',
+      badges: [
+        'Environmentalist', 'Climate Activist', 'Naturalist', 'Deep Ecologist',
+        'Eco-Socialist', 'Eco-Fascist', 'Green New Deal', 'Nuclear Energy Support',
+        'Renewable Energy Only', 'Anti-Nuclear', 'Climate Doomer', 'Climate Skeptic',
+        'Vegan', 'Vegetarian', 'Animal Rights', 'Anti-Factory Farming',
+      ],
+    },
+    {
+      title: 'Advocacy — Social Issues',
+      badges: [
+        'Pro-Life', 'Pro-Choice', 'Gun Rights', 'Gun Control', 'Abolish Police',
+        'Back the Blue', 'Prison Abolition', 'Death Penalty Support', 'Death Penalty Opposition',
+        'Drug Legalization', 'Drug Prohibition', 'Sex Work Legalization',
+        'Free Speech Absolutist', 'Anti-Hate Speech Laws', 'Pro-Censorship',
+        'LGBTQ+ Ally', 'LGBTQ+', 'Trans Rights', 'Gender Critical',
+        'Pro-Affirmative Action', 'Anti-Affirmative Action',
+        'Reparations Support', 'Reparations Opposition',
+        'Defund the Media', 'Anti-Mainstream Media',
+      ],
+    },
+    {
+      title: 'Advocacy — Economic Policy',
+      badges: [
+        'Universal Healthcare', 'Free Market Healthcare', 'Medicare for All',
+        'UBI Support', 'Anti-UBI', 'Raise the Minimum Wage', 'Abolish Minimum Wage',
+        'Open Borders', 'Immigration Restrictionist', 'Deportation Support',
+        'Wealth Tax', 'Flat Tax', 'Abolish the IRS', 'Anti-Globalization',
+        'Pro-Union', 'Anti-Union', 'Student Debt Forgiveness', 'Against Debt Forgiveness',
+      ],
+    },
+    {
+      title: 'Technology & Future',
+      badges: [
+        'AI Optimist', 'AI Doomer', 'Crypto Believer', 'Crypto Skeptic',
+        'Web3 Supporter', 'Privacy Absolutist', 'Surveillance Skeptic',
+        'Space Colonization', 'Effective Altruist', 'Long-Termist',
+        'Biohacker', 'Anti-GMO', 'Pro-GMO', 'Lab Meat Supporter',
+      ],
+    },
+    {
+      title: 'Lifestyle & Identity',
+      badges: [
+        'Introvert', 'Extrovert', 'City Person', 'Rural Person', 'Suburban',
+        'College Educated', 'Trade School', 'Self-Taught', 'High School Only',
+        'Working Class', 'Middle Class', 'Upper Class', 'First-Gen Immigrant',
+        'Second-Gen Immigrant', 'Military Veteran', 'First Responder',
+        'Small Business Owner', 'Corporate Employee', 'Freelancer', 'Gig Worker',
+        'Stay-at-Home Parent', 'Single Parent', 'Childfree by Choice',
+      ],
+    },
+    {
+      title: 'Race & Ethnicity',
+      badges: [
+        'Black', 'African American', 'Afro-Caribbean', 'Afro-Latino',
+        'White', 'White European', 'Eastern European', 'Western European',
+        'Hispanic', 'Latino', 'Mexican', 'Puerto Rican', 'Cuban', 'Dominican',
+        'Central American', 'South American',
+        'Indigenous', 'Native American', 'First Nations',
+        'Asian', 'East Asian', 'Chinese', 'Japanese', 'Korean',
+        'South Asian', 'Indian', 'Pakistani', 'Bangladeshi', 'Sri Lankan',
+        'Southeast Asian', 'Filipino', 'Vietnamese', 'Thai', 'Indonesian',
+        'Middle Eastern', 'Arab', 'Persian', 'Turkish', 'Kurdish',
+        'North African', 'Sub-Saharan African', 'West African', 'East African',
+        'Pacific Islander', 'Hawaiian', 'Samoan',
+        'Mixed', 'Multiracial', 'Biracial',
+      ],
+    },
+    {
+      title: 'Sports & Fandoms',
+      badges: [
+        'NFL Fan', 'NBA Fan', 'MLB Fan', 'NHL Fan', 'MLS Fan', 'Soccer Fan',
+        'Combat Sports Fan', 'College Football Fan', 'Golf Fan', 'Tennis Fan',
+      ],
+    },
+    {
+      title: 'Generational',
+      badges: ['Gen Z', 'Millennial', 'Gen X', 'Boomer', 'Gen Alpha'],
+    },
+    {
+      title: 'Debate Style',
+      badges: [
+        'Logic Over Emotion', 'Emotion Matters', 'Data Driven', 'Philosophical',
+        'Devil\'s Advocate', 'Always Plays Con', 'Always Plays Pro',
+        'Trash Talker', 'Respectful Debater', 'No Mercy',
+      ],
+    },
   ]
 
   useEffect(() => {
@@ -485,25 +523,38 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               <span>SELF-ID BADGES</span>
               {badgeSaving && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', marginLeft: 'auto' }}>Saving...</span>}
             </div>
-            <div style={{ padding: '14px 20px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {BADGE_OPTIONS.map(badge => {
-                const selected = badges.includes(badge)
-                return (
-                  <button key={badge} onClick={async () => {
-                    if (!selected) {
-                      const myCoins = profile?.coins ?? 0
-                      if (myCoins < 50) { alert(`Adding a badge costs 50 💰 Rebut coins. You have ${myCoins}.`); return }
-                      const confirmed = window.confirm(`Add "${badge}" badge for 50 💰 Rebut coins? You have ${myCoins}.`)
-                      if (!confirmed) return
-                      await supabase.from('profiles').update({ coins: myCoins - 50 }).eq('id', user.id)
-                      refreshProfile()
-                    }
-                    toggleBadge(badge)
-                  }} style={{ fontSize: '12px', fontWeight: 700, padding: '6px 12px', borderRadius: '20px', border: `1px solid ${selected ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.1)'}`, background: selected ? 'rgba(168,85,247,0.15)' : 'transparent', color: selected ? '#c084fc' : 'rgba(255,255,255,0.35)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
-                    {selected ? badge : `${badge} — 50 💰`}
-                  </button>
-                )
-              })}
+            <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {BADGE_SECTIONS.map(section => (
+                <div key={section.title}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', color: 'rgba(255,255,255,0.25)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                    {section.title}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {section.badges.map(badge => {
+                      const selected = badges.includes(badge)
+                      return (
+                        <button key={badge} onClick={async () => {
+                          if (!selected) {
+                            const myCoins = profile?.coins ?? 0
+                            if (myCoins < 50) { alert(`Adding a badge costs 50 Rebut coins. You have ${myCoins}.`); return }
+                            const confirmed = window.confirm(`Add "${badge}" badge for 50 Rebut coins? You have ${myCoins}.`)
+                            if (!confirmed) return
+                            await supabase.from('profiles').update({ coins: myCoins - 50 }).eq('id', user.id)
+                            refreshProfile()
+                          }
+                          toggleBadge(badge)
+                        }} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700, padding: '6px 12px', borderRadius: '20px', border: `1px solid ${selected ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.1)'}`, background: selected ? 'rgba(168,85,247,0.15)' : 'transparent', color: selected ? '#c084fc' : 'rgba(255,255,255,0.35)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}>
+                          {selected ? badge : (
+                            <>
+                              {badge} — 50 <img src="/rebut-coin.png" alt="RC" style={{ width: '12px', height: '12px', objectFit: 'contain' }} />
+                            </>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           {/* Tier list */}
