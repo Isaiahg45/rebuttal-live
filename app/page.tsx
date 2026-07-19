@@ -52,15 +52,12 @@ export default function Home() {
       {/* Hero — FIFA World Cup 2026 Edition */}
         <div style={{ position: 'relative', overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
 
-          {/* Animated tri-color background */}
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(255,77,104,0.22) 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 20% 50%, rgba(91,140,255,0.14) 0%, transparent 50%), radial-gradient(ellipse 60% 40% at 80% 50%, rgba(63,224,127,0.12) 0%, transparent 50%), #080808', zIndex: 0 }} />
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,77,104,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(91,140,255,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px', zIndex: 0 }} />
+       {/* Background */}
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(230,57,70,0.18) 0%, transparent 55%), #080808', zIndex: 0 }} />
 
           {/* Floating orbs */}
-          <div style={{ position: 'absolute', top: '10%', left: '5%', width: '300px', height: '300px', background: 'radial-gradient(ellipse, rgba(255,77,104,0.12) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', top: '20%', right: '5%', width: '250px', height: '250px', background: 'radial-gradient(ellipse, rgba(63,224,127,0.10) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: '10%', left: '30%', width: '400px', height: '200px', background: 'radial-gradient(ellipse, rgba(91,140,255,0.10) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
-
+          <div style={{ position: 'absolute', top: '10%', left: '5%', width: '300px', height: '300px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.08) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '20%', right: '5%', width: '250px', height: '250px', background: 'radial-gradient(ellipse, rgba(230,57,70,0.06) 0%, transparent 70%)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
        <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(20px, 3vw, 36px) clamp(16px, 5vw, 48px) 0', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
 
             {/* Live badge */}
@@ -80,7 +77,7 @@ export default function Home() {
                 }}>ARGUE.</span>
                 <span style={{
                   display: 'block',
-                  background: 'linear-gradient(90deg, #ff4d68 0%, #a855f7 40%, #3fe07f 100%)',
+                 background: 'linear-gradient(90deg, #e63946 0%, #ff4d68 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
