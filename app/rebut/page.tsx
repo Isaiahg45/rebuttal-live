@@ -256,8 +256,8 @@ const sortRooms = (arr: RoomData[]) => [...arr].sort((a, b) => {
   return score(b) - score(a)
 })
 
-  const available = sortRooms(rooms.filter(r => r.status === 'waiting' && r.type !== 'vc' && matchFilter(r)))
-const live = rooms.filter(r => r.status === 'active')
+ const available = sortRooms(rooms.filter(r => r.status === 'waiting' && r.type !== 'vc' && r.type !== 'worldcup' && matchFilter(r)))
+const live = rooms.filter(r => r.status === 'active' && r.type !== 'worldcup')
   const liveArena = live.filter(r => r.isVideoArena)
   const liveVC = live.filter(r => r.type === 'vc' && !r.isVideoArena)
   const liveText = live.filter(r => r.type !== 'vc' && !r.isVideoArena)
@@ -289,12 +289,6 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
   return (
     <>
      <Nav active="rebut" />
-      <div style={{ background: 'linear-gradient(100deg, #7a1726 0%, #5a1740 28%, #15275e 55%, #0f3d52 75%, #0c4a30 100%)', borderBottom: '1px solid #2a2230' }}>
-        <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
-          <span style={{ width: '28px', height: '8px', borderRadius: '4px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)', flexShrink: 0, display: 'inline-block' }} />
-          ⚽ <b style={{ color: '#fff' }}>World Cup Room</b> is live in the lobby — win it for <b style={{ color: '#fff' }}>+80 ELO</b>.
-        </div>
-      </div>
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
         @keyframes vcPulse { 0%,100%{box-shadow:0 0 0 1px rgba(0,212,255,0.15), 0 0 16px rgba(0,212,255,0.08)} 50%{box-shadow:0 0 0 1px rgba(0,212,255,0.3), 0 0 24px rgba(0,212,255,0.15)} }

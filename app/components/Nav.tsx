@@ -165,6 +165,23 @@ const avatarUrl = profile?.avatar_url ?? null
                                         View in profile →
                                       </button>
                                     </>
+                                  ) : n.type === 'buddy_request' ? (
+                                    <>
+                                      <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{n.message}</div>
+                                      <button
+                                        onClick={async () => {
+                                          const sender = n.message?.match(/^(\S+) sent you/)?.[1]
+                                          if (!sender || !profile?.username) return
+                                          await supabase.from('buddies').insert([
+                                            { user_a: profile.username, user_b: sender },
+                                          ])
+                                          await markSeen(n.id)
+                                        }}
+                                        style={{ marginTop: '8px', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '6px', padding: '5px 12px', color: '#a855f7', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                                      >
+                                        🤝 Accept Request
+                                      </button>
+                                    </>
                                   ) : (
                                     <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{n.message}</div>
                                   )}

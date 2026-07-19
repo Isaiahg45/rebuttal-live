@@ -36,22 +36,6 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  const [wc, setWc] = useState({ days: 0, hours: 0, mins: 0, secs: 0 })
-  useEffect(() => {
-    const target = new Date('2026-07-19T23:59:59-04:00').getTime()
-    const tick = () => {
-      const diff = Math.max(0, target - Date.now())
-      setWc({
-        days: Math.floor(diff / 86400000),
-        hours: Math.floor((diff % 86400000) / 3600000),
-        mins: Math.floor((diff % 3600000) / 60000),
-        secs: Math.floor((diff % 60000) / 1000),
-      })
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [])
 
   const formatArgs = (n: number) => {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
@@ -65,13 +49,6 @@ export default function Home() {
       <AuthRedirect />
       <div style={{ minHeight: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
 
-        {/* ── World Cup Event Banner ── */}
-        <div style={{ background: 'linear-gradient(100deg, #7a1726 0%, #5a1740 28%, #15275e 55%, #0f3d52 75%, #0c4a30 100%)', borderBottom: '1px solid #2a2230' }}>
-          <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
-            <span style={{ width: '28px', height: '8px', borderRadius: '4px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)', flexShrink: 0, display: 'inline-block', boxShadow: '0 0 8px rgba(255,255,255,0.2)' }} />
-            ⚽ <b style={{ color: '#fff' }}>World Cup Event</b> is live — June 18 through July 19. Special rooms, WC Debate of the Day, and exclusive themes.
-          </div>
-        </div>
       {/* Hero — FIFA World Cup 2026 Edition */}
         <div style={{ position: 'relative', overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
 
@@ -90,13 +67,6 @@ export default function Home() {
             <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '5px 14px', marginBottom: '12px', backdropFilter: 'blur(8px)' }}>
               <div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff4d68', boxShadow: '0 0 8px #ff4d68' }} />
               <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontWeight: 600, letterSpacing: '0.5px' }}>{stats?.debatersOnline ?? 0} debaters online</span>
-            </div>
-
-            {/* WC Event pill */}
-            <div className="animate-fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(100deg, rgba(255,77,104,0.2), rgba(91,140,255,0.2), rgba(63,224,127,0.2))', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '20px', padding: '6px 16px', marginBottom: '18px', backdropFilter: 'blur(8px)', boxShadow: '0 4px 24px rgba(91,140,255,0.2)' }}>
-              <span style={{ fontSize: '14px' }}>🏆</span>
-              <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', color: '#fff', textTransform: 'uppercase' }}>FIFA World Cup 2026 — June 18 to July 19</span>
-              <span style={{ fontSize: '14px' }}>⚽</span>
             </div>
 
             {/* 3D ARGUE DEBATE RANK UP */}
@@ -149,44 +119,22 @@ export default function Home() {
               </Link>
             </div>
 
-           {/* Trophy + stats row */}
-            <div className="animate-fade-up" style={{ animationDelay: '0.35s', opacity: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '32px', filter: 'drop-shadow(0 0 14px rgba(255,214,10,0.7))', animation: 'trophySpin 4s ease-in-out infinite' }}>🏆</div>
-              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {[
-                  [stats.liveDebates.toLocaleString(), 'Live Debates'],
-                  [formatArgs(stats.argumentsMade), 'Arguments Made'],
-                  ['100', 'Global Rankings'],
-                ].map(([val, label]) => (
-                  <div key={label as string} style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(18px, 3vw, 24px)', letterSpacing: '1.5px', color: '#fff', textShadow: '0 0 16px rgba(255,77,104,0.4)' }}>{val}</div>
-                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '2px', letterSpacing: '1px' }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: '32px', filter: 'drop-shadow(0 0 14px rgba(63,224,127,0.5))', animation: 'ballBounce 1.2s ease-in-out infinite' }}>⚽</div>
-            </div>
-
-            {/* Football players banner — full bleed, no box */}
-            <div className="animate-fade-up" style={{ animationDelay: '0.4s', opacity: 0, width: '100vw', marginLeft: 'calc(50% - 50vw)', position: 'relative' }}>
-              {/* Fade top edge so it blends into the page */}
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '60px', background: 'linear-gradient(180deg, #080808, transparent)', zIndex: 1, pointerEvents: 'none' }} />
-              <img
-                src="/footballplayers.png"
-                alt="World Cup Stars — Ronaldo, Messi, Mbappé, Haaland, Yamal, Vinícius, Kane"
-                style={{ width: '100%', display: 'block', maxHeight: '480px', objectFit: 'cover', objectPosition: 'center top' }}
-              />
-              {/* Fade bottom edge */}
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '120px', background: 'linear-gradient(0deg, #080808, transparent)', zIndex: 1, pointerEvents: 'none' }} />
-              {/* Name strip */}
-              <div style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, textAlign: 'center', zIndex: 2 }}>
-                <div style={{ display: 'inline-block', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: '12px', padding: '8px 20px', fontFamily: 'var(--font-bebas)', fontSize: 'clamp(11px,2vw,14px)', letterSpacing: '3px', color: 'rgba(255,214,10,0.9)' }}>
-                  ⚽ DEBATE THEIR LEGACY IN THE WORLD CUP ROOM
+          {/* Stats row */}
+            <div className="animate-fade-up" style={{ animationDelay: '0.35s', opacity: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {[
+                [stats.liveDebates.toLocaleString(), 'Live Debates'],
+                [formatArgs(stats.argumentsMade), 'Arguments Made'],
+                ['100', 'Global Rankings'],
+              ].map(([val, label]) => (
+                <div key={label as string} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(18px, 3vw, 24px)', letterSpacing: '1.5px', color: '#fff', textShadow: '0 0 16px rgba(255,77,104,0.4)' }}>{val}</div>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '2px', letterSpacing: '1px' }}>{label}</div>
                 </div>
-              </div>
+              ))}
             </div>
 
-          </div>
+   
+             </div>
         </div>
       
         {/* TOTD Winner banner */}
@@ -214,45 +162,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── World Cup Countdown + Events ── */}
-        <div style={{ padding: 'clamp(28px, 4vw, 40px) clamp(16px, 4vw, 48px) 0' }}>
-          <div style={{ maxWidth: '860px', margin: '0 auto' }}>
-            <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(160deg, #181219, #15151a 60%)', border: '1px solid #2c2433', borderRadius: '18px', padding: '22px 28px 24px', marginBottom: '16px', boxShadow: '0 10px 50px rgba(90,40,160,0.18)' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '5px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)' }} />
-              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', marginBottom: '14px' }}>🔥 Event Ends In</div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                {([['days', wc.days, 'rgba(255,77,104,0.45)'], ['hours', wc.hours, 'rgba(91,140,255,0.45)'], ['mins', wc.mins, 'rgba(63,224,127,0.45)'], ['secs', wc.secs, 'rgba(255,77,104,0.45)']] as [string, number, string][]).map(([label, val, col]) => (
-                  <div key={label} style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '36px', background: '#0d0d10', border: `1px solid ${col}`, borderRadius: '10px', padding: '10px 4px', minWidth: '64px', letterSpacing: '1px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {String(val).padStart(2, '0')}
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', marginTop: '6px', textTransform: 'uppercase' }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-              <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(150deg, rgba(217,46,74,0.10), rgba(31,158,88,0.08) 70%), var(--surface)', border: '1px solid #3a2a42', borderRadius: '16px', padding: '20px', boxShadow: '0 8px 36px rgba(120,50,180,0.14)' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #ff4d68 0 33%, #5b8cff 33% 66%, #3fe07f 66% 100%)' }} />
-                <div style={{ fontSize: '20px', marginBottom: '10px' }}>⚽</div>
-                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '6px' }}>World Cup Debate Room</div>
-                <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.5, marginBottom: '14px' }}>One live themed room — Messi or Ronaldo? Brazil or Spain? Win the match, take home a bigger ELO prize than usual.</div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 9px', borderRadius: '6px', background: 'var(--accent)', color: '#fff' }}>+80 ELO to winner</span>
-                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 9px', borderRadius: '6px', background: '#2e6cf6', color: '#fff' }}>Live now</span>
-                </div>
-              </div>
-              <div style={{ position: 'relative', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px' }}>
-                <div style={{ fontSize: '20px', marginBottom: '10px' }}>🔥</div>
-                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '6px' }}>Debate of the Day</div>
-                <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: 1.5, marginBottom: '14px' }}>Every Debate of the Day question is World Cup themed for the full duration of the event. New matchup daily.</div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 9px', borderRadius: '6px', background: '#1fae5e', color: '#fff' }}>Resets daily</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* How to Win */}
         <div style={{ padding: 'clamp(32px, 5vw, 48px) clamp(16px, 4vw, 48px) 0' }}>
@@ -439,14 +348,7 @@ export default function Home() {
         </div>
       </div>
       <style>{`
-       @keyframes trophySpin {
-          0%,100%{transform:translateY(0) rotate(-3deg);filter:drop-shadow(0 0 20px rgba(255,214,10,0.7))}
-          50%{transform:translateY(-8px) rotate(3deg);filter:drop-shadow(0 0 32px rgba(255,214,10,1))}
-        }
-        @keyframes ballBounce {
-          0%,100%{transform:translateY(0);filter:drop-shadow(0 0 20px rgba(63,224,127,0.5))}
-          50%{transform:translateY(-10px);filter:drop-shadow(0 0 28px rgba(63,224,127,0.8))}
-        }
+    
         @keyframes pulseDiscord {
           0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.7); }
           50% { box-shadow: 0 0 20px 8px rgba(88,101,242,0.3); }
