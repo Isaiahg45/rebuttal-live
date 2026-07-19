@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -34,7 +34,7 @@ function fmt(ts: string) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-export default function MessagesPage() {
+function MessagesInner() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -360,5 +360,12 @@ export default function MessagesPage() {
         )}
       </div>
     </>
+  )
+}
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <MessagesInner />
+    </Suspense>
   )
 }
