@@ -3178,19 +3178,21 @@ function sendScriptedBotMessage(instanceId, botKey, text) {
       if (!r || r.status !== 'active') return
       const p = r.players[botKey]
       if (!p) return
+  const cappedScore = Math.min(score, 13)
       const msg = {
         id: `${Date.now()}-${Math.random()}`,
         username: p.username,
         text,
-        score,
+        score: cappedScore,
         aiFeedback: feedback,
         timestamp: Date.now(),
         instanceId,
       }
       r.messages.push(msg)
-      p.score += score
+      p.score += cappedScore
       io.to(instanceId).emit('new_message', msg)
       io.to(instanceId).emit('players_update', Object.values(r.players))
+      console.log(`🗒️ Scripted bot "${p.username}" spoke (on schedule) in "${r.topic}"`)
       console.log(`🗒️ Scripted bot "${p.username}" spoke (on schedule) in "${r.topic}"`)
     })
     .catch(() => {})
@@ -3219,17 +3221,18 @@ function startAdvancedAutoBot(instanceId, botKey) {
 
       const priorMessages = r.messages.filter(m => m.username === p.username).map(m => m.text)
       const { score, feedback } = await scoreArgument(botText, r.topic, r.type, priorMessages)
+      const cappedScore = Math.min(score, 13)
       const msg = {
         id: `${Date.now()}-${Math.random()}`,
         username: p.username,
         text: botText,
-        score,
+        score: cappedScore,
         aiFeedback: feedback,
         timestamp: Date.now(),
         instanceId,
       }
       r.messages.push(msg)
-      p.score += score
+      p.score += cappedScore
       io.to(instanceId).emit('new_message', msg)
       io.to(instanceId).emit('players_update', Object.values(r.players))
       loop() // keep going until the room is no longer active
