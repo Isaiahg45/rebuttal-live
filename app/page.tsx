@@ -142,7 +142,7 @@ export default function Home() {
               <div className="totd-banner-inner" style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', flexWrap: 'wrap' }}>
                 <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,214,10,0.25), rgba(255,214,10,0.06))', border: '2px solid rgba(255,214,10,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0, boxShadow: '0 0 20px rgba(255,214,10,0.2)' }}>👑</div>
                 <div style={{ flex: 1, minWidth: '160px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,214,10,0.6)', marginBottom: '4px' }}>🔥 Debate of the Day — Last Champion</div>
+                 <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,214,10,0.6)', marginBottom: '4px' }}>🏆 Debate of the Month — Last Champion</div>
                   <div style={{ fontFamily: 'var(--font-bebas)', fontSize: 'clamp(26px, 5vw, 38px)', letterSpacing: '3px', color: 'var(--gold)', lineHeight: 1, marginBottom: '5px', textShadow: '0 0 20px rgba(255,214,10,0.4)' }}>{totdWinner}</div>
                   <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Outlasted every debater · Earned <span style={{ color: 'var(--gold)', fontWeight: 700 }}>+300 ELO</span></div>
                 </div>

@@ -27,8 +27,23 @@ export default function Nav({ active }: NavProps) {
 
 const avatarUrl = profile?.avatar_url ?? null
   const [showNotifs, setShowNotifs] = useState(false)
-  const { notifications, markSeen, markAllSeen } = useNotifications(profile?.username ?? '')
+const { notifications, markSeen, markAllSeen } = useNotifications(profile?.username ?? '')
   const pendingBuddyCount = notifications.length
+  const [unreadMessages, setUnreadMessages] = useState(0)
+
+  useEffect(() => {
+    if (!profile?.username) return
+    const fetchUnread = async () => {
+      const { count } = await supabase.from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_username', profile.username)
+        .eq('seen', false)
+      setUnreadMessages(count ?? 0)
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 5000)
+    return () => clearInterval(interval)
+  }, [profile?.username])
 
   // Online presence — this is the only signal the server gets that a user
   // is "on the site" at all (debate/admin pages open their own separate
@@ -58,7 +73,7 @@ const avatarUrl = profile?.avatar_url ?? null
     { id: 'home', label: 'Home', href: '/' },
     { id: 'rebut', label: 'Rebut', href: '/rebut' },
     ...(isAdminUser ? [{ id: 'admin', label: 'Admin', href: '/admin' }] : []),
-    { id: 'topic', label: '🔥 Debate of the Day', href: '/topic', special: true },
+    { id: 'topic', label: '🏆 Debate of the Month', href: '/topic', special: true },
     { id: 'rankings', label: 'Rankings', href: '/rankings' },
     { id: 'shop', label: 'Shop', href: '/shop' },
     { id: 'help', label: 'Help', href: '/help' },
@@ -115,12 +130,21 @@ const avatarUrl = profile?.avatar_url ?? null
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{profile?.elo ?? 0}</span>
                 <span className="elo-label" style={{ fontSize: '11px', color: 'var(--muted)' }}>ELO</span>
               </div>
-              {/* TODO: replace hardcoded 0 with profile.coins when 1.3 launches */}
               <div className="nav-coin-pill">
                 <img src="/rebut-coin.png" alt="RC" style={{ width: '16px', height: '16px', objectFit: 'contain', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>0</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{profile?.coins ?? 0}</span>
               </div>
-
+{/* Messages envelope */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button onClick={() => router.push('/messages')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: '18px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>
+                  ✉️
+                  {unreadMessages > 0 && (
+                    <div style={{ position: 'absolute', top: '0px', right: '0px', width: '15px', height: '15px', borderRadius: '50%', background: '#e63946', fontSize: '9px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a0a' }}>
+                      {unreadMessages}
+                    </div>
+                  )}
+                </button>
+              </div>
              {/* Notification bell */}
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <button onClick={() => setShowNotifs(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', position: 'relative', fontSize: '18px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>
@@ -245,6 +269,11 @@ const avatarUrl = profile?.avatar_url ?? null
             {tab.label}
           </Link>
         ))}
+        {user && (
+          <Link href="/messages" className={`nav-mobile-link${active === 'messages' ? ' active' : ''}`} onClick={() => setMenuOpen(false)}>
+            ✉️ Messages {unreadMessages > 0 && `(${unreadMessages})`}
+          </Link>
+        )}
 
         {/* Mobile auth section */}
         <div style={{ borderTop: '1px solid var(--border)', marginTop: '8px', paddingTop: '12px' }}>
@@ -264,9 +293,8 @@ const avatarUrl = profile?.avatar_url ?? null
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{profile?.username}</div>
                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>{profile?.elo ?? 0} ELO</span>
-                    {/* TODO: replace hardcoded 0 with profile.coins when 1.3 launches */}
                     <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>
-                      <img src="/rebut-coin.png" alt="" style={{ width: '12px', height: '12px', objectFit: 'contain' }} />0
+                      <img src="/rebut-coin.png" alt="" style={{ width: '12px', height: '12px', objectFit: 'contain' }} />{profile?.coins ?? 0}
                     </span>
                   </div>
                 </div>

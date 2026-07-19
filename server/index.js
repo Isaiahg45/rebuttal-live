@@ -691,21 +691,18 @@ async function loadBannedUsernames() {
 }
 // ─── Topic of the Day ──────────────────────────────────────────
 const TOTD_TOPICS = [
-  { topic: 'Who is the greatest footballer of all time — Messi or Ronaldo?', emoji: '⚽' },
-  { topic: 'Will Brazil or Argentina win this World Cup?', emoji: '🏆' },
-  { topic: 'Is Mbappé already better than Messi was at his peak?', emoji: '🐐' },
-  { topic: 'Should the World Cup be expanded beyond 48 teams?', emoji: '🌍' },
-  { topic: 'Is VAR ruining the World Cup or saving it?', emoji: '📺' },
-  { topic: 'Is Haaland the best striker in World Cup history already?', emoji: '🎯' },
-  { topic: 'Should the host nation get an automatic World Cup bid?', emoji: '🏟️' },
-  { topic: 'Is the World Cup still bigger than the Olympics?', emoji: '🥇' },
-  { topic: 'Is Vinícius Jr. a top 5 player in the world right now?', emoji: '⭐' },
-  { topic: 'Should World Cup referees be full-time professionals only?', emoji: '🟨' },
-  { topic: 'Is winning the World Cup more impressive than winning the Champions League?', emoji: '🏆' },
-  { topic: 'Does club form in Europe matter more than international form heading into the World Cup?', emoji: '🌍' },
-  { topic: 'Is this the most talented World Cup field ever assembled?', emoji: '🔥' },
-  { topic: 'Should World Cup squads be allowed unlimited substitutions?', emoji: '🔄' },
-  { topic: 'Is national pride or club loyalty more important during the World Cup?', emoji: '🇧🇷' },
+  { topic: 'Should the death penalty be abolished in the United States?', emoji: '⚖️' },
+  { topic: 'Is social media doing more harm than good to society?', emoji: '📱' },
+  { topic: 'Should college education be free for all Americans?', emoji: '🎓' },
+  { topic: 'Is capitalism the best economic system available?', emoji: '💰' },
+  { topic: 'Should the voting age be lowered to 16?', emoji: '🗳️' },
+  { topic: 'Is AI a bigger threat than an opportunity for humanity?', emoji: '🤖' },
+  { topic: 'Should the United States have open borders?', emoji: '🌍' },
+  { topic: 'Is affirmative action fair?', emoji: '🏛️' },
+  { topic: 'Should drug use be decriminalized?', emoji: '💊' },
+  { topic: 'Is remote work better than working in an office?', emoji: '💻' },
+  { topic: 'Should billionaires exist?', emoji: '💎' },
+  { topic: 'Is nuclear energy the solution to climate change?', emoji: '⚡' },
 ]
 
 let totdResetting = false
@@ -713,7 +710,9 @@ let totdResetting = false
 function createTopicOfTheDay() {
   Object.keys(totdScores).forEach(k => delete totdScores[k])
   const topic = TOTD_TOPICS[Math.floor(Math.random() * TOTD_TOPICS.length)]
-  const duration = 24 * 60 * 60
+  const now = new Date()
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0)
+  const duration = Math.floor((endOfMonth.getTime() - now.getTime()) / 1000)
   rooms['topic_of_the_day'] = {
     instanceId: 'topic_of_the_day',
     type: 'topic_of_the_day',
@@ -1056,18 +1055,33 @@ setInterval(() => {
     const sorted = Object.values(totd.players).sort((a, b) => b.score - a.score)
     const winner = sorted[0]
 
-    if (winner && winner.username && !winner.username.startsWith('guest')) {
+   if (winner && winner.username && !winner.username.startsWith('guest')) {
       lastTotdWinner = winner.username
+      const wonAt = new Date().toISOString()
+      // Save to dotm_winner
+      supabaseRest('dotm_winner?id=eq.1', 'PATCH', {
+        username: winner.username,
+        won_at: wonAt,
+        points: winner.score,
+      }).catch(() => {})
+      // Also keep totd_winner in sync for home page banner
       supabaseRest('totd_winner?id=eq.1', 'PATCH', {
         username: winner.username,
-        won_at: new Date().toISOString()
+        won_at: wonAt,
       }).catch(() => {})
+      // Give winner +300 ELO
       supabaseRest(`profiles?username=eq.${encodeURIComponent(winner.username)}&select=elo`, 'GET').then(data => {
         const realCurrentElo = data?.[0]?.elo ?? 0
         const newElo = realCurrentElo + 300
         supabaseRest(`profiles?username=eq.${encodeURIComponent(winner.username)}`, 'PATCH', { elo: newElo }).catch(() => {})
-        console.log(`🏆 Debate of the Day winner: ${winner.username} — ${realCurrentElo} → ${newElo} (+300)`)
+        console.log(`🏆 Debate of the Month winner: ${winner.username} — ${realCurrentElo} → ${newElo} (+300)`)
         recordDebateResult({ username: winner.username, opponents: [], topic: rooms['topic_of_the_day']?.topic || '', roomType: 'topic_of_the_day', result: 'win', eloChange: 300, instanceId: 'topic_of_the_day' })
+      }).catch(() => {})
+      // Send in-app prize notification
+      supabaseRest('notifications', 'POST', {
+        recipient_username: winner.username,
+        type: 'dotm_winner',
+        message: `🏆 You won Debate of the Month with ${winner.score} points! DM @rebuttal.live on Instagram or Discord to claim your $5 Venmo prize!`,
       }).catch(() => {})
       io.to('topic_of_the_day').emit('debate_of_day_winner', {
         username: winner.username,
@@ -3505,7 +3519,68 @@ app.get('/api/agora-token', (req, res) => {
   )
   res.json({ token })
 })
+app.post('/api/roast-card', express.json(), async (req, res) => {
+  try {
+    const { topic, winner, loser, winnerScore, loserScore, transcripts } = req.body
+    const transcriptText = (transcripts || [])
+      .filter(t => t.username !== '— system —')
+      .map(t => `${t.username} (Turn ${t.turnNumber}): "${t.text}" [${t.score} pts]`)
+      .join('\n')
 
+    const result = await Promise.race([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 200,
+        messages: [{
+          role: 'system',
+          content: `You are a savage but hilarious AI debate judge writing a shareable roast card. Be brutally funny, specific, and punchy. Max 3 sentences total. Format exactly like this:
+🏆 WINNER: [one sentence roasting the winner's style — even winners get roasted]
+💀 LOSER: [one sentence absolutely demolishing the loser's performance]
+⚖️ AI VERDICT: [one sentence final hot take on the whole debate]
+
+Be specific about what they actually said. Use humor. Be memorable and shareable.`
+        }, {
+          role: 'user',
+          content: `Topic: "${topic}"\nWinner: ${winner} (${winnerScore} pts)\nLoser: ${loser} (${loserScore} pts)\n\nTranscript:\n${transcriptText || 'No transcript available.'}`
+        }]
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+    ])
+    res.json({ roast: result.choices[0].message.content.trim() })
+  } catch (e) {
+    console.error('Roast card error:', e.message)
+    res.json({ roast: `🏆 WINNER: ${winner} somehow won this debate.\n💀 LOSER: ${loser} had a tough day at the office.\n⚖️ AI VERDICT: The AI judge has seen better debates. Keep practicing.` })
+  }
+})
+app.post('/api/roast-card', express.json(), async (req, res) => {
+  try {
+    const { topic, standings, transcripts } = req.body
+    if (!topic || !standings) return res.json({ roast: null })
+    const winner = standings[0]?.username ?? 'the winner'
+    const loser = standings[1]?.username ?? 'the loser'
+    const winnerScore = standings[0]?.score ?? 0
+    const loserScore = standings[1]?.score ?? 0
+    const winnerLines = (transcripts ?? []).filter(t => t.username === winner).map(t => t.text).slice(-2).join(' ')
+    const loserLines = (transcripts ?? []).filter(t => t.username === loser).map(t => t.text).slice(-2).join(' ')
+    const result = await Promise.race([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 200,
+        messages: [{
+          role: 'system',
+          content: `You are a savage but funny AI debate judge writing a shareable roast card. Be brutal, specific, and hilarious. Keep it under 3 sentences total. Reference actual things they said if provided. Format: one sentence roasting the loser, one sentence praising the winner sarcastically, one punchy closing verdict. No emojis in the text itself — those go in the verdict line only.`
+        }, {
+          role: 'user',
+          content: `Topic: "${topic}"\nWinner: ${winner} (${winnerScore} pts) — said: "${winnerLines}"\nLoser: ${loser} (${loserScore} pts) — said: "${loserLines}"\n\nWrite the roast card.`
+        }]
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+    ])
+    res.json({ roast: result.choices[0].message.content.trim() })
+  } catch (e) {
+    res.json({ roast: null })
+  }
+})
 app.get('/top-arguments', async (req, res) => {
   try {
     const data = await supabaseRest('top_arguments?select=*&order=score.desc&limit=3')

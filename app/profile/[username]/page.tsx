@@ -9,7 +9,7 @@ import { getTier, TIERS } from '../../../lib/tiers'
 import { useBuddies } from '../../hooks/useBuddies'
 export default function PublicProfilePage() {
   const { username } = useParams() as { username: string }
-  const { profile: myProfile } = useAuth()
+  const { profile: myProfile, refreshProfile } = useAuth()
   const router = useRouter()
   const [player, setPlayer] = useState<any>(null)
   const [rank, setRank] = useState<number | null>(null)
@@ -233,10 +233,30 @@ const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, decli
                       <Link href="/shop" style={{ background: 'linear-gradient(100deg, #ef3b56, #6f6bff, #2e6cf6)', border: 'none', borderRadius: '10px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 22px rgba(111,107,255,0.35)', display: 'inline-block' }}>👑 Get Pro</Link>
                     </div>
                   ) : (
-                    <button onClick={async () => {
+                  <button onClick={async () => {
+                      const myCoins = myProfile?.coins ?? 0
+                      if (myCoins < 25) {
+                        setBuddyError('Not enough Rebut coins — you need 25 💰')
+                        return
+                      }
+                      // Deduct 25 coins first
+                      const { error: coinErr } = await supabase
+                        .from('profiles')
+                        .update({ coins: myCoins - 25 })
+                        .eq('username', myProfile!.username)
+                      if (coinErr) { setBuddyError('Failed to deduct coins. Try again.'); return }
                       const result = await sendRequest(viewedUsername)
-                      if (result?.error) setBuddyError(result.error)
-                    }} style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', border: 'none', borderRadius: '10px', padding: '10px 20px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 20px rgba(168,85,247,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>🤝 Add Buddy</button>
+                      if (result?.error) {
+                        // Refund coins if request failed
+                        await supabase.from('profiles').update({ coins: myCoins }).eq('username', myProfile!.username)
+                        setBuddyError(result.error)
+                        refreshProfile()
+                      } else {
+                        refreshProfile()
+                      }
+                    }} style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', border: 'none', borderRadius: '10px', padding: '10px 20px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 20px rgba(168,85,247,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    🤝 Add Buddy <span style={{ fontSize: '11px', opacity: 0.8, background: 'rgba(0,0,0,0.2)', borderRadius: '6px', padding: '2px 6px' }}>25 💰</span>
+                  </button>
                   )}
                   {buddyError && <div style={{ fontSize: '11px', color: 'rgba(239,68,68,0.8)', textAlign: 'right' }}>{buddyError}</div>}
                 </div>

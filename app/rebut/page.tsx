@@ -114,8 +114,7 @@ const ELO_LABELS: Record<string, string> = {
 
 const FILTERS = ['All', 'Casual', 'Serious', 'Competitive', 'Random', 'Voice', 'Custom']
 
-function RoomCard({ room, onJoin, onSpectate }: { room: RoomData; onJoin: () => void; onSpectate?: () => void }) {
-  const c = TYPE_CONFIG[room.type] || TYPE_CONFIG.casual
+function RoomCard({ room, onJoin, onSpectate, onBet }: { room: RoomData; onJoin: () => void; onSpectate?: () => void; onBet?: () => void }) {  const c = TYPE_CONFIG[room.type] || TYPE_CONFIG.casual
   const isLive = room.status === 'active'
   return (
     <div
@@ -152,13 +151,25 @@ function RoomCard({ room, onJoin, onSpectate }: { room: RoomData; onJoin: () => 
             {room.status === 'active' ? (room.timeLeft != null ? fmt(room.timeLeft) : 'LIVE') : fmt(room.countdown)}
           </span>
         </div>
-        {onSpectate && (
-          <button
-            onClick={e => { e.stopPropagation(); onSpectate() }}
-            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: `1px solid ${c.border}`, borderRadius: '8px', padding: '7px', color: c.badge, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
-          >
-            👁 Spectate
-          </button>
+        {(onSpectate || onBet) && (
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {onSpectate && (
+              <button
+                onClick={e => { e.stopPropagation(); onSpectate() }}
+                style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: `1px solid ${c.border}`, borderRadius: '8px', padding: '7px', color: c.badge, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+              >
+                👁 Spectate
+              </button>
+            )}
+            {onBet && (
+              <button
+                onClick={e => { e.stopPropagation(); onBet() }}
+                style={{ flex: 1, background: 'rgba(230,57,70,0.12)', border: '1px solid rgba(230,57,70,0.5)', borderRadius: '8px', padding: '7px', color: '#e63946', fontSize: '11px', fontWeight: 800, letterSpacing: '0.5px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', animation: 'betGlow 1.5s ease-in-out infinite' }}
+              >
+                💰 BET
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -268,9 +279,21 @@ const live = rooms.filter(r => r.status === 'active' && r.type !== 'worldcup')
     router.push(base + (pw ? `?password=${encodeURIComponent(pw)}` : ''))
   }
 
-  const handleJoin = (room: RoomData) => {
+  const handleJoin = async (room: RoomData) => {
     if (loading) return
-if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Need ${room.eloRequired}+ ELO. You have ${profile?.elo ?? 0}.`); return }    if (user) { room.requiresPassword ? (setPasswordModal(room), setPasswordInput('')) : routeRoom(room) }
+if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) {
+  const eloShortfall = room.eloRequired - (profile?.elo ?? 0)
+  const coinCost = eloShortfall * 30
+  const myCoins = profile?.coins ?? 0
+  if (myCoins < coinCost) {
+    alert(`You need ${room.eloRequired}+ ELO to join. You're ${eloShortfall} ELO short.\n\nYou can buy in for ${coinCost} 💰 Rebut coins, but you only have ${myCoins}.\n\nEarn more coins by debating!`)
+    return
+  }
+  const confirmed = window.confirm(`Not enough ELO to join.\n\nYou're ${eloShortfall} ELO short — buy yourself in for ${coinCost} 💰 Rebut coins?\n\nYou have ${myCoins} coins.`)
+  if (!confirmed) return
+  const { error: coinErr } = await supabase.from('profiles').update({ coins: myCoins - coinCost }).eq('username', profile!.username)
+  if (coinErr) { alert('Failed to deduct coins. Try again.'); return }
+}
     else setSelectedRoom(room)
   }
 
@@ -314,6 +337,7 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
         .vc-card { animation: vcPulse 2.5s ease-in-out infinite; }
         .serious-card { animation: seriousPulse 3s ease-in-out infinite; }
         .fire-card { animation: fireFlicker 1.8s ease-in-out infinite, borderFire 1.8s ease-in-out infinite, cardFloat 4s ease-in-out infinite !important; }
+        @keyframes betGlow { 0%,100%{box-shadow:0 0 6px rgba(230,57,70,0.4)} 50%{box-shadow:0 0 14px rgba(230,57,70,0.8)} }
         .scanline-overlay::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px); pointer-events:none; border-radius:inherit; }
         .ended-card { animation: fadeOut 3.5s ease forwards; }
         .chat-scroll { scrollbar-width: none; }
@@ -473,8 +497,11 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>🎙️ LIVE VOICE DEBATES</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-                {liveVC.map(room => (
-                  <RoomCard key={room.instanceId} room={room} onJoin={() => router.push(`/vc-debate/${room.instanceId}`)} />
+               {liveVC.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => router.push(`/vc-debate/${room.instanceId}`)} onBet={() => {
+                    if (user) router.push(`/vc-debate/${room.instanceId}?spectate=true&betting=true`)
+                    else setSpectateRoom(room)
+                  }} />
                 ))}
               </div>
             </div>
@@ -485,8 +512,11 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) { alert(`Nee
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 LIVE NOW</div>
              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-                {liveText.map(room => (
-                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} onSpectate={() => handleSpectate(room)} />
+               {liveText.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} onSpectate={() => handleSpectate(room)} onBet={() => {
+                    if (user) router.push(`/debate/${room.instanceId}?spectate=true&betting=true`)
+                    else setSpectateRoom(room)
+                  }} />
                 ))}
               </div>
             </div>

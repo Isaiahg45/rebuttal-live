@@ -157,10 +157,16 @@ export default function VCDebatePage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, refreshProfile } = useAuth()
   const instanceId = params.roomId as string
   const guestParam = searchParams.get('guest')
 const passwordParam = searchParams.get('password')
+const spectateParam = searchParams.get('spectate') === 'true'
+  const isBetting = searchParams.get('betting') === 'true'
+  const [betTarget, setBetTarget] = useState<string | null>(null)
+  const [betAmount, setBetAmount] = useState(50)
+  const [betConfirmed, setBetConfirmed] = useState(false)
+  const [betPlayerIndex, setBetPlayerIndex] = useState(0)
 const videoParam = searchParams.get('video') === 'true'
 const sideParam = searchParams.get('side') as 'pro' | 'con' | null
 const agoraInitializedRef = useRef(false)
@@ -201,6 +207,9 @@ const [micGranted, setMicGranted] = useState(false)
   const [suddenDeathRound, setSuddenDeathRound] = useState(0)
   const [isDraw, setIsDraw] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [roastCard, setRoastCard] = useState<string | null>(null)
+  const [roastLoading, setRoastLoading] = useState(false)
+const [roastShared, setRoastShared] = useState(false)
  const suddenDeathAudioRef = useRef<HTMLAudioElement | null>(null)
   const popAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -781,6 +790,15 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
       setStatus('ended')
       setStandings(s)
       if (draw) setIsDraw(true)
+        // Generate roast card
+      setRoastLoading(true)
+      fetch(`${SERVER_URL}/api/roast-card`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: roomInfo?.topic || '', standings: s, transcripts: [] })
+      }).then(r => r.json()).then(d => {
+        if (d.roast) setRoastCard(d.roast)
+      }).catch(() => {}).finally(() => setRoastLoading(false))
       setTimeout(async () => {
         try {
           await localAudioTrackRef.current?.close()
@@ -793,7 +811,19 @@ socket.on('vc_debate_ended', async ({ standings: s, eloChanges, customStake, ser
         localStreamRef.current = null
         if (audioCtxRef.current?.state !== 'closed') audioCtxRef.current?.close()
       }, 1000)
-
+// Resolve bet if one was placed
+      if (betConfirmed && betTarget && profile?.username) {
+        const winner = s?.[0]?.username
+        supabase.from('bets').update({ status: winner === betTarget ? 'won' : 'lost' })
+          .eq('bettor_username', profile.username).eq('room_id', instanceId).eq('status', 'pending').then(() => {})
+        if (winner === betTarget) {
+          supabase.from('profiles').update({ coins: (profile?.coins ?? 0) + (betAmount * 2) }).eq('username', profile.username).then(() => refreshProfile())
+          alert(`🎉 Your pick won! You earned ${betAmount} 💰 Rebut coins!`)
+        } else {
+          alert(`❌ Your pick lost. You lost ${betAmount} 💰 Rebut coins.`)
+          refreshProfile()
+        }
+      }
       const currentProfile = profileRef.current
       const currentUser = userRef.current
       if (!currentProfile?.username || !currentUser) return
@@ -1132,6 +1162,35 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
                 ))}
               </div>
             </div>
+            {/* Roast Card */}
+            {(roastLoading || roastCard) && (
+              <div style={{ background: 'linear-gradient(135deg, rgba(230,57,70,0.12), rgba(0,0,0,0.95))', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '16px', padding: '20px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #e63946, #ff6b35, #e63946)' }} />
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(230,57,70,0.7)', marginBottom: '10px', textTransform: 'uppercase' }}>🤖 AI Verdict</div>
+                {roastLoading ? (
+                  <div style={{ fontSize: '13px', color: 'var(--muted)', fontStyle: 'italic' }}>Generating your roast card...</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.7, fontStyle: 'italic', marginBottom: '16px' }}>"{roastCard}"</div>
+                    <button
+                      onClick={async () => {
+                        const shareText = `🎙️ Rebuttal.Live AI Verdict\n\nTopic: "${roomInfo?.topic}"\n\n"${roastCard}"\n\nDebate me at rebuttal.live ⚔️`
+                        if (navigator.share) {
+                          try { await navigator.share({ text: shareText, url: 'https://rebuttal.live' }) } catch (e) {}
+                        } else {
+                          navigator.clipboard.writeText(shareText)
+                          setRoastShared(true)
+                          setTimeout(() => setRoastShared(false), 2000)
+                        }
+                      }}
+                      style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #e63946, #ff6b35)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                    >
+                      {roastShared ? '✅ Copied to clipboard!' : '📲 Share to TikTok / IG Story'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <button onClick={() => router.push('/rebut')} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
               ← Back to Lobby
             </button>
@@ -1486,6 +1545,53 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '36px', color: 'var(--text2)', letterSpacing: '2px' }}>{fmt(turnTimeLeft)}</div>
               <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Listen carefully — you'll respond next</div>
               {videoParam && <MuteButton muted={isMuted} disabled={false} onClick={handleToggleMute} />}
+              {/* Betting panel for spectators */}
+              {isBetting && !betConfirmed && players.length > 0 && !profile?.username && (
+                <div style={{ margin: '8px 0', background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 700, marginBottom: '8px' }}>💰 Sign up to place bets</div>
+                  <button onClick={() => router.push('/signup')} style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Sign Up →</button>
+                </div>
+              )}
+              {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (
+                <div style={{ margin: '8px 0', background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '12px', padding: '14px', textAlign: 'center', width: '100%' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(230,57,70,0.7)', marginBottom: '10px' }}>💰 PLACE YOUR BET</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <button onClick={() => setBetPlayerIndex(i => (i - 1 + players.length) % players.length)}
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 10px', color: '#fff', cursor: 'pointer', fontSize: '14px', fontFamily: 'DM Sans, sans-serif' }}>‹</button>
+                    <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', minWidth: '120px' }}>
+                      <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>Betting on</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{players[betPlayerIndex]?.username ?? '—'}</div>
+                    </div>
+                    <button onClick={() => setBetPlayerIndex(i => (i + 1) % players.length)}
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 10px', color: '#fff', cursor: 'pointer', fontSize: '14px', fontFamily: 'DM Sans, sans-serif' }}>›</button>
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Coins (20–150)</div>
+                    <input type="number" min={20} max={150} value={betAmount}
+                      onChange={e => setBetAmount(Math.min(150, Math.max(20, Number(e.target.value))))}
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '14px', width: '80px', textAlign: 'center', outline: 'none', fontFamily: 'DM Sans, sans-serif' }} />
+                  </div>
+                  <button onClick={async () => {
+                    const target = players[betPlayerIndex]?.username
+                    if (!target || !profile?.username) return
+                    const myCoins = profile?.coins ?? 0
+                    if (myCoins < betAmount) { alert(`Not enough coins. You have ${myCoins} 💰`); return }
+                    const { error } = await supabase.from('bets').insert([{ bettor_username: profile.username, target_username: target, room_id: instanceId, amount: betAmount, status: 'pending' }])
+                    if (error) { alert('Failed to place bet.'); return }
+                    await supabase.from('profiles').update({ coins: myCoins - betAmount }).eq('username', profile.username)
+                    setBetTarget(target)
+                    setBetConfirmed(true)
+                    refreshProfile()
+                  }} style={{ background: 'linear-gradient(135deg, #e63946, #ff6b35)', border: 'none', borderRadius: '8px', padding: '8px 20px', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                    CONFIRM BET 💰
+                  </button>
+                </div>
+              )}
+              {betConfirmed && betTarget && (
+                <div style={{ margin: '8px 0', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '8px', fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>
+                  ✅ Betting on <b>{betTarget}</b> ({betAmount} 💰)
+                </div>
+              )}
               <button onClick={() => setShowForfeitModal(true)} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '4px 12px', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', marginTop: '4px' }}>
                 🏳️ Forfeit
               </button>

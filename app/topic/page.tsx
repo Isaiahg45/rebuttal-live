@@ -129,10 +129,10 @@ export default function TopicPage() {
         <div style={{ padding: '12px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', letterSpacing: '2px', color: 'var(--accent)', animation: 'glow 2s ease-in-out infinite alternate' }}>
-              ⚔️ DEBATE OF THE DAY
+              🏆 DEBATE OF THE MONTH
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', color: timeLeft < 3600 ? 'var(--accent)' : 'var(--green)', letterSpacing: '2px' }}>
+             <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', color: timeLeft < 86400 ? 'var(--accent)' : 'var(--green)', letterSpacing: '2px' }}>
                 {fmt(timeLeft)}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '20px', padding: '3px 10px', whiteSpace: 'nowrap' }}>
