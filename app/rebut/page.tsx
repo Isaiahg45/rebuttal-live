@@ -279,22 +279,27 @@ const live = rooms.filter(r => r.status === 'active' && r.type !== 'worldcup')
     router.push(base + (pw ? `?password=${encodeURIComponent(pw)}` : ''))
   }
 
-  const handleJoin = async (room: RoomData) => {
+ const handleJoin = async (room: RoomData) => {
     if (loading) return
-if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) {
-  const eloShortfall = room.eloRequired - (profile?.elo ?? 0)
-  const coinCost = eloShortfall * 30
-  const myCoins = profile?.coins ?? 0
-  if (myCoins < coinCost) {
-    alert(`You need ${room.eloRequired}+ ELO to join. You're ${eloShortfall} ELO short.\n\nYou can buy in for ${coinCost} 💰 Rebut coins, but you only have ${myCoins}.\n\nEarn more coins by debating!`)
-    return
-  }
-  const confirmed = window.confirm(`Not enough ELO to join.\n\nYou're ${eloShortfall} ELO short — buy yourself in for ${coinCost} 💰 Rebut coins?\n\nYou have ${myCoins} coins.`)
-  if (!confirmed) return
-  const { error: coinErr } = await supabase.from('profiles').update({ coins: myCoins - coinCost }).eq('username', profile!.username)
-  if (coinErr) { alert('Failed to deduct coins. Try again.'); return }
-}
-    else setSelectedRoom(room)
+    if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) {
+      const eloShortfall = room.eloRequired - (profile?.elo ?? 0)
+      const coinCost = eloShortfall * 30
+      const myCoins = profile?.coins ?? 0
+      if (myCoins < coinCost) {
+        alert(`You need ${room.eloRequired}+ ELO to join. You're ${eloShortfall} ELO short.\n\nYou can buy in for ${coinCost} 💰 Rebut coins, but you only have ${myCoins}.\n\nEarn more coins by debating!`)
+        return
+      }
+      const confirmed = window.confirm(`Not enough ELO to join.\n\nYou're ${eloShortfall} ELO short — buy yourself in for ${coinCost} 💰 Rebut coins?\n\nYou have ${myCoins} coins.`)
+      if (!confirmed) return
+      const { error: coinErr } = await supabase.from('profiles').update({ coins: myCoins - coinCost }).eq('username', profile!.username)
+      if (coinErr) { alert('Failed to deduct coins. Try again.'); return }
+      // ELO requirement satisfied via coin buy-in — fall through to normal join below
+    }
+    if (user) {
+      room.requiresPassword ? (setPasswordModal(room), setPasswordInput('')) : routeRoom(room)
+    } else {
+      setSelectedRoom(room)
+    }
   }
 
   const handleSpectate = (room: RoomData) => {
@@ -512,6 +517,12 @@ if (room.eloRequired > 0 && (profile?.elo ?? 0) < room.eloRequired) {
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '20px', letterSpacing: '2px', marginBottom: '14px', color: 'var(--text)' }}>💬 LIVE NOW</div>
              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+               {liveText.map(room => (
+                  <RoomCard key={room.instanceId} room={room} onJoin={() => handleJoin(room)} onSpectate={() => handleSpectate(room)} onBet={() => {
+                    if (user) router.push(`/debate/${room.instanceId}?spectate=true&betting=true`)
+                    else setSpectateRoom(room)
+                  }} />
+                ))}
               </div>
             </div>
           )}

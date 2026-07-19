@@ -779,6 +779,7 @@ const combined = [
     timeLeft: r.debateEndsAt ? Math.max(0, Math.round((r.debateEndsAt - Date.now()) / 1000)) : null,
     isCustom: r.isCustom || false,
     isPrivate: r.isPrivate || false,
+    isVideoArena: r.isVideoArena || false,
     createdBy: r.createdBy || null,
     eloStake: r.eloStake || 0,
     requiresPassword: !!(r.isPrivate && r.password),
