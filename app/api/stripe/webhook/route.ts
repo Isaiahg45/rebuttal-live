@@ -22,16 +22,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  const getUserId = (obj: any): string | null =>
-    obj?.metadata?.supabase_user_id ?? null
-
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
-      const userId = getUserId(session)
-      if (userId) {
-        await supabase.from('profiles').update({ is_pro: true }).eq('id', userId)
-        console.log(`✅ Pro activated: ${userId}`)
+      const { username, coins } = session.metadata ?? {}
+
+      // Coin purchase — credit coins to user
+      if (username && coins) {
+        const { data } = await supabase.from('profiles').select('coins').eq('username', username).maybeSingle()
+        const currentCoins = data?.coins ?? 0
+        await supabase.from('profiles').update({ coins: currentCoins + parseInt(coins) }).eq('username', username)
+        console.log(`💰 Credited ${coins} coins to ${username}`)
       }
       break
     }
