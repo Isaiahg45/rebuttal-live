@@ -71,10 +71,15 @@ export default function DebatePage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, refreshProfile } = useAuth()
   const instanceId = params.roomId as string
   const guestParam = searchParams.get('guest')
   const spectateParam = searchParams.get('spectate') === 'true'
+  const isBetting = searchParams.get('betting') === 'true'
+  const [betTarget, setBetTarget] = useState<string | null>(null)
+  const [betAmount, setBetAmount] = useState(50)
+  const [betConfirmed, setBetConfirmed] = useState(false)
+  const [betPlayerIndex, setBetPlayerIndex] = useState(0)
 
   const [myUsername, setMyUsername] = useState('')
   const [myElo, setMyElo] = useState(0)
@@ -349,6 +354,21 @@ export default function DebatePage() {
       setStandings(s)
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
       if (draw) setIsDraw(true)
+
+      // Resolve bet if one was placed
+      if (betConfirmed && betTarget && profile?.username) {
+        const winner = s?.[0]?.username
+        supabase.from('bets').update({ status: winner === betTarget ? 'won' : 'lost' })
+          .eq('bettor_username', profile.username).eq('room_id', instanceId).eq('status', 'pending').then(() => {})
+        if (winner === betTarget) {
+          supabase.from('profiles').update({ coins: (profile?.coins ?? 0) + (betAmount * 2) }).eq('username', profile.username).then(() => refreshProfile())
+          alert(`🎉 Your pick won! You earned ${betAmount} 💰 Rebut coins!`)
+        } else {
+          alert(`❌ Your pick lost. You lost ${betAmount} 💰 Rebut coins.`)
+          refreshProfile()
+        }
+      }
+
       if (isSpectatorRef.current) return
       const currentProfile = profileRef.current
       const currentUser = userRef.current
@@ -933,6 +953,55 @@ export default function DebatePage() {
         {isSpectator ? (
           <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '16px 20px', textAlign: 'center', flexShrink: 0 }}>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>👁 You are spectating — arguments are scored in real time</div>
+
+            {/* Betting panel for spectators */}
+            {isBetting && status !== 'ended' && !betConfirmed && players.length > 0 && !profile?.username && (
+              <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 700, marginBottom: '8px' }}>💰 Sign up to place bets</div>
+                <button onClick={() => router.push('/signup')} style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Sign Up →</button>
+              </div>
+            )}
+            {isBetting && status !== 'ended' && !betConfirmed && players.length > 0 && !!profile?.username && (
+              <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(230,57,70,0.7)', marginBottom: '10px' }}>💰 PLACE YOUR BET</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px' }}>
+                  <button onClick={() => setBetPlayerIndex(i => (i - 1 + players.length) % players.length)}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 10px', color: '#fff', cursor: 'pointer', fontSize: '14px', fontFamily: 'DM Sans, sans-serif' }}>‹</button>
+                  <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', minWidth: '120px' }}>
+                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>Betting on</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{players[betPlayerIndex]?.username ?? '—'}</div>
+                  </div>
+                  <button onClick={() => setBetPlayerIndex(i => (i + 1) % players.length)}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 10px', color: '#fff', cursor: 'pointer', fontSize: '14px', fontFamily: 'DM Sans, sans-serif' }}>›</button>
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Coins (20–150)</div>
+                  <input type="number" min={20} max={150} value={betAmount}
+                    onChange={e => setBetAmount(Math.min(150, Math.max(20, Number(e.target.value))))}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '14px', width: '80px', textAlign: 'center', outline: 'none', fontFamily: 'DM Sans, sans-serif' }} />
+                </div>
+                <button onClick={async () => {
+                  const target = players[betPlayerIndex]?.username
+                  if (!target || !profile?.username) return
+                  const myCoins = profile?.coins ?? 0
+                  if (myCoins < betAmount) { alert(`Not enough coins. You have ${myCoins} 💰`); return }
+                  const { error } = await supabase.from('bets').insert([{ bettor_username: profile.username, target_username: target, room_id: instanceId, amount: betAmount, status: 'pending' }])
+                  if (error) { alert('Failed to place bet.'); return }
+                  await supabase.from('profiles').update({ coins: myCoins - betAmount }).eq('username', profile.username)
+                  setBetTarget(target)
+                  setBetConfirmed(true)
+                  refreshProfile()
+                }} style={{ background: 'linear-gradient(135deg, #e63946, #ff6b35)', border: 'none', borderRadius: '8px', padding: '8px 20px', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                  CONFIRM BET 💰
+                </button>
+              </div>
+            )}
+            {betConfirmed && betTarget && (
+              <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '8px', fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>
+                ✅ Betting on <b>{betTarget}</b> ({betAmount} 💰)
+              </div>
+            )}
+
             <button onClick={() => router.push('/rebut')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 20px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
               ← Back to Lobby
             </button>
