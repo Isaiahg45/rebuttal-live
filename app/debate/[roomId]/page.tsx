@@ -955,13 +955,13 @@ export default function DebatePage() {
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>👁 You are spectating — arguments are scored in real time</div>
 
             {/* Betting panel for spectators */}
-            {isBetting && status !== 'ended' && !betConfirmed && players.length > 0 && !profile?.username && (
+            {isBetting && !betConfirmed && players.length > 0 && !profile?.username && (
               <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
                 <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 700, marginBottom: '8px' }}>💰 Sign up to place bets</div>
                 <button onClick={() => router.push('/signup')} style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Sign Up →</button>
               </div>
             )}
-            {isBetting && status !== 'ended' && !betConfirmed && players.length > 0 && !!profile?.username && (
+            {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (
               <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(230,57,70,0.7)', marginBottom: '10px' }}>💰 PLACE YOUR BET</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px' }}>
