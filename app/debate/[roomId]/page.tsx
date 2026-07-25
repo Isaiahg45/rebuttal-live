@@ -986,7 +986,7 @@ export default function DebatePage() {
                   const myCoins = profile?.coins ?? 0
                   if (myCoins < betAmount) { alert(`Not enough coins. You have ${myCoins} 💰`); return }
                   const { error } = await supabase.from('bets').insert([{ bettor_username: profile.username, target_username: target, room_id: instanceId, amount: betAmount, status: 'pending' }])
-                  if (error) { alert('Failed to place bet.'); return }
+                  if (error) { console.error('Bet insert failed:', error); alert(`Failed to place bet: ${error.message}`); return }
                   await supabase.from('profiles').update({ coins: myCoins - betAmount }).eq('username', profile.username)
                   setBetTarget(target)
                   setBetConfirmed(true)

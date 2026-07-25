@@ -473,12 +473,12 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             ))}
           </div>
 
-        {/* Monthly coins notice */}
-          <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '20px' }}>🎁</span>
+        {/* Rebut Coins balance */}
+          <div style={{ background: 'rgba(255,214,10,0.06)', border: '1px solid rgba(255,214,10,0.2)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img src="/rebut-coin.png" alt="RC" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
             <div>
-             <div style={{ fontSize: '13px', fontWeight: 700, color: '#22c55e', marginBottom: '2px' }}>100 Free Rebut Coins every month</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>Automatically credited at the start of each month. Buy more in the Shop.</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffd60a', marginBottom: '2px' }}>Your Rebut Coins</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>Earn more by winning bets, or buy more in the Shop.</div>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
               <img src="/rebut-coin.png" alt="RC" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
