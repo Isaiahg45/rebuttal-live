@@ -228,9 +228,9 @@ const { buddies, pendingSent, pendingReceived, sendRequest, acceptRequest, decli
                   {atLimit ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
                       <div style={{ fontSize: '11px', color: 'rgba(239,68,68,0.8)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '6px 10px', maxWidth: '220px', textAlign: 'right', lineHeight: 1.4 }}>
-                        Buddy limit reached (25/25).<br />Upgrade to Pro for unlimited.
+                        Buddy limit reached (25/25).<br />Get unlimited buddies for 400 💰 in the Shop.
                       </div>
-                      <Link href="/shop" style={{ background: 'linear-gradient(100deg, #ef3b56, #6f6bff, #2e6cf6)', border: 'none', borderRadius: '10px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 22px rgba(111,107,255,0.35)', display: 'inline-block' }}>👑 Get Pro</Link>
+                      <Link href="/shop" style={{ background: 'linear-gradient(100deg, #ef3b56, #6f6bff, #2e6cf6)', border: 'none', borderRadius: '10px', padding: '10px 18px', color: '#fff', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', boxShadow: '0 0 22px rgba(111,107,255,0.35)', display: 'inline-block' }}>💰 Unlimited Buddies</Link>
                     </div>
                   ) : (
                   <button onClick={async () => {

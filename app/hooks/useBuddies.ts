@@ -26,7 +26,7 @@ export function useBuddies(myUsername: string, isPro: boolean = false) {
 
   const sendRequest = async (toUsername: string): Promise<{ error?: string }> => {
     if (!isPro && buddies.length >= BUDDY_LIMIT) {
-      return { error: `You've reached the ${BUDDY_LIMIT} buddy limit. Upgrade to Rebuttal Pro for unlimited buddies.` }
+      return { error: `You've reached the ${BUDDY_LIMIT} buddy limit. Buy unlimited buddies for 400 coins in the Shop.` }
     }
     await supabase.from('buddies').insert({ requester_username: myUsername, recipient_username: toUsername })
     await supabase.from('notifications').insert({

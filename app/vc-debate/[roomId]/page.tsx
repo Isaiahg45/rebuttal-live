@@ -1552,7 +1552,13 @@ const canToggleMute = (status === 'waiting' || status === 'starting') ||
                   <button onClick={() => router.push('/signup')} style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Sign Up →</button>
                 </div>
               )}
-              {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (
+              {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (profile?.coins ?? 0) <= 0 && (
+                <div style={{ margin: '8px 0', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: 700, marginBottom: '8px' }}>💰 You're out of Rebut coins — nothing to put at stake</div>
+                  <button onClick={() => router.push('/shop')} style={{ background: 'linear-gradient(135deg,#e63946,#ff6b35)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Buy Coins →</button>
+                </div>
+              )}
+              {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (profile?.coins ?? 0) > 0 && (
                 <div style={{ margin: '8px 0', background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '12px', padding: '14px', textAlign: 'center', width: '100%' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(230,57,70,0.7)', marginBottom: '10px' }}>💰 PLACE YOUR BET</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px' }}>

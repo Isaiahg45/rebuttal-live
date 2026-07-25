@@ -128,6 +128,9 @@ export default function DebatePage() {
   const isSpectatorRef = useRef(isSpectator)
   const statusRef = useRef(status)
   const gameStartedRef = useRef(gameStarted)
+  const betConfirmedRef = useRef(betConfirmed)
+  const betTargetRef = useRef(betTarget)
+  const betAmountRef = useRef(betAmount)
 
   useEffect(() => { profileRef.current = profile }, [profile])
   useEffect(() => { userRef.current = user }, [user])
@@ -135,6 +138,9 @@ export default function DebatePage() {
   useEffect(() => { isSpectatorRef.current = isSpectator }, [isSpectator])
   useEffect(() => { statusRef.current = status }, [status])
   useEffect(() => { gameStartedRef.current = gameStarted }, [gameStarted])
+  useEffect(() => { betConfirmedRef.current = betConfirmed }, [betConfirmed])
+  useEffect(() => { betTargetRef.current = betTarget }, [betTarget])
+  useEffect(() => { betAmountRef.current = betAmount }, [betAmount])
 
   // Fetch avatars for players
   useEffect(() => {
@@ -191,6 +197,11 @@ export default function DebatePage() {
       if (gameStartedRef.current && statusRef.current === 'active' && !isSpectatorRef.current) {
         e.preventDefault()
         e.returnValue = 'Leaving will count as a forfeit. Are you sure?'
+        return e.returnValue
+      }
+      if (isSpectatorRef.current && betConfirmedRef.current && statusRef.current === 'active') {
+        e.preventDefault()
+        e.returnValue = 'Leave now? If you leave, you will lose the rebut coins you put at stake.'
         return e.returnValue
       }
     }
@@ -355,18 +366,31 @@ export default function DebatePage() {
       if (forfeit && forfeitUsername) setForfeitInfo({ username: forfeitUsername })
       if (draw) setIsDraw(true)
 
-      // Resolve bet if one was placed
-      if (betConfirmed && betTarget && profile?.username) {
+      // Resolve bet if one was placed — read via refs since this handler
+      // was registered once at mount and would otherwise see stale state
+      // from before the bet was ever placed.
+      if (betConfirmedRef.current && betTargetRef.current && profileRef.current?.username) {
         const winner = s?.[0]?.username
-        supabase.from('bets').update({ status: winner === betTarget ? 'won' : 'lost' })
-          .eq('bettor_username', profile.username).eq('room_id', instanceId).eq('status', 'pending').then(() => {})
-        if (winner === betTarget) {
-          supabase.from('profiles').update({ coins: (profile?.coins ?? 0) + (betAmount * 2) }).eq('username', profile.username).then(() => refreshProfile())
-          alert(`🎉 Your pick won! You earned ${betAmount} 💰 Rebut coins!`)
+        const target = betTargetRef.current
+        const amount = betAmountRef.current
+        const bettorUsername = profileRef.current.username
+        supabase.from('bets').update({ status: winner === target ? 'won' : 'lost' })
+          .eq('bettor_username', bettorUsername).eq('room_id', instanceId).eq('status', 'pending').then(() => {})
+        if (winner === target) {
+          // Stake was already deducted from coins when the bet was placed —
+          // crediting back 2x (stake + matching winnings) nets +amount overall.
+          supabase.from('profiles').select('coins').eq('username', bettorUsername).single().then(({ data }) => {
+            const current = data?.coins ?? 0
+            supabase.from('profiles').update({ coins: current + (amount * 2) }).eq('username', bettorUsername).then(() => refreshProfile())
+          })
+          alert(`🎉 Your pick won! You earned ${amount} 💰 Rebut coins!`)
         } else {
-          alert(`❌ Your pick lost. You lost ${betAmount} 💰 Rebut coins.`)
+          // Loss: stake is already gone from the earlier deduction — nothing more to subtract.
+          alert(`❌ Your pick lost. You lost ${amount} 💰 Rebut coins.`)
           refreshProfile()
         }
+        setBetConfirmed(false)
+        setBetTarget(null)
       }
 
       if (isSpectatorRef.current) return
@@ -961,7 +985,13 @@ export default function DebatePage() {
                 <button onClick={() => router.push('/signup')} style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Sign Up →</button>
               </div>
             )}
-            {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (
+            {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (profile?.coins ?? 0) <= 0 && (
+              <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: 700, marginBottom: '8px' }}>💰 You're out of Rebut coins — nothing to put at stake</div>
+                <button onClick={() => router.push('/shop')} style={{ background: 'linear-gradient(135deg,#e63946,#ff6b35)', border: 'none', borderRadius: '8px', padding: '6px 16px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Buy Coins →</button>
+              </div>
+            )}
+            {isBetting && !betConfirmed && players.length > 0 && !!profile?.username && (profile?.coins ?? 0) > 0 && (
               <div style={{ margin: '0 auto 12px', maxWidth: '360px', background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.4)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(230,57,70,0.7)', marginBottom: '10px' }}>💰 PLACE YOUR BET</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px' }}>
@@ -1002,7 +1032,13 @@ export default function DebatePage() {
               </div>
             )}
 
-            <button onClick={() => router.push('/rebut')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 20px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+            <button onClick={() => {
+              if (betConfirmed && status === 'active') {
+                const ok = window.confirm('Leave now? If you leave, you will lose the rebut coins you put at stake.')
+                if (!ok) return
+              }
+              router.push('/rebut')
+            }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 20px', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
               ← Back to Lobby
             </button>
           </div>
