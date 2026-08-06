@@ -3050,7 +3050,7 @@ io.to(currentRoomId).emit('debate_ended', {
 })
 
 // ─── Bots ──────────────────────────────────────────────────────
-const BOT_NAMES = Array.from({ length: 16 }, () =>
+const BOT_NAMES = Array.from({ length: 0 }, () =>
   'guest' + Math.floor(1000 + Math.random() * 9000)
 )
 
@@ -3456,8 +3456,8 @@ const score = Math.max(1, Math.min(30, Math.round(botRawScore * jitter)))
 }                     // ← closes runBot
 
 function startBots() {
-  console.log('🤖 Starting 7 debate bots...')
-  BOT_NAMES.slice(0, 7).forEach((name, i) => {
+  console.log('🤖 Starting 0 debate bots...')
+  BOT_NAMES.slice(0, 0).forEach((name, i) => {
     setTimeout(() => runBot(name, BOT_PERSONALITIES[i % BOT_PERSONALITIES.length]), i * 8000)
   })
 }
